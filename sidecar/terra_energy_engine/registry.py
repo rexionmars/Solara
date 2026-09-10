@@ -17,6 +17,8 @@ Action = Callable[[Request], None]
 
 ACTIONS: dict[str, str] = {
     'ping': 'terra_energy_engine.cli:ping',
+    'solar_resource': 'terra_energy_engine.energy.actions:solar_resource',
+    'wind_resource': 'terra_energy_engine.energy.actions:wind_resource',
 }
 
 
