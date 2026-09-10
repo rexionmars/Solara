@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react"
-import { Map as MapLibreMap } from "maplibre-gl"
+import { Map as MapLibreMap, Marker } from "maplibre-gl"
 import { BASEMAP_NAME, BASEMAP_STYLE } from "../../lib/basemap"
 import { findCommand, runCommand } from "../../lib/commands"
-import { HOME_VIEW, attachMap, mapView } from "../../lib/mapController"
+import { HOME_VIEW, attachMap, mapView, onMapClick } from "../../lib/mapController"
+import { placeSite, site } from "../../lib/site"
 import { useStore } from "../../lib/store"
 
 // The viewport toolbar, top to bottom. Each entry is a command name.
@@ -57,6 +58,19 @@ function Toolbar() {
   )
 }
 
+/** The prompt shown while SITE waits for a click. */
+function PickingHint() {
+  const { picking } = useStore(site)
+  if (!picking) return null
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-8 flex justify-center">
+      <span className="rounded border border-accent/60 bg-raised/90 px-3 py-1.5 text-xs text-ink shadow-lg backdrop-blur">
+        Click the map to place the site · Esc cancels
+      </span>
+    </div>
+  )
+}
+
 export function Viewport() {
   const container = useRef<HTMLDivElement>(null)
 
@@ -74,7 +88,27 @@ export function Viewport() {
     // hiding a panel resizes the viewport without resizing the window.
     const observer = new ResizeObserver(() => map.resize())
     observer.observe(el)
+
+    // The site marker and the picking cursor follow the site store.
+    const markerEl = document.createElement("div")
+    markerEl.className = "site-marker"
+    const marker = new Marker({ element: markerEl })
+    const showSite = () => {
+      const { point, picking } = site.get()
+      if (point) marker.setLngLat([point.lon, point.lat]).addTo(map)
+      else marker.remove()
+      map.getCanvas().style.cursor = picking ? "crosshair" : ""
+    }
+    showSite()
+    const unsubscribeSite = site.subscribe(showSite)
+    const unsubscribeClick = onMapClick((at) => {
+      if (site.get().picking) placeSite({ lon: at.lng, lat: at.lat })
+    })
+
     return () => {
+      unsubscribeClick()
+      unsubscribeSite()
+      marker.remove()
       observer.disconnect()
       detach()
       // remove() releases the WebGL context. Without it every remount leaks
@@ -94,6 +128,7 @@ export function Viewport() {
       </div>
       <CompassButton />
       <Toolbar />
+      <PickingHint />
     </div>
   )
 }

@@ -2,14 +2,16 @@ import { createStore } from "./store"
 
 /**
  * The documents open in the tab strip under the ribbon. The map is always
- * open and cannot be closed; the others open on request, as a CAD program
- * opens its start page beside the drawings.
+ * open and cannot be closed; the others open on request or when a result
+ * arrives, as a CAD program opens its start page beside the drawings.
  */
-export type DocumentId = "map" | "account"
+export type DocumentId = "map" | "account" | "solar" | "wind"
 
 export const DOCUMENT_TITLES: Record<DocumentId, string> = {
   map: "Map",
   account: "Account",
+  solar: "Solar resource",
+  wind: "Wind screening",
 }
 
 export type Documents = { open: DocumentId[]; active: DocumentId }

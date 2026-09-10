@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { account } from "../../lib/account"
+import { PRODUCT_NAMES, analysis } from "../../lib/analysis"
 import { runCommand } from "../../lib/commands"
 import { formatLat, formatLng } from "../../lib/format"
 import { cursor, mapView } from "../../lib/mapController"
@@ -49,6 +50,31 @@ function SidecarCell() {
   )
 }
 
+/** The analysis in flight: product, progress, the sidecar's latest step, and a way to stop it. */
+function RunCell() {
+  const { running } = useStore(analysis)
+  if (!running) return null
+  return (
+    <span className="flex h-full min-w-0 items-center gap-2 border-l border-line px-2.5 text-ink">
+      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+      <span className="shrink-0">
+        {PRODUCT_NAMES[running.product]}
+        {running.progress !== null && ` · ${running.progress}%`}
+      </span>
+      <span className="max-w-[16rem] truncate text-muted" title={running.message}>
+        {running.message}
+      </span>
+      <button
+        type="button"
+        onClick={() => void runCommand("CANCEL")}
+        className="shrink-0 rounded-sm px-1.5 text-muted hover:bg-hover hover:text-ink"
+      >
+        Cancel
+      </button>
+    </span>
+  )
+}
+
 function UserCell() {
   const { user } = useStore(account)
   return (
@@ -82,6 +108,7 @@ export function StatusBar() {
     <footer className="flex h-7 shrink-0 items-stretch border-t border-line bg-chrome text-[11px] text-muted">
       <span className="flex items-center border-r border-line bg-raised px-3 text-ink">Map</span>
       <span className="flex-1" />
+      <RunCell />
       <CursorCell />
       <ZoomCell />
       <SidecarCell />

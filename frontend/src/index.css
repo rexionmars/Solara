@@ -184,6 +184,18 @@ body {
   }
 }
 
+/* The analysis site on the map: a ring, so the ground under it stays visible. */
+.site-marker {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid var(--color-accent);
+  background: rgb(255 255 255 / 0.85);
+  box-shadow:
+    0 0 0 2px rgb(0 0 0 / 0.45),
+    0 1px 6px rgb(0 0 0 / 0.5);
+}
+
 /* The main window fades in once the splash has gone. */
 .app-shell-enter {
   animation: app-shell-enter 320ms ease-out;

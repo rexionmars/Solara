@@ -30,12 +30,7 @@ export function loadAccount(): Promise<void> {
   return loading
 }
 
-/** Wails rejects a bound method's promise with the Go error's text. */
-export function errorMessage(e: unknown): string {
-  if (typeof e === "string") return e
-  if (e instanceof Error) return e.message
-  return String(e)
-}
+export { errorMessage } from "./errors"
 
 async function signedIn(call: Promise<User>, message: (u: User) => string): Promise<User> {
   const u = await call

@@ -34,6 +34,15 @@ export const RIBBON: RibbonTab[] = [
     ],
   },
   {
+    id: "energy",
+    label: "Energy",
+    groups: [
+      { title: "Site", items: [{ command: "SITE" }] },
+      { title: "Resource", items: [{ command: "SOLAR" }, { command: "WIND" }] },
+      { title: "Run", items: [{ command: "CANCEL" }] },
+    ],
+  },
+  {
     id: "view",
     label: "View",
     groups: [

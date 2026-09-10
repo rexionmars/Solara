@@ -33,9 +33,23 @@ export const cursor = createStore<{ lng: number; lat: number } | null>(null)
 
 let current: MapLibreMap | null = null
 
+type ClickListener = (at: { lng: number; lat: number }) => void
+const clickListeners = new Set<ClickListener>()
+
+/** Calls `listener` with the position of every click on the map. Returns the unsubscribe. */
+export function onMapClick(listener: ClickListener): () => void {
+  clickListeners.add(listener)
+  return () => {
+    clickListeners.delete(listener)
+  }
+}
+
 /** Registers the viewport's map. Returns the function that unregisters it. */
 export function attachMap(map: MapLibreMap): () => void {
   current = map
+  const onClick = (e: MapMouseEvent) =>
+    clickListeners.forEach((listener) => listener({ lng: e.lngLat.lng, lat: e.lngLat.lat }))
+  map.on("click", onClick)
 
   const onMove = () => {
     const c = map.getCenter()
@@ -56,6 +70,7 @@ export function attachMap(map: MapLibreMap): () => void {
   onMove()
 
   return () => {
+    map.off("click", onClick)
     map.off("move", onMove)
     map.off("mousemove", onPointer)
     map.off("mouseout", onLeave)
@@ -75,3 +90,6 @@ export const zoomIn = () => withMap((m) => m.zoomIn())
 export const zoomOut = () => withMap((m) => m.zoomOut())
 export const flyHome = () => withMap((m) => m.flyTo({ ...HOME_VIEW, bearing: 0, pitch: 0 }))
 export const resetNorth = () => withMap((m) => m.resetNorthPitch())
+/** Centre the map on a site, zooming in to regional scale if it is further out. */
+export const flyToSite = (lon: number, lat: number) =>
+  withMap((m) => m.flyTo({ center: [lon, lat], zoom: Math.max(m.getZoom(), 8) }))

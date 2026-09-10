@@ -5,19 +5,26 @@ import {
   House,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
+  MapPin,
   Question,
   SidebarSimple,
   SignOut,
+  StopCircle,
+  Sun,
   TerminalWindow,
   UserCircle,
+  Wind,
   type Icon,
 } from "@phosphor-icons/react"
-import { account, errorMessage, logout } from "./account"
+import { account, logout } from "./account"
+import { cancelRun, runSolar, runWind } from "./analysis"
 import { clearLog, print } from "./commandLog"
-import { openDocument } from "./documents"
+import { activateDocument, openDocument } from "./documents"
+import { errorMessage } from "./errors"
 import { togglePanel } from "./layout"
-import { flyHome, resetNorth, zoomIn, zoomOut } from "./mapController"
+import { flyHome, flyToSite, resetNorth, zoomIn, zoomOut } from "./mapController"
 import { checkSidecar } from "./sidecarStatus"
+import { placeSite, startPicking } from "./site"
 
 /**
  * Every action the workbench can perform, in one registry.
@@ -35,12 +42,42 @@ export type Command = {
   /** Label under the ribbon button. */
   label: string
   description: string
+  /** How to type it with arguments. Absent for a command that takes none. */
+  usage?: string
   icon: Icon
-  run: () => void | Promise<void>
+  run: (args: string[]) => void | Promise<void>
 }
 
 function requireMap(action: () => boolean): void {
   if (!action()) print("No map is open.", "error")
+}
+
+const SITE_USAGE = "SITE [lat lon]"
+
+/** SITE with no arguments picks on the map; with two, places the site directly. */
+function site(args: string[]): void {
+  if (args.length === 0) {
+    activateDocument("map")
+    startPicking()
+    print("Click the map to place the site. Esc cancels.")
+    return
+  }
+  // "SITE -15.79 -47.88" and "SITE -15.79,-47.88" both read as latitude, longitude.
+  const parts = args.length === 1 ? args[0].split(",") : args
+  const [lat, lon] = parts.map(Number)
+  if (
+    parts.length !== 2 ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lon) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lon) > 180
+  ) {
+    print(`Usage: ${SITE_USAGE}, in decimal degrees, e.g. SITE -15.79 -47.88`, "error")
+    return
+  }
+  activateDocument("map")
+  placeSite({ lon, lat })
+  requireMap(() => flyToSite(lon, lat))
 }
 
 export const COMMANDS: Command[] = [
@@ -75,6 +112,39 @@ export const COMMANDS: Command[] = [
     description: "Reset the map's bearing and pitch",
     icon: Compass,
     run: () => requireMap(resetNorth),
+  },
+  {
+    name: "SITE",
+    aliases: ["PT"],
+    label: "Site",
+    description: "Pick the analysis site on the map, or give it as latitude and longitude",
+    usage: SITE_USAGE,
+    icon: MapPin,
+    run: site,
+  },
+  {
+    name: "SOLAR",
+    aliases: ["SR"],
+    label: "Solar Resource",
+    description: "Solar resource and photovoltaic yield at the site (NASA POWER, pvlib)",
+    icon: Sun,
+    run: runSolar,
+  },
+  {
+    name: "WIND",
+    aliases: ["WR"],
+    label: "Wind Screening",
+    description: "Wind resource screening at the site (NASA POWER, MERRA-2); unvalidated",
+    icon: Wind,
+    run: runWind,
+  },
+  {
+    name: "CANCEL",
+    aliases: ["STOP"],
+    label: "Cancel",
+    description: "Stop the analysis in progress",
+    icon: StopCircle,
+    run: cancelRun,
   },
   {
     name: "PING",
@@ -140,7 +210,7 @@ export const COMMANDS: Command[] = [
     run: () => {
       for (const c of COMMANDS) {
         const aliases = c.aliases.length ? ` (${c.aliases.join(", ")})` : ""
-        print(`${(c.name + aliases).padEnd(24)} ${c.description}`)
+        print(`${((c.usage ?? c.name) + aliases).padEnd(26)} ${c.description}`)
       }
     },
   },
@@ -163,29 +233,39 @@ export function findCommand(name: string): Command | undefined {
   return BY_NAME.get(name.trim().toUpperCase())
 }
 
-/** Command names that start with `prefix`, for completion on the command line. */
+/**
+ * Command names that start with `prefix`, for completion on the command line.
+ * Only the command name completes; once an argument is being typed there is
+ * nothing to suggest.
+ */
 export function completions(prefix: string): string[] {
-  const p = prefix.trim().toUpperCase()
-  if (!p) return []
+  const p = prefix.trimStart().toUpperCase()
+  if (!p || /\s/.test(p)) return []
   return COMMANDS.map((c) => c.name).filter((n) => n.startsWith(p))
 }
 
 /**
- * Run a command by name and echo it to the history. Typed input is echoed as
- * typed, so a mistyped name is visible beside the error it produced.
+ * Run a command line: a command name, then its arguments separated by spaces.
+ * It is echoed to the history as typed, so a mistyped name is visible beside
+ * the error it produced.
  */
-export async function runCommand(name: string): Promise<void> {
-  const typed = name.trim()
+export async function runCommand(input: string): Promise<void> {
+  const typed = input.trim()
   if (!typed) return
-  const cmd = findCommand(typed)
-  print(`Command: ${cmd ? cmd.name : typed.toUpperCase()}`, "input")
+  const [name, ...args] = typed.split(/\s+/)
+  const cmd = findCommand(name)
+  print(`Command: ${cmd ? [cmd.name, ...args].join(" ") : typed.toUpperCase()}`, "input")
   if (!cmd) {
-    print(`Unknown command "${typed.toUpperCase()}". Type HELP for the list.`, "error")
+    print(`Unknown command "${name.toUpperCase()}". Type HELP for the list.`, "error")
+    return
+  }
+  if (args.length && !cmd.usage) {
+    print(`${cmd.name} takes no arguments.`, "error")
     return
   }
   try {
-    await cmd.run()
+    await cmd.run(args)
   } catch (e) {
-    print(`${cmd.name}: ${String(e)}`, "error")
+    print(`${cmd.name}: ${errorMessage(e)}`, "error")
   }
 }

@@ -1,12 +1,16 @@
 import { useEffect, useRef } from "react"
 import { X } from "@phosphor-icons/react"
 import { loadAccount } from "../../lib/account"
+import { listenForProgress } from "../../lib/analysis"
 import { print } from "../../lib/commandLog"
 import { DOCUMENT_TITLES, activateDocument, closeDocument, documents } from "../../lib/documents"
 import { panels } from "../../lib/layout"
 import { checkSidecar } from "../../lib/sidecarStatus"
+import { cancelPicking, site } from "../../lib/site"
 import { useStore } from "../../lib/store"
 import { AccountDocument } from "../account/AccountDocument"
+import { SolarDocument } from "../energy/SolarDocument"
+import { WindDocument } from "../energy/WindDocument"
 import { CommandLine } from "./CommandLine"
 import { PropertiesPanel } from "./PropertiesPanel"
 import { RibbonBar } from "./RibbonBar"
@@ -76,9 +80,18 @@ export function Workbench() {
     void loadAccount()
   }, [])
 
-  // Typing a command name anywhere starts it on the command line, as in CAD.
+  // One progress listener for the application; the cleanup keeps StrictMode's
+  // second mount from registering another.
+  useEffect(() => listenForProgress(), [])
+
+  // Typing a command name anywhere starts it on the command line, as in CAD,
+  // and Escape abandons picking a site.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape" && site.get().picking) {
+        cancelPicking()
+        return
+      }
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
       if (!COMMAND_KEY.test(e.key)) return
       const target = e.target as HTMLElement | null
@@ -104,6 +117,8 @@ export function Workbench() {
           <Viewport />
         </div>
         {active === "account" && <AccountDocument />}
+        {active === "solar" && <SolarDocument />}
+        {active === "wind" && <WindDocument />}
       </div>
       {shown.commandLine && <CommandLine inputRef={commandInput} />}
       <StatusBar />

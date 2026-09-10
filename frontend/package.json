@@ -12,7 +12,8 @@
     "@phosphor-icons/react": "^2.1.10",
     "maplibre-gl": "^6.6.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "recharts": "^2.15.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
