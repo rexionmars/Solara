@@ -1,4 +1,4 @@
-import { Cube, Fan, Mountains, Sun, Table, TerminalWindow, type Icon } from "@phosphor-icons/react"
+import { Cube, Fan, Graph, Mountains, Sun, Table, TerminalWindow, type Icon } from "@phosphor-icons/react"
 import { EDITORS, editorMeta, type EditorId, type StudioGroup } from "./editors"
 import { select } from "./selection"
 import { createStore } from "./store"
@@ -73,6 +73,14 @@ export const WORKSPACES: WorkspacePreset[] = [
     icon: Cube,
     hint: "The map at full size, the project beside it and the reports under it",
     build: () => split("row", 0.76, split("col", 0.82, area("map"), area("reports")), sideColumn()),
+  },
+  {
+    id: "graph",
+    label: "Graph",
+    group: "board",
+    icon: Graph,
+    hint: "The run graph beside the map: set a run up card by card, and see what the reading read",
+    build: () => split("row", 0.76, split("col", 0.8, split("row", 0.36, area("map"), area("graph")), area("reports")), sideColumn()),
   },
   {
     id: "data",

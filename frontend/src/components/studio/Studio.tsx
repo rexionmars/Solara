@@ -14,6 +14,7 @@ import { OutlinerEditor } from "../editors/OutlinerEditor"
 import { PropertiesEditor } from "../editors/PropertiesEditor"
 import { ReadingEditor } from "../editors/ReadingEditor"
 import { ReportsEditor } from "../editors/ReportsEditor"
+import { RunGraphEditor } from "../editors/RunGraphEditor"
 import { TableEditor } from "../editors/TableEditor"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
 import { AreaTree } from "./AreaTree"
@@ -31,6 +32,8 @@ function Editor({ areaId, editor }: { areaId: string; editor: EditorId }) {
   switch (editor) {
     case "map":
       return <MapEditor />
+    case "graph":
+      return <RunGraphEditor areaId={areaId} />
     case "outliner":
       return <OutlinerEditor areaId={areaId} />
     case "properties":

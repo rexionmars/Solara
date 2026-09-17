@@ -1,5 +1,6 @@
 import {
   Fan,
+  Graph,
   MapTrifold,
   Mountains,
   Scroll,
@@ -19,7 +20,7 @@ import {
  * the switch from an id to a component lives where the props are.
  */
 
-export type EditorId = "map" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain"
+export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain"
 
 /**
  * What kind of work a thing is FOR. The workspace bar and the type menu group
@@ -63,6 +64,15 @@ export const EDITORS: readonly EditorMeta[] = [
     minRowRem: 10,
     unique: true,
     hint: "Sites and areas on the ground, and the layers computed over them",
+  },
+  {
+    id: "graph",
+    group: "board",
+    label: "Run graph",
+    icon: Graph,
+    minRem: 20,
+    minRowRem: 14,
+    hint: "One product's run as cards wired into it, and whether the reading on screen read each",
   },
   {
     id: "outliner",
