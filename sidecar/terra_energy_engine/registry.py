@@ -20,6 +20,7 @@ ACTIONS: dict[str, str] = {
     'solar_resource': 'terra_energy_engine.energy.actions:solar_resource',
     'wind_resource': 'terra_energy_engine.energy.actions:wind_resource',
     'solar_terrain': 'terra_energy_engine.energy.actions:solar_terrain',
+    'parameter_defaults': 'terra_energy_engine.energy.actions:parameter_defaults',
 }
 
 

@@ -68,7 +68,7 @@ def test_a_zero_record_is_refused_before_anything_is_fetched(capsys):
 
 
 @pytest.mark.parametrize('name', [
-    'solar_resource', 'wind_resource', 'solar_terrain',
+    'solar_resource', 'wind_resource', 'solar_terrain', 'parameter_defaults',
 ])
 def test_the_registry_routes_the_energy_actions(name):
     assert registry.resolve(name) is getattr(actions, name)
@@ -107,3 +107,46 @@ def test_the_terrain_product_needs_a_directory_for_its_layer(capsys):
 def test_an_unknown_season_is_refused_before_any_download(capsys, tmp_path):
     req = {'polygon_geojson': square(), 'work_dir': str(tmp_path), 'season': 'monsoon'}
     assert 'unknown season' in refused(capsys, lambda: actions.solar_terrain(req))
+
+
+def test_the_parameter_defaults_are_the_ones_the_actions_apply(capsys):
+    """
+    The interface shows these in place of the word "default", so they have to
+    be the constants the actions read, not a copy that can drift from them.
+    """
+    from terra_energy_engine.energy import pv, wind
+
+    actions.parameter_defaults({})
+    reply = json.loads(capsys.readouterr().out)
+    assert reply == {
+        'solar': {
+            'climatology_years': actions.SOLAR_CLIMATOLOGY_YEARS,
+            'hourly_years': actions.SOLAR_HOURLY_YEARS,
+            'surface_azimuth': actions.SOLAR_SURFACE_AZIMUTH,
+            'performance_ratio': pv.REFERENCE_PERFORMANCE_RATIO,
+        },
+        'wind': {
+            'record_years': wind.RECORD_YEARS,
+            'hub_height_m': wind.HUB_HEIGHT_M,
+            'calm_threshold_ms': wind.CALM_THRESHOLD_MS,
+            'record_max_floor_ms': wind.RECORD_MAX_FLOOR_MS,
+            'roughness_band_m': list(wind.ROUGHNESS_BAND_M),
+        },
+        'terrain': {
+            'hourly_years': actions.TERRAIN_HOURLY_YEARS,
+            'season': actions.TERRAIN_SEASON,
+            'seasons': ['annual', 'winter', 'summer', 'winter_crop', 'anisotropy', 'shading'],
+        },
+    }
+
+
+def test_every_reported_season_is_one_the_terrain_product_accepts(capsys):
+    """
+    A season the interface offers and the action refuses would fail only after
+    the user had drawn an area and started the run.
+    """
+    actions.parameter_defaults({})
+    reply = json.loads(capsys.readouterr().out)['terrain']
+    for season in reply['seasons']:
+        assert actions.request_season({'season': season}) == season
+    assert actions.request_season({}) == reply['season']

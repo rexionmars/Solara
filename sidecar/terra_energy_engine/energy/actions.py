@@ -18,6 +18,22 @@ import math
 
 from terra_energy_engine import protocol
 
+# Defaults of the solar and terrain parameters a caller may omit. Module
+# constants rather than literals at the call sites, because parameter_defaults
+# reports them to the interface: a default the interface showed from its own
+# copy would drift from the one the run applied, and nothing would say so. The
+# wind defaults already live in energy/wind.py and are read from there.
+SOLAR_CLIMATOLOGY_YEARS = 30
+SOLAR_HOURLY_YEARS = 10
+# Degrees from north. Zero faces the equator in the southern hemisphere.
+SOLAR_SURFACE_AZIMUTH = 0.0
+TERRAIN_HOURLY_YEARS = 10
+TERRAIN_SEASON = 'annual'
+# The terrain windows that are not month tables in energy/seasons.py: the
+# winter-over-summer ratio and the share of beam irradiation the horizon blocks.
+TERRAIN_DERIVED_SEASONS = ('anisotropy', 'shading')
+
+
 def request_site(req: protocol.Request) -> tuple[float, float]:
     """The site as (lon, lat) in degrees, refused when absent or off the globe."""
     try:
@@ -64,11 +80,13 @@ def solar_resource(req: protocol.Request) -> None:
     site_lon, site_lat = request_site(req)
     lon, lat = sun_power.request_point(site_lon, site_lat)
 
-    clim_years = protocol.request_positive(req, 'climatology_years', 30, int)
-    hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
+    clim_years = protocol.request_positive(
+        req, 'climatology_years', SOLAR_CLIMATOLOGY_YEARS, int
+    )
+    hourly_years = protocol.request_positive(req, 'hourly_years', SOLAR_HOURLY_YEARS, int)
     # Zero is due north here, which is both the default and a value the
     # caller can mean, so absence is what selects the default.
-    azimuth = protocol.request_number(req, 'surface_azimuth', 0.0)
+    azimuth = protocol.request_number(req, 'surface_azimuth', SOLAR_SURFACE_AZIMUTH)
     pr_override = request_performance_ratio(req)
 
     # POWER publishes through the previous full year.
@@ -340,6 +358,19 @@ def request_area(req: protocol.Request, margin_m: float):
     return polygon
 
 
+def request_season(req: protocol.Request) -> str:
+    """
+    The terrain window, lower-cased, refused unless solar_terrain can compute
+    it. Absence selects TERRAIN_SEASON.
+    """
+    from terra_energy_engine.energy import seasons as seasons_mod
+
+    season = str(req.get('season') or TERRAIN_SEASON).lower()
+    if season not in seasons_mod.SEASONS and season not in TERRAIN_DERIVED_SEASONS:
+        protocol.fail(f'unknown season: {season}')
+    return season
+
+
 # Terrain-resolved plane-of-array irradiation over the area. Ported from TERRA's
 # solar_terrain; the additions are the area checks above, the work_dir taken
 # from the request, and the palette stops sent with the scale.
@@ -372,10 +403,8 @@ def solar_terrain(req: protocol.Request) -> None:
     work_dir.mkdir(parents=True, exist_ok=True)
 
     polygon = request_area(req, poa_mod.HORIZON_MAX_DIST_M)
-    season = (req.get('season') or 'annual').lower()
-    if season not in seasons_mod.SEASONS and season not in ('anisotropy', 'shading'):
-        protocol.fail(f'unknown season: {season}')
-    hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
+    season = request_season(req)
+    hourly_years = protocol.request_positive(req, 'hourly_years', TERRAIN_HOURLY_YEARS, int)
 
     cog.configure()
     centroid = polygon.centroid
@@ -571,4 +600,38 @@ def solar_terrain(req: protocol.Request) -> None:
                 'lon_max': lon_max, 'lat_max': lat_max,
             },
         }
+    })
+
+
+# The defaults every energy action applies to a parameter the caller omits.
+# The interface shows them in place of the word "default", read from here so it
+# never carries a second copy of the constants. No network and no raster work:
+# it answers in the time the interpreter takes to start and import numpy, which
+# is why the shell runs it outside the one-request rule.
+def parameter_defaults(req: protocol.Request) -> None:
+    from terra_energy_engine.energy import pv as pv_mod, seasons as seasons_mod, wind as wind_mod
+
+    lo, hi = wind_mod.ROUGHNESS_BAND_M
+    protocol.reply({
+        'solar': {
+            'climatology_years': SOLAR_CLIMATOLOGY_YEARS,
+            'hourly_years': SOLAR_HOURLY_YEARS,
+            'surface_azimuth': SOLAR_SURFACE_AZIMUTH,
+            'performance_ratio': pv_mod.REFERENCE_PERFORMANCE_RATIO,
+        },
+        'wind': {
+            'record_years': wind_mod.RECORD_YEARS,
+            'hub_height_m': wind_mod.HUB_HEIGHT_M,
+            'calm_threshold_ms': wind_mod.CALM_THRESHOLD_MS,
+            'record_max_floor_ms': wind_mod.RECORD_MAX_FLOOR_MS,
+            'roughness_band_m': [lo, hi],
+        },
+        'terrain': {
+            'hourly_years': TERRAIN_HOURLY_YEARS,
+            'season': TERRAIN_SEASON,
+            # Every name solar_terrain accepts, in the order the interface
+            # lists them: the month windows as seasons.py declares them, then
+            # the two derived layers.
+            'seasons': [*seasons_mod.SEASONS, *TERRAIN_DERIVED_SEASONS],
+        },
     })
