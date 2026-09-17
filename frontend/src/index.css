@@ -461,3 +461,47 @@ input[type="number"]::-webkit-outer-spin-button {
     animation: none;
   }
 }
+
+/*
+  THE NODE EDITOR, as Blender's: a grey node, a header in a muted colour for
+  its category, and a socket in a bright colour for the kind of value it
+  sends. Muted headers, so a board of them reads as grey with a hint of hue;
+  bright sockets, so a wire can be followed.
+
+  source   where a run reads           green, as Blender's shader
+  when     the record it reads         yellow, as a colour socket
+  method   a choice of how             purple, as a vector
+  value    a number it is given        grey, as a float
+*/
+:root {
+  --node-body: rgb(var(--p-surface));
+
+  --node-head-source: #3c5a3a;
+  --node-head-when: #6a5d2a;
+  --node-head-method: #4a3f78;
+  --node-head-value: #3f4a57;
+  --node-head-run: #6e3636;
+
+  --node-socket-source: #63c763;
+  --node-socket-when: #c7c729;
+  --node-socket-method: #6363c7;
+  --node-socket-value: #a1a1a1;
+
+  --node-wire-failed: #f95831;
+}
+
+/* A wire being read: its dashes flow toward the node that reads it. */
+.wire-flow {
+  animation: wire-flow 600ms linear infinite;
+}
+@keyframes wire-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+/* Reduced motion keeps the dashes, which still say "reading", and drops the flow. */
+@media (prefers-reduced-motion: reduce) {
+  .wire-flow {
+    animation: none;
+  }
+}
