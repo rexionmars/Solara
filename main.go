@@ -33,11 +33,16 @@ func main() {
 		MinHeight:        220,
 		AlwaysOnTop:      true,
 		BackgroundColour: &options.RGBA{R: 23, G: 23, B: 23, A: 1},
-		AssetServer:      &assetserver.Options{Assets: assets},
-		OnStartup:        app.startup,
-		OnDomReady:       app.domReady,
-		OnShutdown:       app.shutdown,
-		Bind:             []interface{}{app},
+		AssetServer: &assetserver.Options{
+			Assets: assets,
+			// Rendered layers are fetched by URL from the results directory;
+			// see app_results.go.
+			Middleware: app.resultsMiddleware,
+		},
+		OnStartup:  app.startup,
+		OnDomReady: app.domReady,
+		OnShutdown: app.shutdown,
+		Bind:       []interface{}{app},
 		Mac: &mac.Options{
 			// A titled window with a transparent, title-less bar and full-size
 			// content: the splash has no title strip above it, and the main

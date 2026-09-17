@@ -6,6 +6,8 @@ import {main} from '../models';
 
 export function AnalyzeSolarResource(arg1:energy.SolarRequest):Promise<energy.SolarAnalysis>;
 
+export function AnalyzeSolarTerrain(arg1:energy.SolarTerrainRequest):Promise<energy.SolarTerrainAnalysis>;
+
 export function AnalyzeWindResource(arg1:energy.WindRequest):Promise<energy.WindAnalysis>;
 
 export function CancelRun():Promise<boolean>;

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/rexionmars/TerraEnergyEngine/internal/sidecar"
 )
@@ -65,6 +66,60 @@ func windPayload(req WindRequest, cacheDir string) (map[string]any, error) {
 		return nil, fmt.Errorf("the roughness band needs two lengths, got %d", len(req.RoughnessBandM))
 	}
 	return p, nil
+}
+
+func terrainPayload(req SolarTerrainRequest, cacheDir, workDir string) map[string]any {
+	p := map[string]any{
+		"action":          "solar_terrain",
+		"polygon_geojson": req.Area,
+		"work_dir":        workDir,
+	}
+	if cacheDir != "" {
+		p["power_cache_dir"] = cacheDir
+	}
+	if req.HourlyYears != nil {
+		p["hourly_years"] = *req.HourlyYears
+	}
+	if req.Season != nil {
+		p["season"] = *req.Season
+	}
+	return p
+}
+
+// AnalyzeSolarTerrain runs the solar_terrain action in workDir, where the
+// sidecar writes the rendered layer and the GeoTIFF. overlayURL turns the
+// layer's file name into the URL the webview loads it from.
+func AnalyzeSolarTerrain(ctx context.Context, r *sidecar.Runner, req SolarTerrainRequest, cacheDir, workDir string,
+	overlayURL func(file string) string, onProgress func(sidecar.Progress)) (*SolarTerrainAnalysis, error) {
+	if err := req.Area.Validate(); err != nil {
+		return nil, err
+	}
+	raw, err := r.Run(ctx, terrainPayload(req, cacheDir, workDir), onProgress)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Terrain *struct {
+			SolarTerrainAnalysis
+			// The rendered layer's path, which the interface receives as a
+			// URL instead.
+			OverlayPNG string `json:"overlay_png"`
+		} `json:"solar_terrain"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode the terrain result: %w", err)
+	}
+	if wrapped.Terrain == nil {
+		return nil, errors.New("the sidecar returned no terrain result")
+	}
+	// Only a file inside this run's directory is served; anything else would
+	// be a path the results route has no business exposing.
+	if filepath.Dir(filepath.Clean(wrapped.Terrain.OverlayPNG)) != filepath.Clean(workDir) {
+		return nil, fmt.Errorf("the sidecar wrote the terrain layer outside the run directory: %s", wrapped.Terrain.OverlayPNG)
+	}
+	out := wrapped.Terrain.SolarTerrainAnalysis
+	out.OverlayURL = overlayURL(filepath.Base(wrapped.Terrain.OverlayPNG))
+	return &out, nil
 }
 
 // AnalyzeSolar runs the solar_resource action.

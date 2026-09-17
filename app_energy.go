@@ -66,6 +66,26 @@ func (a *App) AnalyzeWindResource(req energy.WindRequest) (*energy.WindAnalysis,
 	return energy.AnalyzeWind(a.ctx, r, req, powerCacheDir(), a.emitProgress)
 }
 
+// AnalyzeSolarTerrain maps the plane-of-array irradiation over an area's
+// terrain. The rendered layer is served from this run's results directory.
+func (a *App) AnalyzeSolarTerrain(req energy.SolarTerrainRequest) (*energy.SolarTerrainAnalysis, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	dir, id, err := a.newRunDir()
+	if err != nil {
+		return nil, err
+	}
+	res, err := energy.AnalyzeSolarTerrain(a.ctx, r, req, powerCacheDir(), dir,
+		func(file string) string { return resultURL(id, file) }, a.emitProgress)
+	if err != nil {
+		_ = os.RemoveAll(dir)
+		return nil, err
+	}
+	return res, nil
+}
+
 // CancelRun stops the analysis in progress and reports whether there was one.
 // The process group is killed, so nothing the interpreter started survives it.
 func (a *App) CancelRun() bool {

@@ -55,6 +55,40 @@ func TestWindPayload_SendsTheBandOnlyWhole(t *testing.T) {
 	}
 }
 
+func square() Polygon {
+	return Polygon{Type: "Polygon", Coordinates: [][][]float64{{
+		{-47.9, -15.8}, {-47.8, -15.8}, {-47.8, -15.7}, {-47.9, -15.7}, {-47.9, -15.8},
+	}}}
+}
+
+func TestPolygon_Validate(t *testing.T) {
+	if err := square().Validate(); err != nil {
+		t.Fatalf("a closed square was refused: %v", err)
+	}
+	open := square()
+	open.Coordinates[0] = open.Coordinates[0][:4]
+	bad := map[string]Polygon{
+		"not a polygon":  {Type: "Point"},
+		"no ring":        {Type: "Polygon"},
+		"open ring":      open,
+		"three vertices": {Type: "Polygon", Coordinates: [][][]float64{{{0, 0}, {1, 0}, {0, 0}}}},
+		"off the globe":  {Type: "Polygon", Coordinates: [][][]float64{{{0, 0}, {200, 0}, {0, 1}, {0, 0}}}},
+	}
+	for name, p := range bad {
+		if err := p.Validate(); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestTerrainPayload_SendsTheAreaAndOmitsUnsetFields(t *testing.T) {
+	got := keys(terrainPayload(SolarTerrainRequest{Area: square()}, "", "/work"))
+	want := []string{"action", "polygon_geojson", "work_dir"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("keys %v, want %v", got, want)
+	}
+}
+
 // A null the sidecar sends for a quantity with no answer must stay null, not
 // become a measured zero.
 func TestWindAnalysis_KeepsANullRoughness(t *testing.T) {

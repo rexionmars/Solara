@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -35,11 +36,19 @@ type App struct {
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
+
+	// This session's results directory; see app_results.go. Set in NewApp,
+	// before the asset server starts, so the requests that read it never race
+	// the write.
+	resultsDir string
+	resultsErr error
 }
 
 // NewApp creates a new App.
 func NewApp() *App {
-	return &App{}
+	a := &App{}
+	a.resultsDir, a.resultsErr = newResultsDir()
+	return a
 }
 
 const (
@@ -87,6 +96,10 @@ func (a *App) shutdown(context.Context) {
 	}
 	if a.accounts != nil {
 		_ = a.accounts.Close()
+	}
+	// After the cancel above, so no sidecar is still writing into it.
+	if a.resultsDir != "" {
+		_ = os.RemoveAll(a.resultsDir)
 	}
 }
 

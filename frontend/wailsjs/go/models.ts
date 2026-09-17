@@ -1,5 +1,37 @@
 export namespace energy {
 	
+	export class Bounds {
+	    lon_min: number;
+	    lat_min: number;
+	    lon_max: number;
+	    lat_max: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Bounds(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lon_min = source["lon_min"];
+	        this.lat_min = source["lat_min"];
+	        this.lon_max = source["lon_max"];
+	        this.lat_max = source["lat_max"];
+	    }
+	}
+	export class Polygon {
+	    type: string;
+	    coordinates: number[][][];
+	
+	    static createFrom(source: any = {}) {
+	        return new Polygon(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.coordinates = source["coordinates"];
+	    }
+	}
 	export class PowerSeriesProvenance {
 	    source: string;
 	    fetched_utc?: string;
@@ -57,6 +89,54 @@ export namespace energy {
 		}
 	}
 	
+	export class RenderScale {
+	    palette: string;
+	    min: number;
+	    max: number;
+	    reference?: number;
+	    basis: string;
+	    shared_with?: string;
+	    decimals: number;
+	    stops: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RenderScale(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.palette = source["palette"];
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.reference = source["reference"];
+	        this.basis = source["basis"];
+	        this.shared_with = source["shared_with"];
+	        this.decimals = source["decimals"];
+	        this.stops = source["stops"];
+	    }
+	}
+	export class SkyView {
+	    applied: boolean;
+	    mean_horizon_deg: number;
+	    max_horizon_deg: number;
+	    threshold_deg: number;
+	    diffuse_loss_mean_pct?: number;
+	    diffuse_loss_max_pct?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SkyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applied = source["applied"];
+	        this.mean_horizon_deg = source["mean_horizon_deg"];
+	        this.max_horizon_deg = source["max_horizon_deg"];
+	        this.threshold_deg = source["threshold_deg"];
+	        this.diffuse_loss_mean_pct = source["diffuse_loss_mean_pct"];
+	        this.diffuse_loss_max_pct = source["diffuse_loss_max_pct"];
+	    }
+	}
 	export class SolarPV {
 	    specific_yield_kwh_kwp_year: number;
 	    performance_ratio: number;
@@ -244,6 +324,7 @@ export namespace energy {
 	
 	
 	
+	
 	export class SolarRequest {
 	    lon: number;
 	    lat: number;
@@ -265,6 +346,111 @@ export namespace energy {
 	        this.surface_azimuth = source["surface_azimuth"];
 	        this.performance_ratio = source["performance_ratio"];
 	    }
+	}
+	
+	export class SolarTerrainAnalysis {
+	    poa_min: number;
+	    poa_max: number;
+	    poa_mean: number;
+	    poa_std_pct: number;
+	    slope_mean_deg: number;
+	    slope_max_deg: number;
+	    pixels: number;
+	    hourly_years: number;
+	    dem_source: string;
+	    season: string;
+	    unit: string;
+	    scale: RenderScale;
+	    shading_mean_pct?: number;
+	    shading_max_pct?: number;
+	    horizon_max_dist_m: number;
+	    beam_fraction: number;
+	    sky_view?: SkyView;
+	    overlay_url: string;
+	    raster_tif: string;
+	    extent: Bounds;
+	    power_provenance?: PowerProvenance;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarTerrainAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.poa_min = source["poa_min"];
+	        this.poa_max = source["poa_max"];
+	        this.poa_mean = source["poa_mean"];
+	        this.poa_std_pct = source["poa_std_pct"];
+	        this.slope_mean_deg = source["slope_mean_deg"];
+	        this.slope_max_deg = source["slope_max_deg"];
+	        this.pixels = source["pixels"];
+	        this.hourly_years = source["hourly_years"];
+	        this.dem_source = source["dem_source"];
+	        this.season = source["season"];
+	        this.unit = source["unit"];
+	        this.scale = this.convertValues(source["scale"], RenderScale);
+	        this.shading_mean_pct = source["shading_mean_pct"];
+	        this.shading_max_pct = source["shading_max_pct"];
+	        this.horizon_max_dist_m = source["horizon_max_dist_m"];
+	        this.beam_fraction = source["beam_fraction"];
+	        this.sky_view = this.convertValues(source["sky_view"], SkyView);
+	        this.overlay_url = source["overlay_url"];
+	        this.raster_tif = source["raster_tif"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.power_provenance = this.convertValues(source["power_provenance"], PowerProvenance);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SolarTerrainRequest {
+	    area: Polygon;
+	    hourly_years?: number;
+	    season?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarTerrainRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area = this.convertValues(source["area"], Polygon);
+	        this.hourly_years = source["hourly_years"];
+	        this.season = source["season"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	
 	
@@ -734,6 +920,7 @@ export namespace energy {
 		    return a;
 		}
 	}
+	
 	
 	
 	
