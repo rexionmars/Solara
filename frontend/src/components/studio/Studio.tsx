@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useState } from "react"
 import { loadAccount } from "../../lib/account"
 import { listenForProgress } from "../../lib/analysis"
 import { loadDefaults } from "../../lib/defaults"
+import { checkGridStore } from "../../lib/grid"
 import { editorMeta, type EditorId } from "../../lib/editors"
 import { installKeymap } from "../../lib/operators"
 import { watchProjectState } from "../../lib/projectFile"
@@ -73,7 +74,11 @@ export function Studio() {
 
   useEffect(() => {
     void checkSidecar().then((st) => {
-      if (st.kind === "ready") void loadDefaults()
+      if (st.kind === "ready") {
+        void loadDefaults()
+        // Quietly: a missing store is a state Settings and the run graph show, not news at launch.
+        void checkGridStore()
+      }
     })
     void loadAccount()
   }, [])

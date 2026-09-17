@@ -1,21 +1,23 @@
 import { useEffect, useState } from "react"
-import { Gear, Info, Keyboard, User } from "@phosphor-icons/react"
+import { Database, Gear, Info, Keyboard, User } from "@phosphor-icons/react"
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BRAND_TAGLINE, RELEASE_NAME } from "../../lib/brand"
 import { defaults, loadDefaults } from "../../lib/defaults"
 import { formatKeys, OPERATORS, type Scope } from "../../lib/operators"
 import { SOLAR_FIELDS, TERRAIN_FIELDS, WIND_FIELDS, seasonLabel } from "../../lib/params"
+import { checkGridStore, chooseGridStore, dsnSourceLabel, gridStore, storeReport } from "../../lib/grid"
 import { sidecar } from "../../lib/sidecarStatus"
 import { useStore } from "../../lib/store"
 import { preferences, type PreferencesSection } from "../../lib/ui"
 import { AccountDocument } from "../account/AccountDocument"
-import { fieldInput } from "../ui/buttons"
+import { btnGhostDense, btnPrimary, fieldInput } from "../ui/buttons"
 import { Figure, OperatorButton, PanelSection } from "../ui/Fields"
 import { DialogHead, ModalShell } from "./Dialogs"
 
 const SECTIONS: { id: PreferencesSection; label: string; icon: typeof Gear }[] = [
   { id: "account", label: "Account", icon: User },
   { id: "engine", label: "Engine", icon: Gear },
+  { id: "grid", label: "Grid store", icon: Database },
   { id: "keymap", label: "Keymap", icon: Keyboard },
   { id: "about", label: "About", icon: Info },
 ]
@@ -63,6 +65,116 @@ function EngineSection() {
           ))
         )}
       </PanelSection>
+    </>
+  )
+}
+
+/**
+ * The grid store: which database the grid products read, where that choice
+ * came from, and what it holds. TERRA shows this without a way to change it;
+ * here the DSN is typed, checked and saved in one place, and a store that does
+ * not answer is refused rather than saved.
+ */
+function GridSection() {
+  const s = useStore(gridStore)
+  const engine = useStore(sidecar)
+  const report = storeReport(s)
+  const [draft, setDraft] = useState<string | null>(null)
+  useEffect(() => {
+    if (engine.kind === "ready" && gridStore.get().kind === "unknown") void checkGridStore()
+  }, [engine.kind])
+  const checking = s.kind === "checking"
+  const c = report?.coverage
+  const save = async (dsn: string) => {
+    if (await chooseGridStore(dsn)) {
+      setDraft(null)
+    }
+  }
+
+  return (
+    <>
+      <PanelSection
+        title="Grid store"
+        aside={
+          <button type="button" className={btnGhostDense} disabled={checking} onClick={() => void checkGridStore(true)}>
+            {checking ? "Checking…" : "Check"}
+          </button>
+        }
+      >
+        <p className="text-body leading-relaxed text-muted-foreground">
+          The Brazilian electrical record in a local PostgreSQL database with PostGIS, loaded by TERRA: the ANEEL plant register, the ONS
+          transmission register and what each plant was told not to generate. The grid layers and the connection reading are read from it.
+        </p>
+        <Figure
+          label="Status"
+          value={
+            <span style={{ color: report ? (report.reachable ? "var(--success)" : "var(--destructive-quiet)") : undefined }}>
+              {checking ? "checking" : report ? (report.reachable ? "reachable" : "unreachable") : s.kind === "failed" ? "not checked" : "unknown"}
+            </span>
+          }
+        />
+        {report && <Figure label="Connection" value={report.dsn} />}
+        {report && <Figure label="Chosen by" value={dsnSourceLabel(report.dsn_source)} />}
+        {report?.unreachable && <p className="selectable whitespace-pre-wrap text-meta text-destructive-quiet">{report.unreachable}</p>}
+        {s.kind === "failed" && <p className="selectable whitespace-pre-wrap text-meta text-destructive-quiet">{s.message}</p>}
+      </PanelSection>
+
+      <PanelSection title="Choose a store">
+        {report?.dsn_source === "TERRA_BR_DSN" && (
+          <p className="text-meta leading-relaxed" style={{ color: "var(--warning)" }}>
+            TERRA_BR_DSN is set in this application's environment, and it is what is read. A store chosen here is kept for when it is not.
+          </p>
+        )}
+        <input
+          // Never prefilled with a masked password: saving "***" back would replace the real one.
+          value={draft ?? (report?.dsn_source === "chosen" && !report.dsn.includes("***") ? report.dsn : "")}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === "Enter" && draft !== null) void save(draft)
+          }}
+          placeholder="postgresql:///terra_br"
+          aria-label="Grid store connection"
+          spellCheck={false}
+          className={`${fieldInput} telemetry`}
+        />
+        <p className="text-meta leading-relaxed text-muted-foreground">
+          A PostgreSQL connection string. Empty is the default: the local socket, database terra_br, your own role. A password is kept in a
+          file only you can read, and never shown.
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" className={btnPrimary} disabled={checking || draft === null} onClick={() => draft !== null && void save(draft)}>
+            Check and save
+          </button>
+          {report?.dsn_source === "chosen" && (
+            <button type="button" className={btnGhostDense} disabled={checking} onClick={() => void save("")}>
+              Use the default
+            </button>
+          )}
+        </div>
+      </PanelSection>
+
+      {report?.reachable && c && (
+        <PanelSection title="What it holds">
+          <Figure label="Plants registered" value={c.plants.registered.toLocaleString()} />
+          <Figure label="Located" value={c.plants.with_geometry.toLocaleString()} />
+          <Figure label="Substations" value={c.network.substations.toLocaleString()} />
+          <Figure label="Lines in service" value={c.network.lines_in_service.toLocaleString()} />
+          {c.datasets.map((ds) => (
+            <Figure
+              key={ds.dataset}
+              label={ds.dataset}
+              title={`${ds.periods} periods, loaded ${ds.loaded_utc}`}
+              value={`${ds.from} to ${ds.to} · ${ds.rows.toLocaleString()} rows`}
+            />
+          ))}
+          {c.load_conflicts.total > 0 && (
+            <p className="text-meta leading-relaxed text-muted-foreground">
+              {c.load_conflicts.total} load conflicts, {c.load_conflicts.identical} identical. {c.load_conflicts.note}
+            </p>
+          )}
+        </PanelSection>
+      )}
     </>
   )
 }
@@ -133,6 +245,7 @@ function AboutSection() {
         <Figure label="Irradiation, wind" value="NASA POWER, MERRA-2" />
         <Figure label="Terrain" value="Copernicus DEM GLO-30" />
         <Figure label="Photovoltaic model" value="pvlib" />
+        <Figure label="Electrical system" value="ONS, ANEEL (grid store)" />
         <Figure label="Basemap" value="OpenFreeMap, © OpenStreetMap" />
         <p className="pt-1 text-body leading-relaxed text-muted-foreground">
           Screening figures. The wind results are gross and unvalidated; read each result's notes before using a figure.
@@ -174,6 +287,7 @@ export function Settings() {
         <div className="panel-scroll min-w-0 flex-1 overflow-y-auto">
           {section === "account" && <AccountDocument />}
           {section === "engine" && <EngineSection />}
+          {section === "grid" && <GridSection />}
           {section === "keymap" && <KeymapSection />}
           {section === "about" && <AboutSection />}
         </div>

@@ -5,6 +5,7 @@ import {
   Compass,
   CornersOut,
   Cursor,
+  Database,
   Download,
   Eye,
   EyeSlash,
@@ -45,6 +46,7 @@ import { cancelRun, runSolar, runTerrain, runWind, running } from "./analysis"
 import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
+import { checkGridStore } from "./grid"
 import { cancelGesture, frameAll, frameItem, resetNorth, zoomIn, zoomOut } from "./mapEngine"
 import { legendsShown, mapMounted, setLegendShown } from "./mapState"
 import { addSite, validLonLat } from "./objects"
@@ -664,6 +666,16 @@ export const OPERATORS: Operator[] = [
     menu: "Analyze",
     poll: all(needArea, notRunning, engineUp),
     run: () => runProduct("terrain"),
+  },
+  {
+    name: "GRID_STORE",
+    aliases: [],
+    label: "Check the grid store",
+    description: "Ask the grid store what it holds, or why it does not answer",
+    icon: Database,
+    menu: "Studio",
+    poll: engineUp,
+    run: () => checkGridStore(true),
   },
   {
     name: "RERUN",

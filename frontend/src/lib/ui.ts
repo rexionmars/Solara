@@ -61,7 +61,7 @@ export function ask(title: string, message: string, buttons: ConfirmButton[]): P
 
 export const operatorSearch = createStore<boolean>(false)
 
-export type PreferencesSection = "account" | "engine" | "keymap" | "about"
+export type PreferencesSection = "account" | "engine" | "grid" | "keymap" | "about"
 
 export const preferences = createStore<PreferencesSection | null>(null)
 
