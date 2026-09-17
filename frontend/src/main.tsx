@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client"
 import "maplibre-gl/dist/maplibre-gl.css"
 import "./index.css"
 import App from "./App"
+import { forwardErrorsToTerminal } from "./lib/devDiagnostics"
+
+if (import.meta.env.DEV) forwardErrorsToTerminal()
 
 /**
  * Remove the static splash in index.html once React has painted its own.
