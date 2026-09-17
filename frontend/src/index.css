@@ -6,22 +6,40 @@
   border-surface, and so on.
 
   Five surface levels, darkest first: sunken (input wells, the command line),
-  surface (the viewport), chrome (ribbon tabs, status bar), panel (properties)
-  and raised (the ribbon body, section headers). Adjacent regions differ by a
-  level, so most boundaries read without needing a border to draw them.
+  surface (the viewport), chrome (title bar, tabs, status bar), panel
+  (properties) and raised (the ribbon body, section headers). Adjacent regions
+  differ by a level, so most boundaries read without needing a border.
+
+  The greys are the Dark scale of the project's neutral ramp, and only those
+  values: base #000000, 50 #0A0A0A, 100 #171717, 200 #262626, 300 #373737,
+  400 #525252, 500 #8A8A8A, 600 #A3A3A3, 700 #D4D4D4, 800 #E5E5E5, 900 #F5F5F5,
+  950 #FAFAFA. The ramp has fewer dark steps than there are surfaces, so chrome
+  and panel share 200 and are told apart by the rule between them, and hover
+  shares 400 with the rule. Muted text is 600 rather than 500 so it holds
+  against every surface up to raised. The layout follows the dark theme of
+  desktop CAD, with the Autodesk blue as the only saturated colour in the
+  chrome; info is kept for data series and messages, where it has to stand
+  apart from them. Glyph is the tint of command icons.
+
+  Field and field-ink are the light well of the command line, the one light
+  surface in the window, as CAD draws it: it is where typing goes, and it
+  reads as such over any basemap.
 */
 @theme {
-  --color-sunken: rgb(17 17 17);
-  --color-surface: rgb(23 23 23);
-  --color-chrome: rgb(28 28 28);
-  --color-panel: rgb(32 32 32);
-  --color-raised: rgb(38 38 38);
-  --color-hover: rgb(52 52 52);
-  --color-line: rgb(64 64 64);
-  --color-info: rgb(147 197 253);
-  --color-ink: rgb(229 229 229);
-  --color-muted: rgb(163 163 163);
-  --color-accent: rgb(59 130 246);
+  --color-sunken: #0a0a0a; /* 50 */
+  --color-surface: #171717; /* 100 */
+  --color-chrome: #262626; /* 200 */
+  --color-panel: #262626; /* 200 */
+  --color-raised: #373737; /* 300 */
+  --color-hover: #525252; /* 400 */
+  --color-line: #525252; /* 400 */
+  --color-glyph: #d4d4d4; /* 700 */
+  --color-field: #d4d4d4; /* 700 */
+  --color-field-ink: #262626; /* 200 */
+  --color-info: rgb(143 196 255);
+  --color-ink: #e5e5e5; /* 800 */
+  --color-muted: #a3a3a3; /* 600 */
+  --color-accent: rgb(6 150 215);
   --color-ok: rgb(74 222 128);
   --color-fail: rgb(248 113 113);
 }
@@ -38,6 +56,24 @@ body {
   color: var(--color-ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Thin scrollbars on the chrome's greys, as the palettes of desktop CAD draw them. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background: var(--color-line) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted);
 }
 
 /* Window drag regions, read by the Wails runtime rather than by the style mask. */
