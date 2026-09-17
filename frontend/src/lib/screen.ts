@@ -1,5 +1,6 @@
-import { Cube, Fan, Graph, Mountains, Sun, Table, TerminalWindow, type Icon } from "@phosphor-icons/react"
+import { Cube, Fan, Graph, Mountains, PlugsConnected, Sun, Table, TerminalWindow, type Icon } from "@phosphor-icons/react"
 import { EDITORS, editorMeta, type EditorId, type StudioGroup } from "./editors"
+import type { Product } from "./project"
 import { select } from "./selection"
 import { createStore } from "./store"
 
@@ -122,6 +123,14 @@ export const WORKSPACES: WorkspacePreset[] = [
     icon: Fan,
     hint: "The wind screening at a site, read beside the map",
     build: () => split("row", 0.74, split("row", 0.4, area("map"), area("wind")), sideColumn()),
+  },
+  {
+    id: "connection",
+    label: "Connection",
+    group: "grid",
+    icon: PlugsConnected,
+    hint: "Where an area could join the transmission network, beside the map of plants and lines",
+    build: () => split("row", 0.74, split("row", 0.55, area("map"), area("connection")), sideColumn()),
   },
 ]
 
@@ -390,13 +399,13 @@ export function setAreaState(areaId: string, patch: AreaState): void {
 
 // ---- Navigation between editors ---------------------------------------------
 
-const WORKSPACE_OF: Record<"solar" | "wind" | "terrain", string> = { solar: "solar", wind: "wind", terrain: "terrain" }
+const WORKSPACE_OF: Record<Product, string> = { solar: "solar", wind: "wind", terrain: "terrain", connection: "connection" }
 
 /**
  * Bring a result into view: select it, and open the workspace built around
  * its reading unless the current one already has that editor.
  */
-export function showResult(id: string, product?: "solar" | "wind" | "terrain"): void {
+export function showResult(id: string, product?: Product): void {
   select(id)
   if (!product) return
   if (leaves(activeTree()).some((a) => a.editor === product)) return

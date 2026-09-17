@@ -678,6 +678,7 @@ function onContextMenu(e: MapMouseEvent): void {
     select(item.id)
     items = [
       { type: "op", op: "TERRAIN" },
+      { type: "op", op: "CONNECTION" },
       { type: "sep" },
       { type: "op", op: "FRAME_SELECTED" },
       { type: "op", op: "RENAME" },
@@ -750,7 +751,7 @@ export function frameItem(item: AnyItem): boolean {
   const target = isResult(item) ? findItem(d, item.sourceId) : item
   if (target?.kind === "site") return frame([[target.lon, target.lat]])
   if (target?.kind === "area") return frame(target.polygon.coordinates[0])
-  if (item.kind === "terrain") return frame(item.polygon.coordinates[0])
+  if (item.kind === "terrain" || item.kind === "connection") return frame(item.polygon.coordinates[0])
   if (item.kind === "solar" || item.kind === "wind") return frame([[item.site.lon, item.site.lat]])
   return false
 }

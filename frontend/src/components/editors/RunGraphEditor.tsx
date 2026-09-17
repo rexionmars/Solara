@@ -1,12 +1,13 @@
-import { useCallback, useState, type ReactNode } from "react"
-import { CircleNotch, Eye, Fan, Mountains, Play, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { ArrowsClockwise, CircleNotch, Eye, Fan, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
 import { lastFailure, running } from "../../lib/analysis"
 import { defaults } from "../../lib/defaults"
 import { formatLat, formatLng } from "../../lib/format"
 import { polygonAreaKm2 } from "../../lib/geo"
-import { runOperator, useOperator } from "../../lib/operators"
+import { RUN_OPERATOR, runOperator, useOperator } from "../../lib/operators"
 import {
   FALLBACK_SEASONS,
+  CONNECTION_FIELDS,
   SOLAR_FIELDS,
   TERRAIN_FIELDS,
   WIND_FIELDS,
@@ -17,7 +18,8 @@ import {
   type Group,
   type NumberField as FieldDef,
 } from "../../lib/params"
-import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
+import { checkGridStore, dsnSourceLabel, gridStore, storeReachable, storeReport } from "../../lib/grid"
+import { PRODUCT_NAMES, isAreaProduct, project, type Product } from "../../lib/project"
 import {
   cardValues,
   currentInputs,
@@ -49,9 +51,9 @@ import { NumberField, Select } from "../ui/Fields"
  * screen read what its card holds now; see NodeCanvas for the five states.
  */
 
-const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan }
-const PRODUCTS: Product[] = ["solar", "terrain", "wind"]
-const OPERATOR: Record<Product, string> = { solar: "SOLAR", terrain: "TERRAIN", wind: "WIND" }
+const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan, connection: PlugsConnected }
+const PRODUCTS: Product[] = ["solar", "terrain", "wind", "connection"]
+const OPERATOR = RUN_OPERATOR
 
 const EDGE_NOTE: Record<EdgeState, string> = {
   missing: "not set",
@@ -111,7 +113,12 @@ function useKeptPlaces(product: Product) {
 
 // ---- Card parts --------------------------------------------------------------------
 
-const FIELDS: Record<Group, FieldDef<string>[]> = { solar: SOLAR_FIELDS, wind: WIND_FIELDS, terrain: TERRAIN_FIELDS }
+const FIELDS: Record<Group, FieldDef<string>[]> = {
+  solar: SOLAR_FIELDS,
+  wind: WIND_FIELDS,
+  terrain: TERRAIN_FIELDS,
+  connection: CONNECTION_FIELDS,
+}
 
 /** A project setting, in a card: the drag field Properties uses, with its name inside it. */
 function Param({ group, field, label }: { group: Group; field: string; label: string }) {
@@ -152,7 +159,13 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const site = activeSite()
   const area = activeArea()
   const product: Product = stored && PRODUCTS.includes(stored) ? stored : area ? "terrain" : "solar"
-  const source = product === "terrain" ? area : site
+  const source = isAreaProduct(product) ? area : site
+  const store = useStore(gridStore)
+  const report = storeReport(store)
+  // The store is asked about once, when a board first needs its card.
+  useEffect(() => {
+    if (product === "connection" && gridStore.get().kind === "unknown") void checkGridStore()
+  }, [product])
   const busy = !!run && run.product === product && run.sourceId === source?.id
   const { poll } = useOperator(OPERATOR[product])
 
@@ -164,7 +177,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
 
   const graph = runGraph(product)
   const fallback = defaultPlaces(graph, heights)
-  const values = cardValues(currentInputs(d, product, site, area), engine)
+  const values = cardValues(currentInputs(d, product, site, area, storeReachable(store)), engine)
   const last = lastRun(d, product, source, failure)
   const lastValues = last ? cardValues(last.inputs, engine) : null
   const pct = run?.progress === null || !run ? null : Math.round(Math.max(0, Math.min(100, run.progress)))
@@ -232,6 +245,45 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
       />
     ),
     array: <Param group="solar" field="surfaceAzimuth" label="Azimuth" />,
+    store: (
+      <>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`size-1.5 shrink-0 rounded-full ${store.kind === "checking" ? "animate-pulse bg-accent" : report?.reachable ? "bg-success" : "bg-muted-foreground/50"}`}
+          />
+          <span className="telemetry text-meta text-foreground">
+            {store.kind === "checking" ? "checking" : report ? (report.reachable ? "reachable" : "unreachable") : store.kind === "failed" ? "not checked" : "unknown"}
+          </span>
+          {report && <span className="ml-auto truncate text-micro text-muted-foreground">{dsnSourceLabel(report.dsn_source)}</span>}
+        </div>
+        {report && (
+          <span className="telemetry selectable truncate text-micro text-muted-foreground" title={report.dsn}>
+            {report.dsn}
+          </span>
+        )}
+        {(report?.unreachable || store.kind === "failed") && (
+          <p className="line-clamp-3 text-micro leading-snug text-muted-foreground" title={report?.unreachable ?? (store.kind === "failed" ? store.message : "")}>
+            {report?.unreachable ?? (store.kind === "failed" ? store.message : "")}
+          </p>
+        )}
+        {report?.reachable && report.coverage && (
+          <span className="text-micro text-muted-foreground">
+            {report.coverage.plants.registered.toLocaleString()} plants · {report.coverage.network.lines_in_service.toLocaleString()} lines
+          </span>
+        )}
+        <button
+          type="button"
+          className={`${btnGhostDense} !h-6 self-start`}
+          disabled={store.kind === "checking"}
+          onClick={() => void checkGridStore(true)}
+          title="Ask the grid store again; Settings › Grid store chooses another"
+        >
+          <ArrowsClockwise className="size-3" />
+          Check again
+        </button>
+      </>
+    ),
+    reach: <Param group="connection" field="searchRadiusKm" label="Radius" />,
     performance: <Param group="solar" field="performanceRatio" label="Ratio" />,
     season: (
       <Select

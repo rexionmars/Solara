@@ -9,6 +9,7 @@ import {
   MapPin,
   Mountains,
   Pentagon,
+  PlugsConnected,
   Stack,
   Sun,
   Swatches,
@@ -17,7 +18,7 @@ import {
 } from "@phosphor-icons/react"
 import { running } from "../../lib/analysis"
 import { legendsShown, setLegendShown } from "../../lib/mapState"
-import { project, renameItem, resultsOf, setHidden, staleReason, type AnyItem } from "../../lib/project"
+import { isResult, project, renameItem, resultsOf, setHidden, staleReason, type AnyItem } from "../../lib/project"
 import { areaStates, setAreaState, showResult } from "../../lib/screen"
 import { select, selection } from "../../lib/selection"
 import { useStore } from "../../lib/store"
@@ -32,8 +33,8 @@ import { AreaHeader } from "../studio/StudioArea"
  * is active, so the tree's cost does not grow with the number of results.
  */
 
-const ICON: Record<AnyItem["kind"], Icon> = { site: MapPin, area: Pentagon, solar: Sun, wind: Fan, terrain: Mountains }
-const KIND: Record<AnyItem["kind"], string> = { site: "Site", area: "Area", solar: "Solar", wind: "Wind", terrain: "Terrain" }
+const ICON: Record<AnyItem["kind"], Icon> = { site: MapPin, area: Pentagon, solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected }
+const KIND: Record<AnyItem["kind"], string> = { site: "Site", area: "Area", solar: "Solar", wind: "Wind", terrain: "Terrain", connection: "Grid" }
 
 type Mode = "scene" | "results"
 
@@ -55,7 +56,7 @@ function itemMenu(item: AnyItem): MenuItem[] {
     op("DELETE"),
   ]
   if (item.kind === "site") return [op("SOLAR"), op("WIND"), ...common]
-  if (item.kind === "area") return [op("TERRAIN"), ...common]
+  if (item.kind === "area") return [op("TERRAIN"), op("CONNECTION"), ...common]
   return [
     { type: "action", label: "Read it", run: () => showResult(item.id, item.kind) },
     op("RERUN", "Run again"),
@@ -212,9 +213,9 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
             const isActive = item.id === selected
             const isOpen = row.expandable && !collapsed.has(item.id)
             const IconC = ICON[item.kind]
-            const stale = item.kind === "solar" || item.kind === "wind" || item.kind === "terrain" ? staleReason(data, item) : null
+            const stale = isResult(item) ? staleReason(data, item) : null
             const busy = !!job && job.sourceId === item.id
-            const hasEye = item.kind !== "solar" && item.kind !== "wind"
+            const hasEye = item.kind !== "solar" && item.kind !== "wind" && item.kind !== "connection"
             return (
               <div
                 key={item.id}

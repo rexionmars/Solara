@@ -196,6 +196,20 @@ export function forgetLayers(): void {
 
 // ---- The record's words ---------------------------------------------------------------
 
+/** What ONS's restriction reasons stand for (TERRA's curtailment.py REASON_MEANING). */
+export const REASON_MEANING: Record<string, string> = {
+  ENE: "surplus energy: more generation offered than the system can absorb",
+  CNF: "reliability: the system could not securely accept the output",
+  REL: "reliability of the plant or its connection",
+  PAR: "scheduled outage or partial availability",
+}
+
+/** Where a restriction originated. LOC is the one a siting decision can act on. */
+export const ORIGIN_MEANING: Record<string, string> = {
+  LOC: "local, at this connection",
+  SIS: "systemic, across the subsystem",
+}
+
 /**
  * The colours ANEEL's own network map uses by voltage (TERRA's gridVoltage.ts),
  * so a line reads as the level a reader who knows that map expects.
@@ -208,3 +222,10 @@ export const VOLTAGE_COLOUR: readonly { kv: number; colour: string }[] = [
   { kv: 500, colour: "#C90E16" },
 ]
 export const UNNAMED_VOLTAGE = "#C6D4E1"
+
+export const km = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v.toFixed(1)} km`)
+export const mw = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v).toLocaleString()} MW`)
+export const kv = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v)} kV`)
+export const mwh = (v: number | null | undefined) =>
+  v === null || v === undefined ? "—" : v >= 1e6 ? `${(v / 1e6).toFixed(2)} TWh` : v >= 1e3 ? `${(v / 1e3).toFixed(1)} GWh` : `${Math.round(v)} MWh`
+export const pct = (v: number | null | undefined, digits = 1) => (v === null || v === undefined ? "—" : `${(v * 100).toFixed(digits)}%`)

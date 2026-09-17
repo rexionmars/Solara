@@ -17,6 +17,8 @@ export type RunValue =
   | { kind: "choice"; label: string | null }
   | { kind: "measure"; of: number; unit: string; also?: readonly number[] }
   | { kind: "band"; low: number; high: number; unit: string }
+  /** A database a run reads from: supplied only while it answers. */
+  | { kind: "store"; reachable: boolean }
   | { kind: "none" }
 
 /** The value as it is written along its wire. Empty when there is nothing to write. */
@@ -32,6 +34,8 @@ export function reading(v: RunValue): string {
       return Number.isFinite(v.of) ? `${num(v.of)} ${v.unit}`.trim() : ""
     case "band":
       return Number.isFinite(v.low) && Number.isFinite(v.high) ? `${num(v.low)}-${num(v.high)} ${v.unit}`.trim() : ""
+    case "store":
+      return v.reachable ? "reachable" : "unreachable"
     case "none":
       return ""
   }
@@ -43,6 +47,8 @@ export function reading(v: RunValue): string {
  */
 export function supplied(v: RunValue): boolean {
   switch (v.kind) {
+    case "store":
+      return v.reachable
     case "ground":
     case "choice":
       return v.label !== null
@@ -66,6 +72,7 @@ export type Subject = "source" | "when" | "method" | "value"
 export function subject(v: RunValue): Subject | null {
   switch (v.kind) {
     case "ground":
+    case "store":
       return "source"
     case "record":
       return "when"

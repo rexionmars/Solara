@@ -1,6 +1,6 @@
 import { ExportResultFile, RevealInFileManager, SaveTextFile } from "../../wailsjs/go/main/App"
 import { errorMessage } from "./errors"
-import { PRODUCT_NAMES, project, type Product, type ResultObject, type TerrainResult } from "./project"
+import { PRODUCT_NAMES, isAreaResult, project, type Product, type ResultObject, type TerrainResult } from "./project"
 import { fail, info } from "./reports"
 import { toCsv } from "./table"
 
@@ -25,7 +25,7 @@ export function exportResultJson(r: ResultObject): Promise<void> {
     product: r.kind,
     name: r.name,
     computed: r.createdAt,
-    ...(r.kind === "terrain" ? { area: r.polygon } : { site: r.site }),
+    ...(isAreaResult(r) ? { area: r.polygon } : { site: r.site }),
     parameters: r.params,
     result: r.data,
   }

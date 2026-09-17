@@ -1,5 +1,5 @@
-import { CaretDown, CaretUp, Fan, Mountains, Sun, Warning } from "@phosphor-icons/react"
-import { PRODUCT_NAMES, project, staleReason, type Product } from "../../lib/project"
+import { CaretDown, CaretUp, Fan, Mountains, PlugsConnected, Sun, Warning } from "@phosphor-icons/react"
+import { PRODUCT_NAMES, isAreaProduct, project, staleReason, type Product } from "../../lib/project"
 import { areaStates, setAreaState } from "../../lib/screen"
 import { select, selection } from "../../lib/selection"
 import { useStore } from "../../lib/store"
@@ -43,6 +43,7 @@ export function TableEditor({ areaId }: { areaId: string }) {
               { id: "solar", label: "Solar", icon: Sun, title: PRODUCT_NAMES.solar },
               { id: "wind", label: "Wind", icon: Fan, title: PRODUCT_NAMES.wind },
               { id: "terrain", label: "Terrain", icon: Mountains, title: PRODUCT_NAMES.terrain },
+              { id: "connection", label: "Grid", icon: PlugsConnected, title: PRODUCT_NAMES.connection },
             ]}
           />
         }
@@ -51,7 +52,7 @@ export function TableEditor({ areaId }: { areaId: string }) {
       <div className="panel-scroll h-full min-h-0 overflow-auto">
         {rows.length === 0 ? (
           <p className="px-3 py-3 text-body leading-relaxed text-muted-foreground">
-            No {PRODUCT_NAMES[product].toLowerCase()} results. Run it at several {product === "terrain" ? "areas" : "sites"} to set them side by side here.
+            No {PRODUCT_NAMES[product].toLowerCase()} results. Run it at several {isAreaProduct(product) ? "areas" : "sites"} to set them side by side here.
           </p>
         ) : (
           <table className="min-w-full border-separate border-spacing-0 text-meta">

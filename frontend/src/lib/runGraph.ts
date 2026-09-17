@@ -3,6 +3,7 @@ import type { RunFailure } from "./analysis"
 import { seasonLabel } from "./params"
 import {
   type AreaObject,
+  type ConnectionParams,
   type Polygon,
   type Product,
   type ProjectData,
@@ -33,6 +34,8 @@ export type RunNodeId =
   | "season"
   | "turbine"
   | "roughness"
+  | "store"
+  | "reach"
   | "run"
 
 export interface RunNodeSpec {
@@ -58,6 +61,8 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   season: { id: "season", label: "Season", h: 74 },
   turbine: { id: "turbine", label: "Turbine", h: 100 },
   roughness: { id: "roughness", label: "Roughness", h: 100 },
+  store: { id: "store", label: "Grid store", h: 100 },
+  reach: { id: "reach", label: "Reach", h: 74 },
   run: { id: "run", label: "Run", h: 96 },
 }
 
@@ -83,7 +88,9 @@ export function runGraph(product: Product): RunGraph {
       ? ["site", "product", "record", "radiation", "array", "performance"]
       : product === "terrain"
         ? ["area", "product", "record", "season"]
-        : ["site", "product", "record", "turbine", "roughness"]
+        : product === "connection"
+          ? ["area", "product", "store", "reach"]
+          : ["site", "product", "record", "turbine", "roughness"]
   return fanIn([...inputs.map((id) => at(id, 0)), at("run", 1)])
 }
 
@@ -121,9 +128,12 @@ export type RunInputs = {
   solar: SolarParams
   wind: WindParams
   terrain: TerrainParams
+  connection: ConnectionParams
+  /** Whether the grid store answered: what the store card supplies. */
+  storeReachable: boolean
 }
 
-export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind" }
+export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind", connection: "Connection" }
 
 /**
  * Total over the node ids, so a card added without saying what it supplies
@@ -177,13 +187,21 @@ export function cardValues(p: RunInputs, d: energy.ParameterDefaults | null): Re
       high: or(w.roughnessHighM, d?.wind.roughness_band_m?.[1]),
       unit: "m",
     },
+    store: { kind: "store", reachable: p.storeReachable },
+    reach: { kind: "measure", of: or(p.connection.searchRadiusKm, d?.connection?.search_radius_km), unit: "km" },
     run: { kind: "none" },
   }
 }
 
 /** What the cards hold now, for a product at the given site or area. */
-export function currentInputs(d: ProjectData, product: Product, site: SiteObject | null, area: AreaObject | null): RunInputs {
-  return { product, site, area, ...d.settings }
+export function currentInputs(
+  d: ProjectData,
+  product: Product,
+  site: SiteObject | null,
+  area: AreaObject | null,
+  storeReachable: boolean
+): RunInputs {
+  return { product, site, area, ...d.settings, storeReachable }
 }
 
 /** The run the cards are compared against: its inputs, whether it succeeded, and the result it left. */
@@ -203,7 +221,8 @@ export function lastRun(
 ): LastRun | null {
   if (!source) return null
   const result = d.results.filter((r) => r.kind === product && r.sourceId === source.id).at(-1)
-  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {} }
+  // A run that reached the sidecar read the store it was pointed at, so the store card's wire settles with it.
+  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {}, connection: {}, storeReachable: true }
   const failed =
     failure && failure.product === product && failure.sourceId === source.id && (!result || Date.parse(result.createdAt) < failure.at)
       ? failure
@@ -228,8 +247,10 @@ export function lastRun(
     inputs:
       result.kind === "terrain"
         ? { ...base, area: { name: source.name, polygon: result.polygon }, terrain: result.params }
-        : result.kind === "solar"
-          ? { ...base, site: { name: source.name, ...result.site }, solar: result.params }
+        : result.kind === "connection"
+          ? { ...base, area: { name: source.name, polygon: result.polygon }, connection: result.params }
+          : result.kind === "solar"
+            ? { ...base, site: { name: source.name, ...result.site }, solar: result.params }
           : { ...base, site: { name: source.name, ...result.site }, wind: result.params },
   }
 }

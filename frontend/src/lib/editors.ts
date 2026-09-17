@@ -2,6 +2,7 @@ import {
   Fan,
   Graph,
   MapTrifold,
+  PlugsConnected,
   Mountains,
   Scroll,
   SlidersHorizontal,
@@ -20,18 +21,19 @@ import {
  * the switch from an id to a component lives where the props are.
  */
 
-export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain"
+export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain" | "connection"
 
 /**
  * What kind of work a thing is FOR. The workspace bar and the type menu group
  * by the same subjects, so a reader who has learnt one has learnt the other.
  */
-export type StudioGroup = "board" | "solar" | "wind"
+export type StudioGroup = "board" | "solar" | "wind" | "grid"
 
 export const STUDIO_GROUPS: readonly { id: StudioGroup; label: string }[] = [
   { id: "board", label: "Board" },
   { id: "solar", label: "Solar" },
   { id: "wind", label: "Wind" },
+  { id: "grid", label: "Grid" },
 ]
 
 export type EditorMeta = {
@@ -145,6 +147,15 @@ export const EDITORS: readonly EditorMeta[] = [
     minRem: 22,
     minRowRem: 14,
     hint: "Hub-height wind at a site, and how far the estimate moves with shear",
+  },
+  {
+    id: "connection",
+    group: "grid",
+    label: "Grid connection",
+    icon: PlugsConnected,
+    minRem: 22,
+    minRowRem: 14,
+    hint: "Where an area could join the transmission network, read from the grid store",
   },
 ]
 

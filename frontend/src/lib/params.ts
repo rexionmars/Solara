@@ -1,5 +1,5 @@
 import type { energy } from "../../wailsjs/go/models"
-import { commit, project, type Settings, type SolarParams, type TerrainParams, type WindParams } from "./project"
+import { commit, project, type ConnectionParams, type Settings, type SolarParams, type TerrainParams, type WindParams } from "./project"
 
 /**
  * The analysis settings as fields: label, unit, and what the sidecar accepts.
@@ -131,6 +131,19 @@ export const TERRAIN_FIELDS: NumberField<"hourlyYears">[] = [
   },
 ]
 
+export const CONNECTION_FIELDS: NumberField<keyof ConnectionParams>[] = [
+  {
+    key: "searchRadiusKm",
+    label: "Search Radius",
+    unit: "km",
+    min: 0,
+    exclusiveMin: true,
+    step: 10,
+    description: "How far from the area substations and lines of the transmission register are looked for",
+    defaultOf: (d) => d.connection?.search_radius_km,
+  },
+]
+
 /** Labels for the terrain windows. The list itself comes from the sidecar when it has answered. */
 const SEASON_LABELS: Record<string, string> = {
   annual: "Annual",
@@ -194,4 +207,4 @@ export function settings(): Settings {
   return project.get().data.settings
 }
 
-export type { SolarParams, TerrainParams, WindParams }
+export type { ConnectionParams, SolarParams, TerrainParams, WindParams }

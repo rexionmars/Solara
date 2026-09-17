@@ -1,10 +1,11 @@
 import {
+  AnalyzeGridConnection,
   AnalyzeSolarResource,
   AnalyzeSolarTerrain,
   AnalyzeWindResource,
   CancelRun,
 } from "../../wailsjs/go/main/App"
-import { energy } from "../../wailsjs/go/models"
+import { energy, grid } from "../../wailsjs/go/models"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import { errorMessage } from "./errors"
 import { formatLat, formatLng } from "./format"
@@ -235,6 +236,37 @@ export function runTerrain(area: AreaObject, replace?: string): Promise<string |
         ? `Solar terrain over ${area.name}: ${seasonLabel(r.data.season).toLowerCase()}, mean ` +
           `${r.data.poa_mean.toFixed(r.data.scale.decimals)} ${r.data.unit}, spread ${r.data.poa_std_pct.toFixed(1)}%.`
         : "",
+    replace
+  )
+}
+
+export function runConnection(area: AreaObject, replace?: string): Promise<string | null> {
+  const p = project.get().data.settings.connection
+  const polygon = area.polygon
+  return run(
+    "connection",
+    area,
+    `from ${area.name}`,
+    async () => ({
+      kind: "connection" as const,
+      polygon,
+      params: { ...p },
+      data: await AnalyzeGridConnection(
+        grid.ConnectionRequest.createFrom({ area: polygon, search_radius_km: p.searchRadiusKm })
+      ),
+    }),
+    (r) => {
+      if (r.kind !== "connection") return ""
+      const c = r.data.connection
+      const joined = c.attachment[0]
+      const where = joined
+        ? `joined at ${joined.point_code} (${joined.substation ?? "unmatched bus"})`
+        : c.nearest_substation
+          ? `nearest substation ${c.nearest_substation.name}, ${c.nearest_substation.distance_km.toFixed(1)} km`
+          : `nothing on the register within ${c.searched_km.toFixed(0)} km`
+      const withheld = r.data.curtailment_at_connected_plants?.withheld_fraction
+      return `Grid connection from ${area.name}: ${where}${withheld != null ? `; ${(withheld * 100).toFixed(1)}% withheld at the plants in it` : ""}.`
+    },
     replace
   )
 }

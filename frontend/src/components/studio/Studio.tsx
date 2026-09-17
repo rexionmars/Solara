@@ -48,6 +48,7 @@ function Editor({ areaId, editor }: { areaId: string; editor: EditorId }) {
     case "solar":
     case "wind":
     case "terrain":
+    case "connection":
       return <ReadingEditor areaId={areaId} product={editor} />
   }
 }

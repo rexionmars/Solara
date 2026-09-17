@@ -6,7 +6,7 @@ import { formatLat, formatLng } from "../../lib/format"
 import { polygonAreaKm2, ringCentre } from "../../lib/geo"
 import { legendsShown, setLegendShown } from "../../lib/mapState"
 import { setResultOpacity, setSiteCoordinate } from "../../lib/objects"
-import { runOperator } from "../../lib/operators"
+import { RUN_OPERATOR, runOperator } from "../../lib/operators"
 import { seasonLabel } from "../../lib/params"
 import {
   PRODUCT_NAMES,
@@ -48,6 +48,7 @@ const SUBJECT: Record<AnyItem["kind"], string> = {
   solar: "Solar resource",
   wind: "Wind screening",
   terrain: "Solar terrain",
+  connection: "Grid connection",
 }
 
 /** The subject, its name and where it is, as TERRA heads a reading. */
@@ -143,12 +144,13 @@ function Figures({ result }: { result: ResultObject }) {
   )
 }
 
-const RUN: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN" }
+const RUN = RUN_OPERATOR
 
 const WHAT: Record<Product, string> = {
   solar: "NASA POWER at the site's radiation cell; the photovoltaic yield with pvlib.",
   wind: "MERRA-2 at the site's cell, extrapolated to hub height. Gross and unvalidated: a screening.",
   terrain: "Plane-of-array irradiation over the area's 30 m terrain, with horizon shading. Draws a layer.",
+  connection: "Where the area could join the transmission network, and what the plants already joined there lost. Read from the grid store.",
 }
 
 /** A product's card: what it reads, its settings, the run, and what it last produced. */
@@ -294,6 +296,7 @@ function AreaBody({ area }: { area: AreaObject }) {
       </PanelSection>
       <ProductCard product="terrain" source={area} />
       {latest?.kind === "terrain" && <TerrainLayer result={latest} />}
+      <ProductCard product="connection" source={area} />
     </>
   )
 }

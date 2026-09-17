@@ -1,4 +1,4 @@
-import { findItem, isResult, project, type AreaObject, type AnyItem, type SiteObject } from "./project"
+import { findItem, isAreaResult, isResult, project, type AreaObject, type AnyItem, type SiteObject } from "./project"
 import { createStore, useStore } from "./store"
 
 /**
@@ -31,19 +31,19 @@ export function activeSite(): SiteObject | null {
   const d = project.get().data
   const item = activeItem()
   if (item?.kind === "site") return item
-  if (isResult(item) && item.kind !== "terrain") {
+  if (isResult(item) && !isAreaResult(item)) {
     const s = findItem(d, item.sourceId)
     return s?.kind === "site" ? s : null
   }
   return null
 }
 
-/** The area operators act on: the active area, or the area of the active terrain result. */
+/** The area operators act on: the active area, or the area of the active result read over one. */
 export function activeArea(): AreaObject | null {
   const d = project.get().data
   const item = activeItem()
   if (item?.kind === "area") return item
-  if (item?.kind === "terrain") {
+  if (isResult(item) && isAreaResult(item)) {
     const a = findItem(d, item.sourceId)
     return a?.kind === "area" ? a : null
   }

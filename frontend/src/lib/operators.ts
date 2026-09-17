@@ -25,6 +25,7 @@ import {
   Mountains,
   PencilSimple,
   Play,
+  PlugsConnected,
   Polygon as PolygonIcon,
   Question,
   Ruler,
@@ -42,11 +43,11 @@ import {
 } from "@phosphor-icons/react"
 import { Quit, WindowIsFullscreen, WindowFullscreen, WindowUnfullscreen } from "../../wailsjs/runtime/runtime"
 import { account, logout } from "./account"
-import { cancelRun, runSolar, runTerrain, runWind, running } from "./analysis"
+import { cancelRun, runConnection, runSolar, runTerrain, runWind, running } from "./analysis"
 import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
-import { checkGridStore } from "./grid"
+import { checkGridStore, storeReachable } from "./grid"
 import { cancelGesture, frameAll, frameItem, resetNorth, zoomIn, zoomOut } from "./mapEngine"
 import { legendsShown, mapMounted, setLegendShown } from "./mapState"
 import { addSite, validLonLat } from "./objects"
@@ -54,6 +55,8 @@ import { IS_MAC } from "./platform"
 import {
   PRODUCT_NAMES,
   deleteItem,
+  isAreaProduct,
+  isAreaResult,
   isResult,
   project,
   redo,
@@ -150,12 +153,18 @@ const needTerrainResult = () => (activeItem()?.kind === "terrain" ? true : "Sele
 
 // ---- Run helpers ---------------------------------------------------------------
 
+/** The operator that runs each product. */
+export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION" }
+
+const needGridStore = (): true | string =>
+  storeReachable() ? true : "The grid store is not reachable (Studio › Settings › Grid store says why)"
+
 async function runProduct(product: Product): Promise<void> {
-  if (product === "terrain") {
+  if (isAreaProduct(product)) {
     const area = activeArea()
     if (!area) return
-    const id = await runTerrain(area)
-    if (id) lastOperation.set({ operator: "TERRAIN", label: PRODUCT_NAMES.terrain, kind: "run", target: id })
+    const id = await (product === "terrain" ? runTerrain(area) : runConnection(area))
+    if (id) lastOperation.set({ operator: RUN_OPERATOR[product], label: PRODUCT_NAMES[product], kind: "run", target: id })
     return
   }
   const site = activeSite()
@@ -275,14 +284,14 @@ export const OPERATORS: Operator[] = [
     aliases: [],
     label: "Comparison table as CSV…",
     description: "Export every result of one product as a CSV table",
-    usage: "EXPORT_TABLE solar|wind|terrain",
+    usage: "EXPORT_TABLE solar|wind|terrain|connection",
     icon: FileArrowDown,
     menu: "Studio › Export",
     poll: () => (project.get().data.results.length ? true : "There are no results yet"),
     run: (args) => {
       const product = (args[0]?.toLowerCase() ?? activeProductForTable()) as Product
       if (!(product in PRODUCT_NAMES)) {
-        fail("Usage: EXPORT_TABLE solar|wind|terrain")
+        fail("Usage: EXPORT_TABLE solar|wind|terrain|connection")
         return
       }
       return exportTableCsv(product)
@@ -668,6 +677,16 @@ export const OPERATORS: Operator[] = [
     run: () => runProduct("terrain"),
   },
   {
+    name: "CONNECTION",
+    aliases: ["GC", "GRID"],
+    label: "Grid connection",
+    description: "Where the active area could join the transmission network, read from the grid store (ONS, ANEEL)",
+    icon: PlugsConnected,
+    menu: "Analyze",
+    poll: all(needArea, notRunning, engineUp, needGridStore),
+    run: () => runProduct("connection"),
+  },
+  {
     name: "GRID_STORE",
     aliases: [],
     label: "Check the grid store",
@@ -689,7 +708,7 @@ export const OPERATORS: Operator[] = [
     poll: all(needResult, notRunning, engineUp, () => {
       const r = activeItem()
       const d = project.get().data
-      return isResult(r) && d.results.some((x) => x.id === r.id) && (r.kind === "terrain" ? activeArea() : activeSite())
+      return isResult(r) && d.results.some((x) => x.id === r.id) && (isAreaResult(r) ? activeArea() : activeSite())
         ? true
         : "Its source has been deleted"
     }),

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { CaretDown, CaretRight, House, MagnifyingGlassMinus, MagnifyingGlassPlus, Stack, Tag } from "@phosphor-icons/react"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
-import { runSolar, runTerrain, runWind } from "../../lib/analysis"
+import { runConnection, runSolar, runTerrain, runWind } from "../../lib/analysis"
 import { BASEMAP_NAME } from "../../lib/basemap"
 import { formatLat, formatLng } from "../../lib/format"
 import { distanceKm } from "../../lib/geo"
@@ -232,8 +232,9 @@ function RedoPlate() {
   const again = async () => {
     if (!isResult(target) || !source) return
     const id =
-      target.kind === "terrain"
-        ? source.kind === "area" && (await runTerrain(source, target.id))
+      target.kind === "terrain" || target.kind === "connection"
+        ? source.kind === "area" &&
+          (await (target.kind === "terrain" ? runTerrain(source, target.id) : runConnection(source, target.id)))
         : source.kind === "site" && (await (target.kind === "solar" ? runSolar(source, target.id) : runWind(source, target.id)))
     if (id) lastOperation.set({ ...last, target: id })
   }

@@ -1,4 +1,4 @@
-import type { energy } from "../../wailsjs/go/models"
+import type { energy, grid } from "../../wailsjs/go/models"
 import { createStore } from "./store"
 
 /**
@@ -43,7 +43,8 @@ export type WindParams = {
   roughnessHighM?: number
 }
 export type TerrainParams = { hourlyYears?: number; season?: string }
-export type Settings = { solar: SolarParams; wind: WindParams; terrain: TerrainParams }
+export type ConnectionParams = { searchRadiusKm?: number }
+export type Settings = { solar: SolarParams; wind: WindParams; terrain: TerrainParams; connection: ConnectionParams }
 
 type ResultBase = {
   id: string
@@ -62,14 +63,27 @@ export type TerrainResult = ResultBase & {
   data: energy.SolarTerrainAnalysis
   opacity: number
 }
-export type ResultObject = SolarResult | WindResult | TerrainResult
+/** Where an area could join the transmission network, read from the grid store. */
+export type ConnectionResult = ResultBase & {
+  kind: "connection"
+  polygon: Polygon
+  params: ConnectionParams
+  data: grid.ConnectionAnalysis
+}
+export type ResultObject = SolarResult | WindResult | TerrainResult | ConnectionResult
 export type Product = ResultObject["kind"]
 
 export const PRODUCT_NAMES: Record<Product, string> = {
   solar: "Solar resource",
   wind: "Wind screening",
   terrain: "Solar terrain",
+  connection: "Grid connection",
 }
+
+/** The products read over an area rather than at a site. */
+export type AreaResult = TerrainResult | ConnectionResult
+export const isAreaProduct = (p: Product): p is AreaResult["kind"] => p === "terrain" || p === "connection"
+export const isAreaResult = (r: ResultObject): r is AreaResult => isAreaProduct(r.kind)
 
 export type ProjectData = {
   name: string
@@ -103,7 +117,7 @@ export function emptyProject(): ProjectData {
     sites: [],
     areas: [],
     results: [],
-    settings: { solar: {}, wind: {}, terrain: {} },
+    settings: { solar: {}, wind: {}, terrain: {}, connection: {} },
   }
 }
 
@@ -224,7 +238,7 @@ export function findItem(d: ProjectData, id: string | null): AnyItem | null {
 }
 
 export function isResult(item: AnyItem | null): item is ResultObject {
-  return !!item && (item.kind === "solar" || item.kind === "wind" || item.kind === "terrain")
+  return !!item && (item.kind === "solar" || item.kind === "wind" || item.kind === "terrain" || item.kind === "connection")
 }
 
 export function resultsOf(d: ProjectData, sourceId: string): ResultObject[] {
@@ -295,10 +309,12 @@ function samePolygon(a: Polygon, b: Polygon): boolean {
  */
 export function staleReason(d: ProjectData, r: ResultObject): string | null {
   const source = findItem(d, r.sourceId)
-  if (!source) return r.kind === "terrain" ? "Its area has been deleted" : "Its site has been deleted"
-  if (r.kind === "terrain") {
+  if (!source) return isAreaResult(r) ? "Its area has been deleted" : "Its site has been deleted"
+  if (isAreaResult(r)) {
     if (source.kind !== "area" || !samePolygon(source.polygon, r.polygon)) return "The area has been redrawn since this run"
-    if (!sameParams(d.settings.terrain, r.params)) return "The terrain settings have changed since this run"
+    if (!sameParams(d.settings[r.kind], r.params)) {
+      return `The ${r.kind === "terrain" ? "terrain" : "connection"} settings have changed since this run`
+    }
     return null
   }
   if (source.kind !== "site" || source.lon !== r.site.lon || source.lat !== r.site.lat) {

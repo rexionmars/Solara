@@ -108,6 +108,54 @@ export const COLUMNS: Record<Product, Column[]> = {
     { key: "slope", label: "Mean Slope", unit: "°", decimals: 1, value: (r) => (r.kind === "terrain" ? r.data.slope_mean_deg : null) },
     ...trailing,
   ],
+  connection: [
+    ...common,
+    { key: "area", label: "Area", unit: "km²", decimals: 2, value: (r) => (r.kind === "connection" ? polygonAreaKm2(r.polygon) : null) },
+    {
+      key: "joined",
+      label: "Joined At",
+      value: (r) => (r.kind === "connection" ? (r.data.connection.attachment[0]?.point_code ?? "none in the record") : null),
+    },
+    {
+      key: "joinedKv",
+      label: "Joined Voltage",
+      unit: "kV",
+      decimals: 0,
+      value: (r) => (r.kind === "connection" ? (r.data.connection.attachment[0]?.voltage_kv ?? null) : null),
+    },
+    {
+      key: "substation",
+      label: "Nearest Substation",
+      unit: "km",
+      decimals: 1,
+      value: (r) => (r.kind === "connection" ? (r.data.connection.nearest_substation?.distance_km ?? null) : null),
+    },
+    {
+      key: "line",
+      label: "Nearest Line",
+      unit: "km",
+      decimals: 1,
+      value: (r) => (r.kind === "connection" ? (r.data.connection.nearest_line?.distance_km ?? null) : null),
+    },
+    {
+      key: "highestKv",
+      label: "Highest Within Reach",
+      unit: "kV",
+      decimals: 0,
+      value: (r) => (r.kind === "connection" ? (r.data.connection.highest_voltage_kv ?? null) : null),
+    },
+    {
+      key: "withheld",
+      label: "Withheld",
+      unit: "%",
+      decimals: 1,
+      value: (r) => {
+        const f = r.kind === "connection" ? r.data.curtailment_at_connected_plants?.withheld_fraction : null
+        return f == null ? null : f * 100
+      },
+    },
+    ...trailing,
+  ],
 }
 
 export function formatCell(c: Column, v: number | string | null): string {

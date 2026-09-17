@@ -1,7 +1,7 @@
 import { useState } from "react"
-import { Fan, Mountains, PushPin, Sun, Warning } from "@phosphor-icons/react"
-import { runOperator } from "../../lib/operators"
-import { PRODUCT_NAMES, findItem, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
+import { Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { RUN_OPERATOR, runOperator } from "../../lib/operators"
+import { PRODUCT_NAMES, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
 import { areaStates, setAreaState } from "../../lib/screen"
 import { select, useActiveItem } from "../../lib/selection"
 import { useStore } from "../../lib/store"
@@ -9,6 +9,7 @@ import type { MenuItem } from "../../lib/ui"
 import { SolarBody } from "../energy/SolarDocument"
 import { TerrainBody } from "../energy/TerrainDocument"
 import { WindBody } from "../energy/WindDocument"
+import { ConnectionBody } from "../energy/ConnectionDocument"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AreaHeader } from "../studio/StudioArea"
@@ -23,7 +24,7 @@ import { OperatorButton } from "../ui/Fields"
  * newest in the project.
  */
 
-const ICON = { solar: Sun, wind: Fan, terrain: Mountains }
+const ICON: Record<Product, Icon> = { solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected }
 
 function shown(d: ProjectData, product: Product, pinned: string | undefined, active: AnyItem | null): ResultObject | null {
   const pin = pinned ? findItem(d, pinned) : null
@@ -61,8 +62,10 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
     <SolarBody solar={result.data} site={result.site} />
   ) : result.kind === "wind" ? (
     <WindBody wind={result.data} site={result.site} />
-  ) : (
+  ) : result.kind === "terrain" ? (
     <TerrainBody terrain={result.data} area={result.polygon} />
+  ) : (
+    <ConnectionBody connection={result.data} area={result.polygon} />
   )
 
   return (
@@ -163,7 +166,7 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
 
 function Empty({ product }: { product: Product }) {
   const IconC = ICON[product]
-  const on = product === "terrain" ? "an area" : "a site"
+  const on = isAreaProduct(product) ? "an area" : "a site"
   return (
     <div className="mx-auto flex max-w-sm flex-col items-center gap-2 px-4 py-16 text-center">
       <IconC className="size-5 text-muted-foreground/60" />
@@ -172,7 +175,7 @@ function Empty({ product }: { product: Product }) {
         No reading yet. Make {on} active and run it here or from its card in Properties; every run stays in the project to be read
         and compared.
       </p>
-      <OperatorButton name={product === "solar" ? "SOLAR" : product === "wind" ? "WIND" : "TERRAIN"} primary />
+      <OperatorButton name={RUN_OPERATOR[product]} primary />
     </div>
   )
 }

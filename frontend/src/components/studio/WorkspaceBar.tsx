@@ -78,6 +78,7 @@ export function WorkspaceBar() {
           {exportTable("solar")}
           {exportTable("wind")}
           {exportTable("terrain")}
+          {exportTable("connection")}
         </StudioMenuGroup>
         <StudioMenuRule />
         <OperatorMenuItem name="UNDO" onDone={done} />

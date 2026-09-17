@@ -1,6 +1,7 @@
 import { defaults } from "../../lib/defaults"
 import {
   FALLBACK_SEASONS,
+  CONNECTION_FIELDS,
   SOLAR_FIELDS,
   TERRAIN_FIELDS,
   WIND_FIELDS,
@@ -22,7 +23,12 @@ import { FieldRow, NumberField, Select } from "../ui/Fields"
  * foreground with a reset beside it.
  */
 
-const FIELDS: Record<Group, FieldDef<string>[]> = { solar: SOLAR_FIELDS, wind: WIND_FIELDS, terrain: TERRAIN_FIELDS }
+const FIELDS: Record<Group, FieldDef<string>[]> = {
+  solar: SOLAR_FIELDS,
+  wind: WIND_FIELDS,
+  terrain: TERRAIN_FIELDS,
+  connection: CONNECTION_FIELDS,
+}
 
 export function ParamFields({ group }: { group: Group }) {
   const values = useStore(project).data.settings[group] as Record<string, number | string | undefined>
