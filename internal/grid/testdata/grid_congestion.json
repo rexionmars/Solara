@@ -1,0 +1,134 @@
+{
+    "grid_congestion": {
+        "connection": {
+            "reachable": true,
+            "searched_km": 100.0,
+            "attachment": [
+                {
+                    "id_ons": "CJU_BASSD",
+                    "entity": "Conj. Sol do Sert\u00e3o",
+                    "point_code": "BASDS-500-A",
+                    "point_name": "SOL DO SERT\u00c3O500kVA",
+                    "capacity_mw": 415.03,
+                    "kind": "Solar",
+                    "distance_km": 0.0,
+                    "bus": 8714,
+                    "substation": "SOL DO SERTAO",
+                    "voltage_kv": 500.0,
+                    "voltage_confirmed": true
+                }
+            ],
+            "attached_bus_headroom": [
+                {
+                    "bus": 8714,
+                    "lines_in_service": 2,
+                    "lines_with_published_rating": 0,
+                    "line_capacity_mva": null,
+                    "units_attached": 2,
+                    "attached_mw": 838.0,
+                    "note": "Occupancy and curtailment are reported apart and must not be combined. Their correlation over the points where both are known is -0.025: a bus at 10 percent occupancy can still curtail 37 percent of what it carries, because the constraint is upstream."
+                }
+            ],
+            "neighbours": [],
+            "neighbour_bus_headroom": [],
+            "nearest_substation": {
+                "name": "SOL DO SERTAO",
+                "distance_km": 0.0,
+                "voltage_kv": 500.0
+            },
+            "nearest_line": {
+                "name": "LT  500 kV SOL DO SERTAO        / GENTIO OURO II       C 1  BA (DOLI7-01)",
+                "distance_km": 0.0,
+                "voltage_kv": 500.0,
+                "capacity_mva": null
+            },
+            "substations": [
+                {
+                    "name": "SOL DO SERTAO",
+                    "distance_km": 0.0,
+                    "voltage_kv": 500.0
+                },
+                {
+                    "name": "BROTAS.MACAUBAS",
+                    "distance_km": 27.92,
+                    "voltage_kv": 230.0
+                }
+            ],
+            "lines": [
+                {
+                    "name": "LT  500 kV SOL DO SERTAO        / GENTIO OURO II       C 1  BA (DOLI7-01)",
+                    "distance_km": 0.0,
+                    "voltage_kv": 500.0,
+                    "capacity_mva": null
+                },
+                {
+                    "name": "LT  500 kV SOL DO SERTAO        / BOM.JES.LAPA II      C 1  BA (LI7-01)",
+                    "distance_km": 0.0,
+                    "voltage_kv": 500.0,
+                    "capacity_mva": null
+                },
+                {
+                    "name": "LT  230 kV B.JESUS LAPA         / BROTAS.MACAUBAS      C F5 BA (04F5)",
+                    "distance_km": 16.6,
+                    "voltage_kv": 230.0,
+                    "capacity_mva": 631.0
+                },
+                {
+                    "name": "LT  500 kV UT.MARANHAO 5        / PARNAIBA             C 1  MA",
+                    "distance_km": 18.94,
+                    "voltage_kv": 500.0,
+                    "capacity_mva": null
+                },
+                {
+                    "name": "LT  500 kV UT.MARANHAO 5        / PARNAIBA             C 2  MA",
+                    "distance_km": 18.94,
+                    "voltage_kv": 500.0,
+                    "capacity_mva": null
+                }
+            ],
+            "highest_voltage_kv": 500.0,
+            "capacity_published_fraction": 0.575,
+            "route_factor": {
+                "median": 1.077,
+                "p90": 1.408,
+                "note": "Line distances are to the straight segment between a line's terminals, which is all ONS publishes. Multiply by this to approximate the conductor route."
+            },
+            "source": "ONS transmission equipment register"
+        },
+        "curtailment_at_connected_plants": {
+            "plants_in_aoi": 8,
+            "window": "2024-04-01..2026-09-28",
+            "expected_mwh": 2508881.1,
+            "delivered_mwh": 1664449.9,
+            "withheld_mwh": 844431.2,
+            "withheld_fraction": 0.3366,
+            "withheld_under_restriction_mwh": 877988.7,
+            "estimate_gap_when_free_mwh": -33557.5,
+            "periods": 339408,
+            "periods_under_restriction": 88659,
+            "restricted_fraction": 0.2612,
+            "top_reason": "ENE",
+            "top_origin": "SIS",
+            "unrestricted_baseline_fraction": -0.0372,
+            "kind": "empirical",
+            "basis": "Withheld energy is the operator's estimated generation minus its verified generation, summed over the plants inside the AOI. The estimate is a model of ONS's, so the difference carries its error and is reported unclipped. The reason and origin are attributed to the CLUSTER a plant belonged to at the time, so they describe plants outside the AOI as well. unrestricted_baseline_fraction is the same difference over the half hours with no restriction in force, at the same plants over the same window: the floor below which this figure is the operator's model error rather than curtailment.",
+            "source": "ONS constrained-off, photovoltaic detail and curtailment"
+        },
+        "curtailment_absent": null,
+        "window": {
+            "requested": [
+                null,
+                null
+            ],
+            "record": [
+                "2024-04-01",
+                "2026-09-28"
+            ],
+            "used": [
+                "2024-04-01",
+                "2026-09-28"
+            ]
+        },
+        "note": "Proximity and curtailment are reported apart and must not be summed into a score. A site 1.3 km from a 440 kV line rated 2,664 MVA can still lose 14 percent of its output, because the binding constraint is upstream of the connection."
+    }
+}

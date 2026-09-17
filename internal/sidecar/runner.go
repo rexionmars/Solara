@@ -142,6 +142,15 @@ func (r *Runner) Query(ctx context.Context, action string) (json.RawMessage, err
 	return r.execute(ctx, map[string]any{"action": action}, nil)
 }
 
+// Read runs a request that only reads, such as a layer from the grid store, and
+// returns its raw result. Exempt from the one-request rule because it would
+// otherwise refuse to draw a map layer for as long as an analysis runs; its
+// progress is dropped, so no line of it can be taken for the analysis's own.
+// Cancel does not reach it; the caller's context bounds it.
+func (r *Runner) Read(ctx context.Context, req any) (json.RawMessage, error) {
+	return r.execute(ctx, req, nil)
+}
+
 func (r *Runner) execute(ctx context.Context, req any, onProgress func(Progress)) (json.RawMessage, error) {
 	body, err := json.Marshal(req)
 	if err != nil {

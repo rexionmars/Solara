@@ -34,13 +34,23 @@ type Store struct {
 	dataDir string
 }
 
-// Open opens the database in the user's configuration directory.
-func Open() (*Store, error) {
+// DefaultDir is the directory the application keeps its files in: the user's
+// configuration directory, under the application's own name.
+func DefaultDir() (string, error) {
 	cfg, err := os.UserConfigDir()
 	if err != nil {
-		return nil, fmt.Errorf("user config dir: %w", err)
+		return "", fmt.Errorf("user config dir: %w", err)
 	}
-	return OpenDir(filepath.Join(cfg, dataDirName))
+	return filepath.Join(cfg, dataDirName), nil
+}
+
+// Open opens the database in DefaultDir.
+func Open() (*Store, error) {
+	dir, err := DefaultDir()
+	if err != nil {
+		return nil, err
+	}
+	return OpenDir(dir)
 }
 
 /*

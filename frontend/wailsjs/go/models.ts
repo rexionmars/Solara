@@ -18,6 +18,18 @@ export namespace energy {
 	        this.lat_max = source["lat_max"];
 	    }
 	}
+	export class ConnectionDefaults {
+	    search_radius_km: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConnectionDefaults(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.search_radius_km = source["search_radius_km"];
+	    }
+	}
 	export class TerrainDefaults {
 	    hourly_years: number;
 	    season: string;
@@ -76,6 +88,7 @@ export namespace energy {
 	    solar: SolarDefaults;
 	    wind: WindDefaults;
 	    terrain: TerrainDefaults;
+	    connection: ConnectionDefaults;
 	
 	    static createFrom(source: any = {}) {
 	        return new ParameterDefaults(source);
@@ -86,6 +99,7 @@ export namespace energy {
 	        this.solar = this.convertValues(source["solar"], SolarDefaults);
 	        this.wind = this.convertValues(source["wind"], WindDefaults);
 	        this.terrain = this.convertValues(source["terrain"], TerrainDefaults);
+	        this.connection = this.convertValues(source["connection"], ConnectionDefaults);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1045,6 +1059,577 @@ export namespace energy {
 	
 	
 	
+
+}
+
+export namespace grid {
+	
+	export class Attachment {
+	    id_ons: string;
+	    entity: string;
+	    point_code: string;
+	    point_name: string;
+	    capacity_mw?: number;
+	    kind: string;
+	    distance_km?: number;
+	    bus?: number;
+	    substation?: string;
+	    voltage_kv?: number;
+	    voltage_confirmed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Attachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id_ons = source["id_ons"];
+	        this.entity = source["entity"];
+	        this.point_code = source["point_code"];
+	        this.point_name = source["point_name"];
+	        this.capacity_mw = source["capacity_mw"];
+	        this.kind = source["kind"];
+	        this.distance_km = source["distance_km"];
+	        this.bus = source["bus"];
+	        this.substation = source["substation"];
+	        this.voltage_kv = source["voltage_kv"];
+	        this.voltage_confirmed = source["voltage_confirmed"];
+	    }
+	}
+	export class BusHeadroom {
+	    bus: number;
+	    lines_in_service: number;
+	    lines_with_published_rating: number;
+	    line_capacity_mva?: number;
+	    units_attached: number;
+	    attached_mw?: number;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BusHeadroom(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bus = source["bus"];
+	        this.lines_in_service = source["lines_in_service"];
+	        this.lines_with_published_rating = source["lines_with_published_rating"];
+	        this.line_capacity_mva = source["line_capacity_mva"];
+	        this.units_attached = source["units_attached"];
+	        this.attached_mw = source["attached_mw"];
+	        this.note = source["note"];
+	    }
+	}
+	export class RouteFactor {
+	    median: number;
+	    p90: number;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RouteFactor(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.median = source["median"];
+	        this.p90 = source["p90"];
+	        this.note = source["note"];
+	    }
+	}
+	export class Reach {
+	    name: string;
+	    distance_km: number;
+	    voltage_kv?: number;
+	    capacity_mva?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Reach(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.distance_km = source["distance_km"];
+	        this.voltage_kv = source["voltage_kv"];
+	        this.capacity_mva = source["capacity_mva"];
+	    }
+	}
+	export class Neighbour {
+	    id_ons: string;
+	    entity: string;
+	    point_code: string;
+	    point_name: string;
+	    capacity_mw?: number;
+	    kind: string;
+	    distance_km: number;
+	    bus?: number;
+	    substation?: string;
+	    voltage_kv?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Neighbour(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id_ons = source["id_ons"];
+	        this.entity = source["entity"];
+	        this.point_code = source["point_code"];
+	        this.point_name = source["point_name"];
+	        this.capacity_mw = source["capacity_mw"];
+	        this.kind = source["kind"];
+	        this.distance_km = source["distance_km"];
+	        this.bus = source["bus"];
+	        this.substation = source["substation"];
+	        this.voltage_kv = source["voltage_kv"];
+	    }
+	}
+	export class Connection {
+	    reachable: boolean;
+	    searched_km: number;
+	    attachment: Attachment[];
+	    attached_bus_headroom: BusHeadroom[];
+	    neighbours: Neighbour[];
+	    neighbour_bus_headroom: BusHeadroom[];
+	    nearest_substation?: Reach;
+	    nearest_line?: Reach;
+	    substations: Reach[];
+	    lines: Reach[];
+	    highest_voltage_kv?: number;
+	    capacity_published_fraction: number;
+	    route_factor: RouteFactor;
+	    source?: string;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Connection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reachable = source["reachable"];
+	        this.searched_km = source["searched_km"];
+	        this.attachment = this.convertValues(source["attachment"], Attachment);
+	        this.attached_bus_headroom = this.convertValues(source["attached_bus_headroom"], BusHeadroom);
+	        this.neighbours = this.convertValues(source["neighbours"], Neighbour);
+	        this.neighbour_bus_headroom = this.convertValues(source["neighbour_bus_headroom"], BusHeadroom);
+	        this.nearest_substation = this.convertValues(source["nearest_substation"], Reach);
+	        this.nearest_line = this.convertValues(source["nearest_line"], Reach);
+	        this.substations = this.convertValues(source["substations"], Reach);
+	        this.lines = this.convertValues(source["lines"], Reach);
+	        this.highest_voltage_kv = source["highest_voltage_kv"];
+	        this.capacity_published_fraction = source["capacity_published_fraction"];
+	        this.route_factor = this.convertValues(source["route_factor"], RouteFactor);
+	        this.source = source["source"];
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Window {
+	    requested: string[];
+	    record: string[];
+	    used: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Window(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.requested = source["requested"];
+	        this.record = source["record"];
+	        this.used = source["used"];
+	    }
+	}
+	export class CurtailmentSummary {
+	    plants_in_aoi: number;
+	    window: string;
+	    expected_mwh: number;
+	    delivered_mwh: number;
+	    withheld_mwh: number;
+	    withheld_fraction?: number;
+	    withheld_under_restriction_mwh: number;
+	    estimate_gap_when_free_mwh: number;
+	    periods: number;
+	    periods_under_restriction: number;
+	    restricted_fraction?: number;
+	    top_reason?: string;
+	    top_origin?: string;
+	    unrestricted_baseline_fraction?: number;
+	    kind: string;
+	    basis: string;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CurtailmentSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plants_in_aoi = source["plants_in_aoi"];
+	        this.window = source["window"];
+	        this.expected_mwh = source["expected_mwh"];
+	        this.delivered_mwh = source["delivered_mwh"];
+	        this.withheld_mwh = source["withheld_mwh"];
+	        this.withheld_fraction = source["withheld_fraction"];
+	        this.withheld_under_restriction_mwh = source["withheld_under_restriction_mwh"];
+	        this.estimate_gap_when_free_mwh = source["estimate_gap_when_free_mwh"];
+	        this.periods = source["periods"];
+	        this.periods_under_restriction = source["periods_under_restriction"];
+	        this.restricted_fraction = source["restricted_fraction"];
+	        this.top_reason = source["top_reason"];
+	        this.top_origin = source["top_origin"];
+	        this.unrestricted_baseline_fraction = source["unrestricted_baseline_fraction"];
+	        this.kind = source["kind"];
+	        this.basis = source["basis"];
+	        this.source = source["source"];
+	    }
+	}
+	export class ConnectionAnalysis {
+	    connection: Connection;
+	    curtailment_at_connected_plants?: CurtailmentSummary;
+	    curtailment_absent?: string;
+	    window?: Window;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConnectionAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connection = this.convertValues(source["connection"], Connection);
+	        this.curtailment_at_connected_plants = this.convertValues(source["curtailment_at_connected_plants"], CurtailmentSummary);
+	        this.curtailment_absent = source["curtailment_absent"];
+	        this.window = this.convertValues(source["window"], Window);
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ConnectionRequest {
+	    area: energy.Polygon;
+	    search_radius_km?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConnectionRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area = this.convertValues(source["area"], energy.Polygon);
+	        this.search_radius_km = source["search_radius_km"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LoadConflicts {
+	    total: number;
+	    identical: number;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoadConflicts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.identical = source["identical"];
+	        this.note = source["note"];
+	    }
+	}
+	export class NetworkCoverage {
+	    substations: number;
+	    lines_in_service: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new NetworkCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.substations = source["substations"];
+	        this.lines_in_service = source["lines_in_service"];
+	    }
+	}
+	export class PlantCoverage {
+	    registered: number;
+	    with_geometry: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlantCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.registered = source["registered"];
+	        this.with_geometry = source["with_geometry"];
+	    }
+	}
+	export class DatasetCoverage {
+	    dataset: string;
+	    periods: number;
+	    from: string;
+	    to: string;
+	    rows: number;
+	    loaded_utc: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DatasetCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dataset = source["dataset"];
+	        this.periods = source["periods"];
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.rows = source["rows"];
+	        this.loaded_utc = source["loaded_utc"];
+	    }
+	}
+	export class Coverage {
+	    datasets: DatasetCoverage[];
+	    plants: PlantCoverage;
+	    network: NetworkCoverage;
+	    load_conflicts: LoadConflicts;
+	
+	    static createFrom(source: any = {}) {
+	        return new Coverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.datasets = this.convertValues(source["datasets"], DatasetCoverage);
+	        this.plants = this.convertValues(source["plants"], PlantCoverage);
+	        this.network = this.convertValues(source["network"], NetworkCoverage);
+	        this.load_conflicts = this.convertValues(source["load_conflicts"], LoadConflicts);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	export class NetworkCounts {
+	    lines: number;
+	    lines_in_service: number;
+	    lines_with_rating: number;
+	    substations: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new NetworkCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lines = source["lines"];
+	        this.lines_in_service = source["lines_in_service"];
+	        this.lines_with_rating = source["lines_with_rating"];
+	        this.substations = source["substations"];
+	    }
+	}
+	
+	export class NetworkLayer {
+	    lines: any;
+	    substations: any;
+	    counts: NetworkCounts;
+	    route_factor: RouteFactor;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NetworkLayer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lines = source["lines"];
+	        this.substations = source["substations"];
+	        this.counts = this.convertValues(source["counts"], NetworkCounts);
+	        this.route_factor = this.convertValues(source["route_factor"], RouteFactor);
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PlantCounts {
+	    returned: number;
+	    metered: number;
+	    registered: number;
+	    located: number;
+	    truncated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlantCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.returned = source["returned"];
+	        this.metered = source["metered"];
+	        this.registered = source["registered"];
+	        this.located = source["located"];
+	        this.truncated = source["truncated"];
+	    }
+	}
+	
+	export class PlantsLayer {
+	    geojson: any;
+	    counts: PlantCounts;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlantsLayer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.geojson = source["geojson"];
+	        this.counts = this.convertValues(source["counts"], PlantCounts);
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class StoreReport {
+	    dsn: string;
+	    dsn_source: string;
+	    reachable: boolean;
+	    unreachable?: string;
+	    coverage?: Coverage;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dsn = source["dsn"];
+	        this.dsn_source = source["dsn_source"];
+	        this.reachable = source["reachable"];
+	        this.unreachable = source["unreachable"];
+	        this.coverage = this.convertValues(source["coverage"], Coverage);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 

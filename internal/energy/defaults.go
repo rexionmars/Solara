@@ -46,11 +46,17 @@ type TerrainDefaults struct {
 	Seasons     []string `json:"seasons"`
 }
 
+// ConnectionDefaults are the values grid_congestion applies to an omitted field.
+type ConnectionDefaults struct {
+	SearchRadiusKM float64 `json:"search_radius_km"`
+}
+
 // ParameterDefaults is the parameter_defaults reply.
 type ParameterDefaults struct {
-	Solar   SolarDefaults   `json:"solar"`
-	Wind    WindDefaults    `json:"wind"`
-	Terrain TerrainDefaults `json:"terrain"`
+	Solar      SolarDefaults      `json:"solar"`
+	Wind       WindDefaults       `json:"wind"`
+	Terrain    TerrainDefaults    `json:"terrain"`
+	Connection ConnectionDefaults `json:"connection"`
 }
 
 // FetchParameterDefaults runs the parameter_defaults action. It goes through
@@ -71,15 +77,18 @@ func decodeParameterDefaults(raw []byte) (*ParameterDefaults, error) {
 		Solar   *SolarDefaults   `json:"solar"`
 		Wind    *WindDefaults    `json:"wind"`
 		Terrain *TerrainDefaults `json:"terrain"`
+
+		Connection *ConnectionDefaults `json:"connection"`
 	}
 	if err := json.Unmarshal(raw, &wrapped); err != nil {
 		return nil, fmt.Errorf("decode the parameter defaults: %w", err)
 	}
-	if wrapped.Solar == nil || wrapped.Wind == nil || wrapped.Terrain == nil {
+	if wrapped.Solar == nil || wrapped.Wind == nil || wrapped.Terrain == nil || wrapped.Connection == nil {
 		return nil, errors.New("the sidecar returned incomplete parameter defaults")
 	}
 	if len(wrapped.Wind.RoughnessBandM) != 2 {
 		return nil, fmt.Errorf("the default roughness band needs two lengths, got %d", len(wrapped.Wind.RoughnessBandM))
 	}
-	return &ParameterDefaults{Solar: *wrapped.Solar, Wind: *wrapped.Wind, Terrain: *wrapped.Terrain}, nil
+	return &ParameterDefaults{Solar: *wrapped.Solar, Wind: *wrapped.Wind, Terrain: *wrapped.Terrain,
+		Connection: *wrapped.Connection}, nil
 }

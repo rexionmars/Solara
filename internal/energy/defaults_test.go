@@ -9,7 +9,8 @@ import (
 const defaultsReply = `{
 	"solar": {"climatology_years": 30, "hourly_years": 10, "surface_azimuth": 0.0, "performance_ratio": 0.8},
 	"wind": {"record_years": 10, "hub_height_m": 110.0, "calm_threshold_ms": 0.5, "record_max_floor_ms": 10.0, "roughness_band_m": [0.03, 0.1]},
-	"terrain": {"hourly_years": 10, "season": "annual", "seasons": ["annual", "winter", "summer", "winter_crop", "anisotropy", "shading"]}
+	"terrain": {"hourly_years": 10, "season": "annual", "seasons": ["annual", "winter", "summer", "winter_crop", "anisotropy", "shading"]},
+	"connection": {"search_radius_km": 100.0}
 }`
 
 func TestDecodeParameterDefaults(t *testing.T) {
@@ -23,6 +24,7 @@ func TestDecodeParameterDefaults(t *testing.T) {
 			RoughnessBandM: []float64{0.03, 0.1}},
 		Terrain: TerrainDefaults{HourlyYears: 10, Season: "annual",
 			Seasons: []string{"annual", "winter", "summer", "winter_crop", "anisotropy", "shading"}},
+		Connection: ConnectionDefaults{SearchRadiusKM: 100},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -33,7 +35,8 @@ func TestDecodeParameterDefaults(t *testing.T) {
 func TestDecodeParameterDefaults_RefusesAnIncompleteReply(t *testing.T) {
 	for name, raw := range map[string]string{
 		"no terrain":    `{"solar": {}, "wind": {"roughness_band_m": [0.03, 0.1]}}`,
-		"half a band":   `{"solar": {}, "wind": {"roughness_band_m": [0.03]}, "terrain": {}}`,
+		"no connection": `{"solar": {}, "wind": {"roughness_band_m": [0.03, 0.1]}, "terrain": {}}`,
+		"half a band":   `{"solar": {}, "wind": {"roughness_band_m": [0.03]}, "terrain": {}, "connection": {}}`,
 		"not an object": `[]`,
 	} {
 		if _, err := decodeParameterDefaults([]byte(raw)); err == nil {
