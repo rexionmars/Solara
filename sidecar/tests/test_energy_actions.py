@@ -115,6 +115,7 @@ def test_the_parameter_defaults_are_the_ones_the_actions_apply(capsys):
     be the constants the actions read, not a copy that can drift from them.
     """
     from terra_energy_engine.energy import pv, wind
+    from terra_energy_engine.grid import actions as grid_actions
 
     actions.parameter_defaults({})
     reply = json.loads(capsys.readouterr().out)
@@ -136,6 +137,9 @@ def test_the_parameter_defaults_are_the_ones_the_actions_apply(capsys):
             'hourly_years': actions.TERRAIN_HOURLY_YEARS,
             'season': actions.TERRAIN_SEASON,
             'seasons': ['annual', 'winter', 'summer', 'winter_crop', 'anisotropy', 'shading'],
+        },
+        'connection': {
+            'search_radius_km': grid_actions.SEARCH_RADIUS_KM,
         },
     }
 

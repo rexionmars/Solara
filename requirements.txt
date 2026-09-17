@@ -18,3 +18,8 @@ planetary-computer>=1.0
 # from failing a run, so every run silently repays the hourly fetch -- which is
 # how TERRA shipped it once.
 pyarrow>=14.0
+
+# The grid store: the Brazilian electrical record in a local PostGIS database
+# that TERRA loads (terra/grid/store.py). psycopg 3 with its bundled libpq, so
+# no PostgreSQL client install is needed to read it.
+psycopg[binary]>=3.2

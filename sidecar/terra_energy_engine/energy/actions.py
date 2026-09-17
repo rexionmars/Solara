@@ -610,6 +610,7 @@ def solar_terrain(req: protocol.Request) -> None:
 # is why the shell runs it outside the one-request rule.
 def parameter_defaults(req: protocol.Request) -> None:
     from terra_energy_engine.energy import pv as pv_mod, seasons as seasons_mod, wind as wind_mod
+    from terra_energy_engine.grid import actions as grid_actions
 
     lo, hi = wind_mod.ROUGHNESS_BAND_M
     protocol.reply({
@@ -633,5 +634,8 @@ def parameter_defaults(req: protocol.Request) -> None:
             # lists them: the month windows as seasons.py declares them, then
             # the two derived layers.
             'seasons': [*seasons_mod.SEASONS, *TERRAIN_DERIVED_SEASONS],
+        },
+        'connection': {
+            'search_radius_km': grid_actions.SEARCH_RADIUS_KM,
         },
     })

@@ -21,7 +21,12 @@ def main() -> None:
     action = req.get('action')
     if not isinstance(action, str):
         protocol.fail('the request names no action')
-    registry.resolve(action)(req)
+    try:
+        registry.resolve(action)(req)
+    except (protocol.MissingDependency, protocol.Unavailable) as e:
+        # Said in the user's terms by whoever raised it; a traceback here would
+        # reach the interface as "exit status 1" and nothing else.
+        protocol.fail(str(e))
 
 
 def ping(req: protocol.Request) -> None:

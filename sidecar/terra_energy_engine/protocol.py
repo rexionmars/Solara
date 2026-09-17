@@ -19,6 +19,19 @@ from typing import Any, NoReturn
 Request = dict[str, Any]
 
 
+class MissingDependency(RuntimeError):
+    """A package this path needs is not in this interpreter."""
+
+
+class Unavailable(RuntimeError):
+    """
+    Something a run needs exists outside the code and is not there: a database
+    that is not running, a record that was never loaded. Answered by the user
+    doing something in the world, so the message has to say which thing. As
+    TERRA's terra/protocol.py.
+    """
+
+
 def emit_progress(progress: int, msg: str) -> None:
     """Write one progress object to stderr. Use -1 for a message without a value."""
     sys.stderr.write(json.dumps({'progress': progress, 'msg': msg}) + '\n')
