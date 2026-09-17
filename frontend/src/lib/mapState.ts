@@ -1,0 +1,29 @@
+import { createStore } from "./store"
+
+/**
+ * What the rest of the interface reads about the map, kept apart from the map
+ * itself (mapEngine.ts) so a module can read it without importing MapLibre or
+ * the operators the engine runs.
+ */
+
+// Centroid of Brazil's territory, at a zoom that shows all of it.
+export const HOME_VIEW = { center: [-51.9, -14.2] as [number, number], zoom: 3.5 }
+
+export type MapViewState = { lng: number; lat: number; zoom: number; bearing: number; pitch: number }
+
+export const mapView = createStore<MapViewState>({
+  lng: HOME_VIEW.center[0],
+  lat: HOME_VIEW.center[1],
+  zoom: HOME_VIEW.zoom,
+  bearing: 0,
+  pitch: 0,
+})
+
+/** Geographic position under the pointer, or null when it is off the map. */
+export const cursor = createStore<{ lng: number; lat: number } | null>(null)
+
+/** Whether the map is in an area on screen. Operators that need it poll this. */
+export const mapMounted = createStore<boolean>(false)
+
+/** The Measure tool's points: none, a start, or a start and an end. */
+export const measure = createStore<{ lon: number; lat: number }[]>([])

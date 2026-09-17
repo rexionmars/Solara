@@ -25,13 +25,13 @@ export function basisNote(scale: energy.RenderScale): string {
 export function Legend({ scale, unit, title }: { scale: energy.RenderScale; unit: string; title: string }) {
   const gradient = scale.stops?.length
     ? `linear-gradient(to right, ${scale.stops.join(", ")})`
-    : "var(--color-line)"
+    : "rgb(var(--p-line))"
   const ref = scale.reference
   const refPos =
     ref != null && scale.max > scale.min ? ((ref - scale.min) / (scale.max - scale.min)) * 100 : null
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-[10px] uppercase tracking-[0.12em] text-muted">{title}</div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{title}</div>
       <div className="relative h-2.5 w-full rounded-sm" style={{ background: gradient }}>
         {refPos !== null && refPos >= 0 && refPos <= 100 && (
           <span
@@ -41,12 +41,12 @@ export function Legend({ scale, unit, title }: { scale: energy.RenderScale; unit
           />
         )}
       </div>
-      <div className="flex justify-between font-mono text-[10px] tabular-nums text-ink">
+      <div className="flex justify-between font-mono text-[10px] tabular-nums text-foreground">
         <span>{scale.min.toFixed(scale.decimals)}</span>
-        {refPos !== null && <span className="text-muted">ref {ref}</span>}
+        {refPos !== null && <span className="text-muted-foreground">ref {ref}</span>}
         <span>{scale.max.toFixed(scale.decimals)}</span>
       </div>
-      <div className="text-[10px] leading-snug text-muted">
+      <div className="text-[10px] leading-snug text-muted-foreground">
         {unit} · {basisNote(scale)}
       </div>
     </div>

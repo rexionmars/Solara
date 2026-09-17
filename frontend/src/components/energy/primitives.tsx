@@ -11,15 +11,21 @@ import type { energy } from "../../../wailsjs/go/models"
  * panel on a wide screen the layout of a wide one.
  */
 
-export const EYEBROW = "text-[10px] uppercase tracking-[0.12em] text-muted"
+export const EYEBROW = "text-[11px] uppercase tracking-[0.1em] text-muted-foreground"
 
 /** A label, the figure it names, and the assumption the figure was read under. */
 export function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0">
       <div className={EYEBROW}>{label}</div>
-      <div className="mt-0.5 truncate font-mono text-lg tabular-nums text-ink">{value}</div>
-      {sub && <div className="truncate font-mono text-[11px] tabular-nums text-muted">{sub}</div>}
+      <div className="selectable mt-0.5 truncate font-mono text-lg tabular-nums text-foreground" title={value}>
+        {value}
+      </div>
+      {sub && (
+        <div className="truncate font-mono text-[11px] tabular-nums text-muted-foreground" title={sub}>
+          {sub}
+        </div>
+      )}
     </div>
   )
 }
@@ -31,8 +37,8 @@ export function Stat({ label, value }: { label: string; value: string }) {
     // it: in a narrow column a truncated label beside a kept number leaves an
     // unlabelled figure, which is worse than a wrapped one.
     <div className="flex flex-wrap items-baseline justify-between gap-x-2 py-0.5">
-      <span className="min-w-[8rem] flex-1 text-xs text-muted">{label}</span>
-      <span className="shrink-0 font-mono text-xs tabular-nums text-ink">{value}</span>
+      <span className="min-w-[8rem] flex-1 text-xs text-muted-foreground">{label}</span>
+      <span className="shrink-0 font-mono text-xs tabular-nums text-foreground">{value}</span>
     </div>
   )
 }
@@ -45,10 +51,14 @@ export function FigureGrid({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">{children}</div>
 }
 
-/** Small caps tag for a result's standing. */
+/**
+ * A result's standing, such as "gross" or "unvalidated". Drawn in the warning
+ * colour: a qualifier that changes how every figure below it reads must not be
+ * the least visible text on the page.
+ */
 export function Chip({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-[2px] border border-line px-1 py-px font-mono text-[9px] uppercase tracking-wider text-muted">
+    <span className="rounded-[3px] bg-warning/15 px-1.5 py-px text-[11px] font-medium uppercase tracking-wide text-warning">
       {children}
     </span>
   )
@@ -56,8 +66,8 @@ export function Chip({ children }: { children: ReactNode }) {
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="border-t border-line py-5">
-      <h3 className="mb-3 text-sm text-ink">{title}</h3>
+    <section className="border-t border-border py-5">
+      <h3 className="mb-3 text-[13px] font-medium text-foreground">{title}</h3>
       {children}
     </section>
   )
@@ -82,8 +92,8 @@ export function DocumentHeader({
         <p className={EYEBROW}>{product}</p>
         {chips?.map((c) => <Chip key={c}>{c}</Chip>)}
       </div>
-      <h2 className="mt-1 whitespace-pre font-mono text-xl tabular-nums text-ink">{title}</h2>
-      <p className="mt-1 text-xs text-muted">{meta}</p>
+      <h2 className="selectable mt-1 whitespace-pre font-mono text-xl tabular-nums text-foreground">{title}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{meta}</p>
     </header>
   )
 }
@@ -102,7 +112,7 @@ export function ProvenanceNote({ provenance }: { provenance?: energy.PowerProven
   const present = series.filter(([, s]) => !!s)
   if (!present.length) return null
   return (
-    <p className="mt-1 text-[11px] leading-relaxed text-muted">
+    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
       {present.map(([label, s], i) => (
         <span key={label}>
           {i > 0 ? " " : ""}
@@ -113,23 +123,6 @@ export function ProvenanceNote({ provenance }: { provenance?: energy.PowerProven
           .
         </span>
       ))}
-    </p>
-  )
-}
-
-/** Shown in a result tab that has no result yet. */
-export function NoResult({
-  product,
-  command,
-  setup = "Set a site with SITE",
-}: {
-  product: string
-  command: string
-  setup?: string
-}) {
-  return (
-    <p className="py-16 text-center text-sm text-muted">
-      No {product.toLowerCase()} yet. {setup}, then run {command}.
     </p>
   )
 }

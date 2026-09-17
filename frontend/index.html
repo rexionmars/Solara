@@ -1,9 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TERRA Energy Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- TERRA's three faces: Inter with its optical size axis for the interface,
+       JetBrains Mono for telemetry, Space Grotesk for the wordmark. Offline, the
+       system faces in the stacks in index.css take over. -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=JetBrains+Mono:wght@400..500&family=Space+Grotesk:wght@500..700&display=swap"
+    rel="stylesheet"
+  />
   <script>
     // Claims this launch's still before any bundle loads. The list is
     // substituted at build time from src/lib/splashBackground.ts, and the two
@@ -64,7 +73,7 @@
     #splash .eyebrow { margin: 0; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(229, 229, 229, 0.8); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
     #splash .release { margin: 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.58rem; letter-spacing: 0.08em; color: rgba(229, 229, 229, 0.7); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
     #splash .log { position: absolute; left: 1rem; right: 1rem; bottom: 1rem; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.62rem; letter-spacing: 0.04em; color: rgba(229, 229, 229, 0.85); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75); }
-    #splash .led { width: 6px; height: 6px; margin-top: 0.25rem; border-radius: 1px; background: rgb(6, 150, 215); animation: splash-blink 1.2s ease-in-out infinite; }
+    #splash .led { width: 6px; height: 6px; margin-top: 0.25rem; border-radius: 1px; background: rgb(97, 167, 255); animation: splash-blink 1.2s ease-in-out infinite; }
     @keyframes splash-blink { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) {
       #splash .led { animation: none; opacity: 0.85; }

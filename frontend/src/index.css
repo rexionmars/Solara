@@ -1,79 +1,217 @@
 @import "tailwindcss";
 
 /*
-  Neutral surfaces, with hue reserved for the accent and for data. Each token
-  becomes a Tailwind utility: --color-surface gives bg-surface, text-surface,
-  border-surface, and so on.
+  The theme is TERRA's, token for token, so this application and TERRA read as
+  one family: a neutral chassis with the hue left to the accent and to data.
+  See geosense-infer/frontend/src/index.css, where each value is measured and
+  argued; the short version is kept here beside each block.
 
-  Five surface levels, darkest first: sunken (input wells, the command line),
-  surface (the viewport), chrome (title bar, tabs, status bar), panel
-  (properties) and raised (the ribbon body, section headers). Adjacent regions
-  differ by a level, so most boundaries read without needing a border.
+  Channels live ONLY on --p-* (R G B). A component never reads a --p-* ramp
+  step directly: it reads a role (--s-*), and the role reads the ramp, so one
+  role can move without moving every surface that happens to share its depth.
+*/
 
-  The greys are the Dark scale of the project's neutral ramp, and only those
-  values: base #000000, 50 #0A0A0A, 100 #171717, 200 #262626, 300 #373737,
-  400 #525252, 500 #8A8A8A, 600 #A3A3A3, 700 #D4D4D4, 800 #E5E5E5, 900 #F5F5F5,
-  950 #FAFAFA. The ramp has fewer dark steps than there are surfaces, so chrome
-  and panel share 200 and are told apart by the rule between them, and hover
-  shares 400 with the rule. Muted text is 600 rather than 500 so it holds
-  against every surface up to raised. The layout follows the dark theme of
-  desktop CAD, with the Autodesk blue as the only saturated colour in the
-  chrome; info is kept for data series and messages, where it has to stand
-  apart from them. Glyph is the tint of command icons.
+:root {
+  /*
+    SIX STEPS, as Blender's chrome holds them: 24 the window's own ground, 30
+    the bands and input wells, 40 a control at rest, 48 a panel body, 53 a
+    panel header, 67 anything that floats. Adjacent regions differ by a step,
+    so a boundary is read from the ground rather than from a hairline.
+  */
+  --p-sunk: 24 24 24;
+  --p-ink: 30 30 30;
+  --p-control: 40 40 40;
+  --p-surface: 48 48 48;
+  --p-head: 53 53 53;
+  --p-surface-raised: 67 67 67;
+  --p-line: 91 91 91;
+  --p-line-strong: 145 145 145;
+  --p-text: 221 221 221;
+  /* 5.18 on a panel, 6.23 on ink; used only as text. */
+  --p-muted: 184 184 184;
+  /* The only hue that is not data. A light fill, so its label is ink (6.25), not white. */
+  --p-accent: 97 167 255;
+  --p-accent-quiet: 122 181 255;
+  --p-accent-dim: 24 54 91;
 
-  Field and field-ink are the light well of the command line, the one light
-  surface in the window, as CAD draws it: it is where typing goes, and it
-  reads as such over any basemap.
+  /* The products, as colour: labels rather than calls, at lower chroma than the accent. */
+  --p-kind-site: 158 158 158;
+  --p-kind-solar: 191 150 93;
+  --p-kind-wind: 162 147 209;
+  --p-kind-terrain: 134 171 114;
+  --p-kind-area: 109 164 211;
+
+  /* ---- Roles: what each surface IS. Components read these. ---- */
+  --s-app: rgb(var(--p-sunk));
+  --s-field: rgb(var(--p-ink));
+  --s-chrome: rgb(var(--p-ink));
+  --s-sunk: rgb(var(--p-ink));
+  --s-control: rgb(var(--p-control));
+  --s-panel: rgb(var(--p-surface));
+  --s-panel-head: rgb(var(--p-head));
+  /* Overlays rather than steps, so a hover is the same gesture on every ground. */
+  --s-hover: rgb(255 255 255 / 0.07);
+  --s-selected: rgb(255 255 255 / 0.13);
+  --s-float: rgb(var(--p-surface-raised));
+
+  --background: var(--s-app);
+  --foreground: rgb(var(--p-text));
+  --muted-foreground: rgb(var(--p-muted));
+  --primary: rgb(var(--p-accent));
+  --primary-foreground: rgb(var(--p-ink));
+  --accent: rgb(var(--p-accent));
+  --accent-foreground: rgb(var(--p-ink));
+  --accent-quiet: rgb(var(--p-accent-quiet));
+
+  /* A fill dark enough for a light label (5.33), and a text colour light enough to read (6.89). */
+  --destructive: #9f2b3a;
+  --destructive-foreground: rgb(var(--p-text));
+  --destructive-quiet: #f8989e;
+  --warning: #d5be4b;
+  --success: #b1fa63;
+
+  --border: rgb(var(--p-line) / 0.28);
+  --hairline: rgb(var(--p-line) / 0.22);
+  --ring: rgb(var(--p-accent));
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/*
+  `@theme` and not `@theme inline`: with inline, an alpha modifier on a token
+  written as rgb(var(--p-x)) is silently dropped. Without it, `border-line/40`
+  compiles to a color-mix that keeps both the alpha and the theme.
 */
 @theme {
-  --color-sunken: #0a0a0a; /* 50 */
-  --color-surface: #171717; /* 100 */
-  --color-chrome: #262626; /* 200 */
-  --color-panel: #262626; /* 200 */
-  --color-raised: #373737; /* 300 */
-  --color-hover: #525252; /* 400 */
-  --color-line: #525252; /* 400 */
-  --color-glyph: #d4d4d4; /* 700 */
-  --color-field: #d4d4d4; /* 700 */
-  --color-field-ink: #262626; /* 200 */
-  --color-info: rgb(143 196 255);
-  --color-ink: #e5e5e5; /* 800 */
-  --color-muted: #a3a3a3; /* 600 */
-  --color-accent: rgb(6 150 215);
-  --color-ok: rgb(74 222 128);
-  --color-fail: rgb(248 113 113);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-quiet: var(--accent-quiet);
+  --color-accent-dim: rgb(var(--p-accent-dim));
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-quiet: var(--destructive-quiet);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-hairline: var(--hairline);
+  --color-ring: var(--ring);
+
+  --color-app: var(--s-app);
+  --color-field: var(--s-field);
+  --color-chrome: var(--s-chrome);
+  --color-sunk: var(--s-sunk);
+  --color-control: var(--s-control);
+  --color-panel: var(--s-panel);
+  --color-panel-head: var(--s-panel-head);
+  --color-hover: var(--s-hover);
+  --color-selected: var(--s-selected);
+  --color-float: var(--s-float);
+
+  --color-line: rgb(var(--p-line));
+  --color-line-strong: rgb(var(--p-line-strong));
+  --color-kind-site: rgb(var(--p-kind-site));
+  --color-kind-solar: rgb(var(--p-kind-solar));
+  --color-kind-wind: rgb(var(--p-kind-wind));
+  --color-kind-terrain: rgb(var(--p-kind-terrain));
+  --color-kind-area: rgb(var(--p-kind-area));
+
+  --radius-sm: 5px;
+  --radius-md: 9px;
+
+  /* A dense scale, five steps, each named for its role. micro is a label size, never prose. */
+  --text-micro: 9px;
+  --text-micro--line-height: 1.35;
+  --text-meta: 10px;
+  --text-meta--line-height: 1.4;
+  --text-body: 11px;
+  --text-body--line-height: 1.5;
+  --text-emphasis: 12px;
+  --text-emphasis--line-height: 1.5;
+  --text-heading: 14px;
+  --text-heading--line-height: 1.4;
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-telemetry);
+  --font-display: var(--font-display);
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 
-body {
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+  /* Keyboard focus for every control, rather than for the ones somebody remembered. */
+  button:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [role="slider"]:focus-visible,
+  [role="spinbutton"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="treeitem"]:focus-visible,
+  [role="separator"]:focus-visible {
+    outline: 1px solid var(--ring);
+    outline-offset: 1px;
+  }
 
-/* Thin scrollbars on the chrome's greys, as the palettes of desktop CAD draw them. */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track,
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 5px;
-  background: var(--color-line) padding-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-muted);
+  /* The press, as scale: hover spends a surface and selection the accent, so scale is the free channel. */
+  @media (prefers-reduced-motion: no-preference) {
+    button:not(:disabled):not([aria-disabled="true"]):active,
+    [role="button"]:not([aria-disabled="true"]):active {
+      scale: 0.97;
+    }
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  /* A desktop window: the arrow on a button, the hand kept for links. */
+  button:not(:disabled),
+  select:not(:disabled),
+  [role="button"],
+  [role="tab"],
+  [role="option"] {
+    cursor: default;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    background-color: var(--s-app);
+    color: rgb(var(--p-text));
+    font-family: var(--font-sans);
+    font-size: 11px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+  }
 }
 
 /* Window drag regions, read by the Wails runtime rather than by the style mask. */
@@ -82,6 +220,92 @@ body {
 }
 .app-no-drag {
   --wails-draggable: no-drag;
+}
+
+.eyebrow {
+  font-family: var(--font-telemetry);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  font-size: 10px;
+  color: rgb(var(--p-muted));
+}
+
+.telemetry {
+  font-family: var(--font-telemetry);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.hairline {
+  border: none;
+  border-top: 1px solid var(--hairline);
+}
+
+/*
+  A header that measures itself, and the labels that give way when it narrows:
+  a container query, because what matters is the width of THIS area.
+*/
+.studio-header {
+  container-type: inline-size;
+  container-name: studio-header;
+}
+.header-label {
+  display: none;
+}
+@container studio-header (min-width: 34rem) {
+  .header-label {
+    display: inline;
+  }
+}
+
+/* The chrome is not selectable; the content worth carrying elsewhere is. */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+select,
+[contenteditable="true"],
+.selectable,
+.selectable *,
+code,
+pre,
+.telemetry {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* The bar's 8px are reserved whether or not it shows, so a panel near its own height does not flap. */
+.panel-scroll {
+  scrollbar-gutter: stable;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--p-line) / 0.4);
+  border-radius: var(--radius-md);
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Number fields draw no spin buttons; they are stepped by dragging and the arrow keys. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* MapLibre paints its own cursors from an unlayered stylesheet; these match its selectors one for one. */
+.maplibregl-canvas-container.maplibregl-interactive {
+  cursor: grab;
+}
+.maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: grabbing;
 }
 
 /* ---- Splash ---------------------------------------------------------------- */
@@ -218,18 +442,6 @@ body {
     animation: none;
     opacity: 0.85;
   }
-}
-
-/* The analysis site on the map: a ring, so the ground under it stays visible. */
-.site-marker {
-  width: 14px;
-  height: 14px;
-  border-radius: 9999px;
-  border: 2px solid var(--color-accent);
-  background: rgb(255 255 255 / 0.85);
-  box-shadow:
-    0 0 0 2px rgb(0 0 0 / 0.45),
-    0 1px 6px rgb(0 0 0 / 0.5);
 }
 
 /* The main window fades in once the splash has gone. */

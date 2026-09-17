@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { EventsOn } from "../wailsjs/runtime/runtime"
 import { RevealMainWindow } from "../wailsjs/go/main/App"
 import { SplashScreen } from "./components/SplashScreen"
-import { Workbench } from "./components/workbench/Workbench"
+import { Studio } from "./components/studio/Studio"
 
 // Duration of .splash-screen--exit in index.css.
 const SPLASH_EXIT_MS = 480
@@ -53,5 +53,5 @@ export default function App() {
     }
   }, [])
 
-  return booting ? <SplashScreen exiting={exiting} /> : <Workbench />
+  return booting ? <SplashScreen exiting={exiting} /> : <Studio />
 }

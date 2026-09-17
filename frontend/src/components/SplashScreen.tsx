@@ -71,10 +71,10 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
         <img src="/terra-logo.png" alt="" className="splash-logo h-14 w-14 object-contain" />
         <div className="flex flex-col items-center gap-1.5">
           <p className="splash-brand text-lg font-semibold tracking-[0.18em]">TERRA</p>
-          <p className="splash-eyebrow text-[10px] uppercase tracking-[0.12em] text-ink/80">
+          <p className="splash-eyebrow text-[10px] uppercase tracking-[0.12em] text-foreground/80">
             {BRAND_TAGLINE}
           </p>
-          <p className="splash-eyebrow font-mono text-[9px] tracking-[0.08em] text-ink/70">
+          <p className="splash-eyebrow font-mono text-[9px] tracking-[0.08em] text-foreground/70">
             {RELEASE_NAME}
             {version && ` · ${version}`}
           </p>
@@ -84,7 +84,7 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
       </div>
 
       <p
-        className="splash-log app-no-drag absolute bottom-4 left-4 right-4 z-10 truncate text-center font-mono text-[10px] tracking-wide text-ink/85"
+        className="splash-log app-no-drag absolute bottom-4 left-4 right-4 z-10 truncate text-center font-mono text-[10px] tracking-wide text-foreground/85"
         title={line}
       >
         {line}

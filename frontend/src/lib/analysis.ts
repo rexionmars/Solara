@@ -6,208 +6,213 @@ import {
 } from "../../wailsjs/go/main/App"
 import { energy } from "../../wailsjs/go/models"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
-import { area, type Polygon } from "./area"
-import { print } from "./commandLog"
-import { activateDocument, openDocument } from "./documents"
-import { seasonLabel, solarParams, terrainParams, windParams } from "./energyParams"
 import { errorMessage } from "./errors"
 import { formatLat, formatLng } from "./format"
 import { polygonAreaKm2 } from "./geo"
-import { terrainLayer } from "./layers"
-import { site, type Site } from "./site"
+import { seasonLabel, windSettingsError } from "./params"
+import {
+  PRODUCT_NAMES,
+  allNames,
+  commit,
+  newId,
+  project,
+  uniqueName,
+  type AreaObject,
+  type Product,
+  type ResultObject,
+  type SiteObject,
+} from "./project"
+import { fail, info, note } from "./reports"
+import { showResult } from "./screen"
 import { createStore } from "./store"
-
-export type Product = "solar" | "wind" | "terrain"
-
-export const PRODUCT_NAMES: Record<Product, string> = {
-  solar: "Solar resource",
-  wind: "Wind screening",
-  terrain: "Solar terrain",
-}
 
 export type Running = {
   product: Product
+  sourceId: string
   /** 0 to 100, or null before the sidecar has reported one. */
   progress: number | null
   message: string
 }
 
-/**
- * Each result with the site or area it was computed at, which the current
- * site or area may no longer be.
- */
-export type AnalysisState = {
-  running: Running | null
-  solar: { site: Site; result: energy.SolarAnalysis } | null
-  wind: { site: Site; result: energy.WindAnalysis } | null
-  terrain: { area: Polygon; result: energy.SolarTerrainAnalysis } | null
-}
-
-export const analysis = createStore<AnalysisState>({
-  running: null,
-  solar: null,
-  wind: null,
-  terrain: null,
-})
+/** The analysis in flight. The Go side runs one at a time and refuses a second. */
+export const running = createStore<Running | null>(null)
 
 /**
  * Relay the sidecar's progress into the running analysis. One channel is
- * enough because the Go side runs one analysis at a time and refuses a second.
- * Returns the function that stops listening.
+ * enough because only one analysis runs at a time. Returns the function that
+ * stops listening.
  */
 export function listenForProgress(): () => void {
   return EventsOn("sidecar:progress", (p: { progress: number; msg: string }) => {
-    analysis.set((s) =>
-      s.running
-        ? {
-            ...s,
-            running: {
-              ...s.running,
-              progress: p.progress >= 0 ? p.progress : s.running.progress,
-              message: p.msg || s.running.message,
-            },
-          }
-        : s
+    running.set((r) =>
+      r ? { ...r, progress: p.progress >= 0 ? p.progress : r.progress, message: p.msg || r.message } : r
     )
   })
 }
 
+// A result as a run produces it, before it is named and filed under its source.
+type NewResult = ResultObject extends infer R
+  ? R extends ResultObject
+    ? Omit<R, "id" | "name" | "sourceId" | "createdAt" | "hidden">
+    : never
+  : never
+
 // The Go runner's error text for a run stopped by CancelRun.
 const CANCELLED = "the request was cancelled"
 
-/** One run: refused while another is in flight, reported whichever way it ends. */
-async function run<T>(
+/**
+ * One run. The source and the settings are read once, at the start, so moving
+ * the site or editing a field mid-run does not relabel the result: it is
+ * recorded as computed, and marked stale against the changed project.
+ *
+ * `replace` names a result the new one takes the place of, for Adjust Last
+ * Operation; it is removed only once the new result has arrived.
+ */
+async function run(
   product: Product,
+  source: SiteObject | AreaObject,
   where: string,
-  call: () => Promise<T>,
-  keep: (r: T) => Partial<AnalysisState>,
-  done: (r: T) => string,
-  after: () => void
-): Promise<void> {
-  const busy = analysis.get().running
+  call: () => Promise<NewResult>,
+  summary: (r: ResultObject) => string,
+  replace?: string
+): Promise<string | null> {
+  const busy = running.get()
   if (busy) {
-    print(`${PRODUCT_NAMES[busy.product]} is still running. CANCEL stops it.`, "error")
-    return
+    fail(`${PRODUCT_NAMES[busy.product]} is still running. Cancel it first.`)
+    return null
   }
-  analysis.set((s) => ({ ...s, running: { product, progress: null, message: "starting" } }))
-  print(`${PRODUCT_NAMES[product]} ${where}…`)
+  running.set({ product, sourceId: source.id, progress: null, message: "starting" })
+  note(`${PRODUCT_NAMES[product]} ${where}…`)
   try {
-    const result = await call()
-    analysis.set((s) => ({ ...s, ...keep(result), running: null }))
-    print(done(result))
-    after()
+    const partial = await call()
+    const id = newId()
+    commit(PRODUCT_NAMES[product], (d) => {
+      const results = replace ? d.results.filter((r) => r.id !== replace) : d.results
+      const taken = allNames({ ...d, results })
+      const replaced = replace ? d.results.find((r) => r.id === replace) : undefined
+      const result = {
+        ...partial,
+        id,
+        name: replaced?.name ?? uniqueName(PRODUCT_NAMES[product], taken),
+        sourceId: source.id,
+        createdAt: new Date().toISOString(),
+        hidden: false,
+      } as ResultObject
+      return { ...d, results: [...results, result] }
+    })
+    running.set(null)
+    const result = project.get().data.results.find((r) => r.id === id)
+    if (result) info(summary(result), { label: "Show", run: () => showResult(id, product) })
+    return id
   } catch (e) {
-    analysis.set((s) => ({ ...s, running: null }))
+    running.set(null)
     const msg = errorMessage(e)
-    if (msg === CANCELLED) print(`${PRODUCT_NAMES[product]} cancelled.`)
-    else print(`${PRODUCT_NAMES[product]} failed: ${msg}`, "error")
+    if (msg === CANCELLED) info(`${PRODUCT_NAMES[product]} cancelled.`)
+    else fail(`${PRODUCT_NAMES[product]} failed: ${msg}`)
+    return null
   }
 }
 
-/** The site, read once at the start so moving it mid-run does not relabel the result. */
-function requireSite(): Site | null {
-  const at = site.get().point
-  if (!at) print("No site. Type SITE and click the map, or SITE <lat> <lon>.", "error")
-  return at
-}
+const siteLabel = (s: SiteObject) => `at ${s.name} (${formatLat(s.lat, 4)} ${formatLng(s.lon, 4)})`
 
-const siteLabel = (at: Site) => `at ${formatLat(at.lat)}  ${formatLng(at.lon)}`
-
-export async function runSolar(): Promise<void> {
-  const at = requireSite()
-  if (!at) return
-  const p = solarParams.get()
-  await run(
+export function runSolar(site: SiteObject, replace?: string): Promise<string | null> {
+  const p = project.get().data.settings.solar
+  const at = { lon: site.lon, lat: site.lat }
+  return run(
     "solar",
-    siteLabel(at),
-    () =>
-      AnalyzeSolarResource({
-        lon: at.lon,
-        lat: at.lat,
-        climatology_years: p.climatologyYears,
-        hourly_years: p.hourlyYears,
-        surface_azimuth: p.surfaceAzimuth,
-        performance_ratio: p.performanceRatio,
-      }),
-    (result) => ({ solar: { site: at, result } }),
-    (r) =>
-      `Solar resource ready: GHI ${r.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m²/yr, ` +
-      `specific yield ${r.pv.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp/yr.`,
-    () => openDocument("solar")
-  )
-}
-
-export async function runWind(): Promise<void> {
-  const at = requireSite()
-  if (!at) return
-  const p = windParams.get()
-  const lo = p.roughnessLowM
-  const hi = p.roughnessHighM
-  if ((lo === undefined) !== (hi === undefined)) {
-    print("Set both roughness lengths, or neither.", "error")
-    return
-  }
-  await run(
-    "wind",
-    siteLabel(at),
-    () =>
-      AnalyzeWindResource({
-        lon: at.lon,
-        lat: at.lat,
-        record_years: p.recordYears,
-        hub_height_m: p.hubHeightM,
-        calm_threshold_ms: p.calmThresholdMS,
-        record_max_floor_ms: p.recordMaxFloorMS,
-        roughness_band_m: lo !== undefined && hi !== undefined ? [lo, hi] : undefined,
-      }),
-    (result) => ({ wind: { site: at, result } }),
-    (r) =>
-      `Wind screening ready: ${r.hub.mean_speed_ms.toFixed(2)} m/s at ${r.hub_height_m.toFixed(0)} m, ` +
-      `gross capacity factor ${r.hub.gross_capacity_factor_pct.toFixed(1)}% (unvalidated).`,
-    () => openDocument("wind")
-  )
-}
-
-export async function runTerrain(): Promise<void> {
-  const polygon = area.get().polygon
-  if (!polygon) {
-    print("No area. Type AREA and draw one on the map.", "error")
-    return
-  }
-  const p = terrainParams.get()
-  await run(
-    "terrain",
-    `over ${polygonAreaKm2(polygon).toFixed(2)} km²`,
-    () =>
-      // createFrom, not a literal: Wails gives a request with a nested struct
-      // a convertValues method, which a plain object does not have.
-      AnalyzeSolarTerrain(
-        energy.SolarTerrainRequest.createFrom({
-          area: polygon,
+    site,
+    siteLabel(site),
+    async () => ({
+      kind: "solar" as const,
+      site: at,
+      params: { ...p },
+      data: await AnalyzeSolarResource(
+        energy.SolarRequest.createFrom({
+          ...at,
+          climatology_years: p.climatologyYears,
           hourly_years: p.hourlyYears,
-          season: p.season,
+          surface_azimuth: p.surfaceAzimuth,
+          performance_ratio: p.performanceRatio,
         })
       ),
-    (result) => ({ terrain: { area: polygon, result } }),
+    }),
     (r) =>
-      `Solar terrain ready: ${seasonLabel(r.season).toLowerCase()}, mean ` +
-      `${r.poa_mean.toFixed(r.scale.decimals)} ${r.unit}, spread ${r.poa_std_pct.toFixed(1)}%. ` +
-      `Layer on the map; figures in the Solar terrain tab.`,
-    () => {
-      // The layer is the result, so the map stays in front and the figures
-      // wait in their tab.
-      terrainLayer.set((l) => ({ ...l, visible: true }))
-      openDocument("terrain", false)
-      activateDocument("map")
-    }
+      r.kind === "solar"
+        ? `Solar resource at ${site.name}: GHI ${r.data.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m²/yr, ` +
+          `specific yield ${r.data.pv.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp/yr.`
+        : "",
+    replace
+  )
+}
+
+export async function runWind(site: SiteObject, replace?: string): Promise<string | null> {
+  const p = project.get().data.settings.wind
+  const problem = windSettingsError(p)
+  if (problem) {
+    fail(`Wind screening not started: ${problem}.`)
+    return null
+  }
+  const at = { lon: site.lon, lat: site.lat }
+  return run(
+    "wind",
+    site,
+    siteLabel(site),
+    async () => ({
+      kind: "wind" as const,
+      site: at,
+      params: { ...p },
+      data: await AnalyzeWindResource(
+        energy.WindRequest.createFrom({
+          ...at,
+          record_years: p.recordYears,
+          hub_height_m: p.hubHeightM,
+          calm_threshold_ms: p.calmThresholdMS,
+          record_max_floor_ms: p.recordMaxFloorMS,
+          roughness_band_m:
+            p.roughnessLowM !== undefined && p.roughnessHighM !== undefined
+              ? [p.roughnessLowM, p.roughnessHighM]
+              : undefined,
+        })
+      ),
+    }),
+    (r) =>
+      r.kind === "wind"
+        ? `Wind screening at ${site.name}: ${r.data.hub.mean_speed_ms.toFixed(2)} m/s at ${r.data.hub_height_m.toFixed(0)} m, ` +
+          `gross capacity factor ${r.data.hub.gross_capacity_factor_pct.toFixed(1)}% (unvalidated).`
+        : "",
+    replace
+  )
+}
+
+export function runTerrain(area: AreaObject, replace?: string): Promise<string | null> {
+  const p = project.get().data.settings.terrain
+  const polygon = area.polygon
+  return run(
+    "terrain",
+    area,
+    `over ${area.name} (${polygonAreaKm2(polygon).toFixed(2)} km²)`,
+    async () => ({
+      kind: "terrain" as const,
+      polygon,
+      params: { ...p },
+      opacity: 0.85,
+      // createFrom, not a literal: Wails gives a request with a nested struct
+      // a convertValues method, which a plain object does not have.
+      data: await AnalyzeSolarTerrain(
+        energy.SolarTerrainRequest.createFrom({ area: polygon, hourly_years: p.hourlyYears, season: p.season })
+      ),
+    }),
+    (r) =>
+      r.kind === "terrain"
+        ? `Solar terrain over ${area.name}: ${seasonLabel(r.data.season).toLowerCase()}, mean ` +
+          `${r.data.poa_mean.toFixed(r.data.scale.decimals)} ${r.data.unit}, spread ${r.data.poa_std_pct.toFixed(1)}%.`
+        : "",
+    replace
   )
 }
 
 export async function cancelRun(): Promise<void> {
-  if (!analysis.get().running) {
-    print("Nothing is running.", "error")
-    return
-  }
+  if (!running.get()) return
   const stopped = await CancelRun()
-  if (!stopped) print("Nothing is running.", "error")
+  if (!stopped) info("Nothing was running.")
 }

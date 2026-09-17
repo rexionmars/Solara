@@ -1,5 +1,4 @@
 import type { energy } from "../../../wailsjs/go/models"
-import { analysis } from "../../lib/analysis"
 import { formatLat, formatLng } from "../../lib/format"
 import {
   airDensityKgM3,
@@ -15,13 +14,12 @@ import {
   speedMs,
   weibullK,
 } from "../../lib/energyFormat"
-import { useStore } from "../../lib/store"
+import { MONTHS } from "./SolarDocument"
 import {
   DocumentHeader,
   EYEBROW,
   Figure,
   FigureGrid,
-  NoResult,
   ProvenanceNote,
   Section,
   Stat,
@@ -143,7 +141,7 @@ function FieldDiagnostics({ wind }: { wind: Wind }) {
         </StatGrid>
       </div>
       {!q.all_checks_passed && (
-        <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-[11px] leading-relaxed text-muted">
+        <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-[11px] leading-relaxed text-muted-foreground">
           {q.flags.map((f) => (
             <li key={f}>{f}</li>
           ))}
@@ -155,23 +153,45 @@ function FieldDiagnostics({ wind }: { wind: Wind }) {
 
 /** How far the hub result moves with the exponent it was extrapolated on. */
 function ShearSensitivity({ wind }: { wind: Wind }) {
+  const head = "px-2 pb-1 text-[11px] font-normal text-muted-foreground"
   return (
-    <ul className="flex flex-col gap-1">
-      {wind.shear_sensitivity.map((s) => (
-        <li key={`${s.basis}-${s.shear_exponent}`} className="flex flex-wrap items-center gap-3 font-mono text-xs tabular-nums">
-          {/* Four decimals on purpose: the rows are chosen to differ there. */}
-          <span className="w-16 shrink-0 text-ink">{s.shear_exponent.toFixed(4)}</span>
-          <span className="w-20 shrink-0 text-right text-muted">
-            {s.roughness_length_m == null ? "—" : `${s.roughness_length_m.toFixed(2)} m`}
-          </span>
-          <span className="min-w-[5rem] flex-1 truncate font-sans text-muted">{s.basis}</span>
-          <span className="w-24 shrink-0 text-right text-ink">{s.hub_speed_ms.toFixed(4)} m/s</span>
-          <span className="w-16 shrink-0 text-right text-ink">{s.capacity_factor_pct.toFixed(3)}%</span>
-          <span className="w-24 shrink-0 text-right text-muted">{s.annual_energy_mwh.toFixed(1)} MWh</span>
-        </li>
-      ))}
-    </ul>
+    <div className="overflow-x-auto">
+      <table className="w-full font-mono text-xs tabular-nums">
+        <thead>
+          <tr className="border-b border-border text-left">
+            <th className={head}>Shear exponent α</th>
+            <th className={`${head} text-right`}>Roughness</th>
+            <th className={head}>Basis</th>
+            <th className={`${head} text-right`}>Hub speed</th>
+            <th className={`${head} text-right`}>Gross CF</th>
+            <th className={`${head} text-right`}>Gross AEP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {wind.shear_sensitivity.map((s) => (
+            <tr key={`${s.basis}-${s.shear_exponent}`} className="border-b border-white/5">
+              {/* Four decimals on purpose: the rows are chosen to differ there. */}
+              <td className="px-2 py-1 text-foreground">{s.shear_exponent.toFixed(4)}</td>
+              <td className="px-2 py-1 text-right text-muted-foreground">
+                {s.roughness_length_m == null ? "—" : `${s.roughness_length_m.toFixed(2)} m`}
+              </td>
+              <td className="px-2 py-1 font-sans text-muted-foreground">{s.basis}</td>
+              <td className="px-2 py-1 text-right text-foreground">{s.hub_speed_ms.toFixed(4)} m/s</td>
+              <td className="px-2 py-1 text-right text-foreground">{s.capacity_factor_pct.toFixed(3)}%</td>
+              <td className="px-2 py-1 text-right text-muted-foreground">{s.annual_energy_mwh.toFixed(1)} MWh</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
+}
+
+const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+
+/** The sixteen-point compass name of a bearing, for reading a direction without converting degrees. */
+function compass(deg: number): string {
+  return COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]
 }
 
 /** When the wind blows over the year, and from where. */
@@ -186,42 +206,44 @@ function SeasonAndDirection({ wind }: { wind: Wind }) {
         <ul className="flex flex-col gap-1">
           {m.monthly_mean_speed_50m.map((r) => (
             <li key={r.month} className="flex items-center gap-2 text-xs">
-              <span className="w-6 shrink-0 font-mono text-[11px] text-muted">{String(r.month).padStart(2, "0")}</span>
-              <span className="relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm bg-sunken">
+              <span className="w-7 shrink-0 text-[11px] text-muted-foreground">{MONTHS[r.month - 1] ?? r.month}</span>
+              <span className="relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm bg-sunk">
                 <span
-                  className="absolute inset-y-0 left-0 rounded-sm bg-info"
+                  className="absolute inset-y-0 left-0 rounded-sm bg-accent-quiet"
                   style={{ width: `${(r.mean_speed_ms / speedMax) * 100}%` }}
                 />
               </span>
-              <span className="w-12 shrink-0 text-right font-mono tabular-nums text-ink">{r.mean_speed_ms.toFixed(2)}</span>
+              <span className="w-12 shrink-0 text-right font-mono tabular-nums text-foreground">{r.mean_speed_ms.toFixed(2)}</span>
             </li>
           ))}
         </ul>
       </div>
       <div>
         <p className={`${EYEBROW} mb-2`}>
-          Direction at 50 m · <span className="text-accent">energy</span> against hours
+          Direction at 50 m · <span className="text-accent">▬ energy</span> against <span className="text-foreground/80">▬ hours</span>
         </p>
         <ul className="flex flex-col gap-1">
           {m.direction_energy_rose_50m.map((s) => (
             <li key={s.sector} className="flex items-center gap-2 text-xs">
-              <span className="w-12 shrink-0 font-mono text-[11px] text-muted">{s.centre_deg.toFixed(1)}°</span>
-              <span className="relative h-3 min-w-[4rem] flex-1 overflow-hidden rounded-sm bg-sunken">
-                <span className="absolute left-0 top-0 h-1.5 bg-accent" style={{ width: `${(s.energy_pct / roseMax) * 100}%` }} />
-                <span className="absolute bottom-0 left-0 h-1.5 bg-muted" style={{ width: `${(s.hours_pct / roseMax) * 100}%` }} />
+              <span className="w-20 shrink-0 font-mono text-[11px] text-muted-foreground" title={`${s.centre_deg.toFixed(1)}°`}>
+                {compass(s.centre_deg).padEnd(3)} {s.centre_deg.toFixed(0)}°
               </span>
-              <span className="w-14 shrink-0 text-right font-mono tabular-nums text-ink">{s.energy_pct.toFixed(2)}%</span>
-              <span className="w-14 shrink-0 text-right font-mono tabular-nums text-muted">{s.hours_pct.toFixed(2)}%</span>
+              <span className="relative h-3 min-w-[4rem] flex-1 overflow-hidden rounded-sm bg-sunk">
+                <span className="absolute left-0 top-0 h-1.5 bg-accent" style={{ width: `${(s.energy_pct / roseMax) * 100}%` }} />
+                <span className="absolute bottom-0 left-0 h-1.5 bg-ink/60" style={{ width: `${(s.hours_pct / roseMax) * 100}%` }} />
+              </span>
+              <span className="w-14 shrink-0 text-right font-mono tabular-nums text-foreground">{s.energy_pct.toFixed(2)}%</span>
+              <span className="w-14 shrink-0 text-right font-mono tabular-nums text-muted-foreground">{s.hours_pct.toFixed(2)}%</span>
             </li>
           ))}
         </ul>
         <div className="mt-3">
           <Stat
             label="Circular mean 50 m / 10 m"
-            value={`${m.direction.circular_mean_deg_50m.toFixed(1)}° / ${m.direction.circular_mean_deg_10m.toFixed(1)}°`}
+            value={`${compass(m.direction.circular_mean_deg_50m)} ${m.direction.circular_mean_deg_50m.toFixed(1)}° / ${compass(m.direction.circular_mean_deg_10m)} ${m.direction.circular_mean_deg_10m.toFixed(1)}°`}
           />
           <Stat label="Median turning" value={`${m.direction.median_turning_deg.toFixed(1)}°`} />
-          <p className="mt-1 text-[11px] text-muted">{m.direction.convention_note}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{m.direction.convention_note}</p>
         </div>
       </div>
     </div>
@@ -241,12 +263,12 @@ function ReferenceCurve({ wind }: { wind: Wind }) {
         <Stat label="Curve hub height" value={`${t.hub_height_m.toFixed(0)} m`} />
         <Stat label="Curve points" value={String(t.power_curve_points)} />
       </StatGrid>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted">{t.citation}</p>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{t.citation}</p>
     </>
   )
 }
 
-function WindBody({ wind, site }: { wind: Wind; site: { lon: number; lat: number } }) {
+export function WindBody({ wind, site }: { wind: Wind; site: { lon: number; lat: number } }) {
   const h = wind.hub
   const cell = wind.grid_cell_centre
   return (
@@ -271,7 +293,7 @@ function WindBody({ wind, site }: { wind: Wind; site: { lon: number; lat: number
         />
         <Figure label="Mean speed 50 m" value={speedMs(wind.measured.mean_speed_50m_ms)} sub="carried by the reanalysis" />
       </FigureGrid>
-      <p className="mt-4 text-[11px] leading-relaxed text-muted">{wind.qualifier}</p>
+      <p className="mt-4 rounded-[4px] border-l-2 border-warning bg-warning/10 px-3 py-2 text-[12px] leading-relaxed text-foreground/90">{wind.qualifier}</p>
 
       <div className="mt-6">
         <Section title="Reanalysis levels">
@@ -293,22 +315,11 @@ function WindBody({ wind, site }: { wind: Wind; site: { lon: number; lat: number
           <ReferenceCurve wind={wind} />
         </Section>
         <Section title="Resolution">
-          <p className="text-xs leading-relaxed text-muted">{wind.grid_note}</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted">{wind.assumptions.comparison_note}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{wind.grid_note}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{wind.assumptions.comparison_note}</p>
           <ProvenanceNote provenance={wind.power_provenance} />
         </Section>
       </div>
     </>
-  )
-}
-
-export function WindDocument() {
-  const { wind } = useStore(analysis)
-  return (
-    <div className="@container min-h-0 flex-1 overflow-y-auto bg-surface px-8 pb-28 pt-8">
-      <div className="mx-auto max-w-4xl">
-        {wind ? <WindBody wind={wind.result} site={wind.site} /> : <NoResult product="Wind screening" command="WIND" />}
-      </div>
-    </div>
   )
 }

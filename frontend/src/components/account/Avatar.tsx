@@ -14,7 +14,7 @@ export function Avatar({ user, size }: { user: User | null; size: number }) {
   return (
     <span
       aria-hidden="true"
-      className="grid shrink-0 place-items-center rounded-full bg-hover font-semibold text-ink/90"
+      className="grid shrink-0 place-items-center rounded-full bg-hover font-semibold text-foreground/90"
       style={{ ...box, fontSize: size * 0.42 }}
     >
       {initial || <UserIcon size={size * 0.6} />}

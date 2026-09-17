@@ -9,16 +9,15 @@ import {
   updateDisplayName,
   type User,
 } from "../../lib/account"
-import { runCommand } from "../../lib/commands"
+import { runOperator } from "../../lib/operators"
 import { useStore } from "../../lib/store"
+import { btnGhostDense, btnPrimaryCommit, fieldInput } from "../ui/buttons"
 import { Avatar } from "./Avatar"
 
-const FIELD =
-  "w-full rounded border border-line bg-sunken px-3 py-2 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-accent"
-const BUTTON =
-  "rounded border border-line bg-raised px-3 py-1.5 text-xs text-ink hover:bg-hover disabled:cursor-default disabled:opacity-50"
-const PRIMARY =
-  "rounded bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:cursor-default disabled:opacity-60"
+// TERRA's primitives, so the account reads as every other form in the studio.
+const FIELD = fieldInput
+const BUTTON = btnGhostDense
+const PRIMARY = btnPrimaryCommit
 
 const PHOTO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"]
 // Checked before decoding. The photo sent to the Go side is re-encoded at
@@ -79,14 +78,14 @@ function SignInForm() {
 
   return (
     <div className="mx-auto w-full max-w-sm">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Account</p>
-      <h2 className="mt-1 text-xl font-semibold text-ink">{registering ? "Create account" : "Sign in"}</h2>
-      <p className="mt-2 text-sm text-muted">
+      <p className="eyebrow">Account</p>
+      <h2 className="mt-1 text-heading font-semibold text-foreground">{registering ? "Create account" : "Sign in"}</h2>
+      <p className="mt-2 text-body text-muted-foreground">
         Accounts are stored on this computer only and nothing is sent to a server. Without one you work as the
         guest.
       </p>
 
-      <div role="tablist" className="mt-6 grid grid-cols-2 rounded border border-line bg-sunken p-0.5 text-xs">
+      <div role="tablist" className="mt-5 grid grid-cols-2 gap-0.5 rounded-sm bg-sunk p-0.5 text-meta">
         {(["signin", "register"] as const).map((m) => (
           <button
             key={m}
@@ -97,7 +96,7 @@ function SignInForm() {
               setMode(m)
               setError(null)
             }}
-            className={`rounded-sm py-1.5 ${mode === m ? "bg-raised text-ink" : "text-muted hover:text-ink"}`}
+            className={`rounded-sm py-1.5 ${mode === m ? "bg-selected text-foreground" : "text-muted-foreground hover:bg-hover"}`}
           >
             {m === "signin" ? "Sign in" : "Create account"}
           </button>
@@ -106,7 +105,7 @@ function SignInForm() {
 
       <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
         {registering && (
-          <label className="flex flex-col gap-1 text-xs text-muted">
+          <label className="flex flex-col gap-1 text-meta text-muted-foreground">
             Display name
             <input
               className={FIELD}
@@ -117,7 +116,7 @@ function SignInForm() {
             />
           </label>
         )}
-        <label className="flex flex-col gap-1 text-xs text-muted">
+        <label className="flex flex-col gap-1 text-meta text-muted-foreground">
           Email
           <input
             className={FIELD}
@@ -128,7 +127,7 @@ function SignInForm() {
             required
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">
+        <label className="flex flex-col gap-1 text-meta text-muted-foreground">
           Password
           <input
             className={FIELD}
@@ -141,7 +140,7 @@ function SignInForm() {
           />
         </label>
         {error && (
-          <p role="alert" className="text-xs text-fail">
+          <p role="alert" className="text-meta text-destructive-quiet">
             {error}
           </p>
         )}
@@ -162,10 +161,10 @@ function SignInForm() {
  */
 function SettingRow({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-8 border-b border-l-2 border-b-line border-l-transparent py-4 pl-4 focus-within:border-l-accent">
+    <div className="flex items-center justify-between gap-8 border-b border-l-2 border-b-border border-l-transparent py-4 pl-4 focus-within:border-l-accent">
       <div className="min-w-0">
-        <h3 className="text-sm text-ink">{title}</h3>
-        <p className="mt-0.5 text-xs text-muted">{description}</p>
+        <h3 className="text-body text-foreground">{title}</h3>
+        <p className="mt-0.5 text-meta text-muted-foreground">{description}</p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">{children}</div>
     </div>
@@ -232,7 +231,7 @@ function PhotoControl({ user }: { user: User }) {
         )}
       </div>
       {error && (
-        <p role="alert" className="text-xs text-fail">
+        <p role="alert" className="text-meta text-destructive-quiet">
           {error}
         </p>
       )}
@@ -283,7 +282,7 @@ function NameControl({ user }: { user: User }) {
         </button>
       </div>
       {error && (
-        <p role="alert" className="text-xs text-fail">
+        <p role="alert" className="text-meta text-destructive-quiet">
           {error}
         </p>
       )}
@@ -301,12 +300,12 @@ function memberSince(createdAt: string): string {
 function ProfileView({ user }: { user: User }) {
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <header className="flex items-center gap-4 border-b border-line pb-6">
+      <header className="flex items-center gap-4 border-b border-border pb-5">
         <Avatar user={user} size={64} />
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Account</p>
-          <h2 className="truncate text-xl font-semibold text-ink">{user.display_name}</h2>
-          <p className="truncate text-xs text-muted">
+          <p className="eyebrow">Account</p>
+          <h2 className="truncate text-heading font-semibold text-foreground">{user.display_name}</h2>
+          <p className="truncate text-meta text-muted-foreground">
             {user.email} · member since {memberSince(user.created_at)}
           </p>
         </div>
@@ -315,14 +314,14 @@ function ProfileView({ user }: { user: User }) {
       <SettingRow title="Profile photo" description="PNG, JPEG, WebP or GIF, cropped to a centred square and stored at 256 pixels.">
         <PhotoControl user={user} />
       </SettingRow>
-      <SettingRow title="Display name" description="Shown on this tab, beside the ribbon and in the status bar.">
+      <SettingRow title="Display name" description="Shown in the top bar and on this page.">
         <NameControl user={user} />
       </SettingRow>
       <SettingRow title="Email" description="Identifies the account on this computer. Not editable.">
-        <span className="font-mono text-xs text-muted">{user.email}</span>
+        <span className="font-mono text-meta text-muted-foreground">{user.email}</span>
       </SettingRow>
       <SettingRow title="Sign out" description="Continue as the guest. The account stays on this computer.">
-        <button type="button" className={BUTTON} onClick={() => void runCommand("LOGOUT")}>
+        <button type="button" className={BUTTON} onClick={() => void runOperator("LOGOUT")}>
           Sign out
         </button>
       </SettingRow>
@@ -330,13 +329,13 @@ function ProfileView({ user }: { user: User }) {
   )
 }
 
-/** The Account tab: the sign-in form for the guest, the profile once signed in. */
+/** Preferences › Account: the sign-in form for the guest, the profile once signed in. */
 export function AccountDocument() {
   const { loaded, user } = useStore(account)
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-surface px-8 pb-28 pt-10">
+    <div className="px-6 pb-6 pt-5">
       {!loaded ? (
-        <p className="text-center text-sm text-muted">Loading…</p>
+        <p className="text-center text-body text-muted-foreground">Loading…</p>
       ) : user ? (
         <ProfileView user={user} />
       ) : (

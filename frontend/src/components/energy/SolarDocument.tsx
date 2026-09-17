@@ -1,20 +1,19 @@
 import { Label, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import type { energy } from "../../../wailsjs/go/models"
-import { analysis } from "../../lib/analysis"
 import { formatLat, formatLng } from "../../lib/format"
-import { useStore } from "../../lib/store"
 import {
   DocumentHeader,
   Figure,
   FigureGrid,
-  NoResult,
   ProvenanceNote,
   Section,
   Stat,
   StatGrid,
 } from "./primitives"
 
-const AXIS = { fontSize: 11, fill: "var(--color-muted)" }
+const AXIS = { fontSize: 11, fill: "var(--color-muted-foreground)" }
+
+export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 /**
  * GHI, DNI and DHI by month, as daily means. The three are not independent --
@@ -27,7 +26,7 @@ function MonthlyChart({ monthly }: { monthly: energy.SolarMonth[] }) {
     <ResponsiveContainer width="100%" height={220}>
       <LineChart
         data={monthly.map((m) => ({
-          month: String(m.month).padStart(2, "0"),
+          month: MONTHS[m.month - 1] ?? String(m.month),
           ghi: m.ghi,
           dni: m.dni,
           dhi: m.dhi,
@@ -35,11 +34,11 @@ function MonthlyChart({ monthly }: { monthly: energy.SolarMonth[] }) {
         margin={{ top: 6, right: 14, left: 4, bottom: 22 }}
       >
         {/* Categorical: twelve evenly spaced months, not an irregular calendar. */}
-        <XAxis dataKey="month" stroke="var(--color-line)" tick={AXIS} tickMargin={6}>
+        <XAxis dataKey="month" stroke="rgb(var(--p-line))" tick={AXIS} tickMargin={6}>
           <Label value="Month" position="insideBottom" offset={-14} style={{ ...AXIS, fontSize: 12 }} />
         </XAxis>
         <YAxis
-          stroke="var(--color-line)"
+          stroke="rgb(var(--p-line))"
           tick={AXIS}
           tickFormatter={(v: number) => v.toFixed(1)}
           width={52}
@@ -54,18 +53,18 @@ function MonthlyChart({ monthly }: { monthly: energy.SolarMonth[] }) {
         <Tooltip
           formatter={(v: number) => v.toFixed(2)}
           contentStyle={{
-            backgroundColor: "var(--color-raised)",
-            border: "1px solid var(--color-line)",
+            backgroundColor: "var(--s-float)",
+            border: "1px solid rgb(var(--p-line))",
             borderRadius: 4,
             fontSize: 11,
           }}
-          labelStyle={{ color: "var(--color-ink)" }}
+          labelStyle={{ color: "var(--color-foreground)" }}
         />
         <Legend verticalAlign="top" align="right" height={20} wrapperStyle={{ fontSize: 11 }} iconType="plainline" />
         {[
-          { key: "ghi", label: "GHI", stroke: "var(--color-accent)", dash: undefined },
-          { key: "dni", label: "DNI", stroke: "var(--color-info)", dash: "6 3" },
-          { key: "dhi", label: "DHI", stroke: "var(--color-muted)", dash: "2 3" },
+          { key: "ghi", label: "GHI", stroke: "var(--color-kind-solar)", dash: undefined },
+          { key: "dni", label: "DNI", stroke: "var(--color-accent)", dash: "6 3" },
+          { key: "dhi", label: "DHI", stroke: "var(--color-muted-foreground)", dash: "2 3" },
         ].map((s) => (
           <Line
             key={s.key}
@@ -85,7 +84,7 @@ function MonthlyChart({ monthly }: { monthly: energy.SolarMonth[] }) {
   )
 }
 
-function SolarBody({ solar, site }: { solar: energy.SolarAnalysis; site: { lon: number; lat: number } }) {
+export function SolarBody({ solar, site }: { solar: energy.SolarAnalysis; site: { lon: number; lat: number } }) {
   const { resource: r, geometry: g, pv } = solar
   const trendSign = r.trend_per_year >= 0 ? "+" : ""
   return (
@@ -154,25 +153,10 @@ function SolarBody({ solar, site }: { solar: energy.SolarAnalysis; site: { lon: 
           </StatGrid>
         </Section>
         <Section title="Resolution">
-          <p className="text-xs leading-relaxed text-muted">{solar.grid_note}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{solar.grid_note}</p>
           <ProvenanceNote provenance={solar.power_provenance} />
         </Section>
       </div>
     </>
-  )
-}
-
-export function SolarDocument() {
-  const { solar } = useStore(analysis)
-  return (
-    <div className="@container min-h-0 flex-1 overflow-y-auto bg-surface px-8 pb-28 pt-8">
-      <div className="mx-auto max-w-4xl">
-        {solar ? (
-          <SolarBody solar={solar.result} site={solar.site} />
-        ) : (
-          <NoResult product="Solar resource" command="SOLAR" />
-        )}
-      </div>
-    </div>
   )
 }

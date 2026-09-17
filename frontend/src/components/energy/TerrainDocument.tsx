@@ -1,15 +1,12 @@
 import type { energy } from "../../../wailsjs/go/models"
-import type { Polygon } from "../../lib/area"
-import { analysis } from "../../lib/analysis"
-import { seasonLabel } from "../../lib/energyParams"
 import { polygonAreaKm2 } from "../../lib/geo"
-import { useStore } from "../../lib/store"
+import { seasonLabel } from "../../lib/params"
+import type { Polygon } from "../../lib/project"
 import { Legend } from "./Legend"
 import {
   DocumentHeader,
   Figure,
   FigureGrid,
-  NoResult,
   ProvenanceNote,
   Section,
   Stat,
@@ -18,7 +15,7 @@ import {
 
 const pct = (v: number | undefined | null, digits = 2) => (v == null ? "—" : `${v.toFixed(digits)}%`)
 
-function TerrainBody({ terrain, area }: { terrain: energy.SolarTerrainAnalysis; area: Polygon }) {
+export function TerrainBody({ terrain, area }: { terrain: energy.SolarTerrainAnalysis; area: Polygon }) {
   const t = terrain
   const fmt = (v: number) => v.toFixed(t.scale.decimals)
   const sky = t.sky_view
@@ -42,7 +39,7 @@ function TerrainBody({ terrain, area }: { terrain: energy.SolarTerrainAnalysis; 
             <img
               src={t.overlay_url}
               alt={`Solar terrain layer, ${seasonLabel(t.season)}`}
-              className="max-h-[28rem] w-full rounded border border-line bg-sunken object-contain [image-rendering:pixelated]"
+              className="max-h-[28rem] w-full rounded border border-border bg-sunk object-contain [image-rendering:pixelated]"
             />
             <Legend scale={t.scale} unit={t.unit} title={seasonLabel(t.season)} />
           </div>
@@ -77,34 +74,19 @@ function TerrainBody({ terrain, area }: { terrain: energy.SolarTerrainAnalysis; 
           </Section>
         )}
         <Section title="Resolution and output">
-          <p className="text-xs leading-relaxed text-muted">
+          <p className="text-xs leading-relaxed text-muted-foreground">
             The irradiation is resolved on NASA POWER's 1° radiation cell; what varies across the area is the
             surface it falls on, from the elevation model at 30 m. Solar position is evaluated at the cell, not at
             each pixel.
           </p>
-          <p className="mt-2 break-all font-mono text-[11px] text-muted">GeoTIFF (float32): {t.raster_tif}</p>
-          <p className="mt-1 text-[11px] text-muted">
-            The GeoTIFF and the layer are kept in this session's results directory and removed when the
-            application closes.
+          <p className="selectable mt-2 break-all font-mono text-[11px] text-muted-foreground">GeoTIFF (float32): {t.raster_tif}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            The GeoTIFF and the layer are saved with the project (File › Save), and can be taken out with File › Export ›
+            Terrain Layer as GeoTIFF. An unsaved project's rasters are removed when the application closes.
           </p>
           <ProvenanceNote provenance={t.power_provenance} />
         </Section>
       </div>
     </>
-  )
-}
-
-export function TerrainDocument() {
-  const { terrain } = useStore(analysis)
-  return (
-    <div className="@container min-h-0 flex-1 overflow-y-auto bg-surface px-8 pb-28 pt-8">
-      <div className="mx-auto max-w-4xl">
-        {terrain ? (
-          <TerrainBody terrain={terrain.result} area={terrain.area} />
-        ) : (
-          <NoResult product="Solar terrain" command="TERRAIN" setup="Draw an area with AREA" />
-        )}
-      </div>
-    </div>
   )
 }

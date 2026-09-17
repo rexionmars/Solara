@@ -8,7 +8,7 @@ import {
   UpdateDisplayName,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
-import { print } from "./commandLog"
+import { info } from "./reports"
 import { createStore } from "./store"
 
 export type User = store.User
@@ -35,7 +35,7 @@ export { errorMessage } from "./errors"
 async function signedIn(call: Promise<User>, message: (u: User) => string): Promise<User> {
   const u = await call
   account.set({ loaded: true, user: u })
-  print(message(u))
+  info(message(u))
   return u
 }
 
@@ -55,5 +55,5 @@ export const clearAvatar = () => signedIn(ClearAvatar(), () => "Profile photo re
 export async function logout(): Promise<void> {
   await Logout()
   account.set({ loaded: true, user: null })
-  print("Signed out. Working as the guest.")
+  info("Signed out. Working as the guest.")
 }
