@@ -20,6 +20,7 @@ import {
   type AreaObject,
   type Product,
   type ResultObject,
+  type Settings,
   type SiteObject,
 } from "./project"
 import { fail, info, note } from "./reports"
@@ -36,6 +37,22 @@ export type Running = {
 
 /** The analysis in flight. The Go side runs one at a time and refuses a second. */
 export const running = createStore<Running | null>(null)
+
+/** A run that failed, and what it was given. */
+export type RunFailure = {
+  product: Product
+  sourceId: string
+  source: SiteObject | AreaObject
+  params: Settings[Product]
+  at: number
+}
+
+/**
+ * The last run that failed, with what it was given, so the run graph can say
+ * which inputs a failure read. Cleared by the next run that succeeds; a
+ * cancelled run is not a failure and leaves it as it was.
+ */
+export const lastFailure = createStore<RunFailure | null>(null)
 
 /**
  * Relay the sidecar's progress into the running analysis. One channel is
@@ -81,6 +98,7 @@ async function run(
     fail(`${PRODUCT_NAMES[busy.product]} is still running. Cancel it first.`)
     return null
   }
+  const params = { ...project.get().data.settings[product] }
   running.set({ product, sourceId: source.id, progress: null, message: "starting" })
   note(`${PRODUCT_NAMES[product]} ${where}…`)
   try {
@@ -101,6 +119,7 @@ async function run(
       return { ...d, results: [...results, result] }
     })
     running.set(null)
+    lastFailure.set(null)
     const result = project.get().data.results.find((r) => r.id === id)
     if (result) info(summary(result), { label: "Show", run: () => showResult(id, product) })
     return id
@@ -108,7 +127,10 @@ async function run(
     running.set(null)
     const msg = errorMessage(e)
     if (msg === CANCELLED) info(`${PRODUCT_NAMES[product]} cancelled.`)
-    else fail(`${PRODUCT_NAMES[product]} failed: ${msg}`)
+    else {
+      lastFailure.set({ product, sourceId: source.id, source, params, at: Date.now() })
+      fail(`${PRODUCT_NAMES[product]} failed: ${msg}`)
+    }
     return null
   }
 }
