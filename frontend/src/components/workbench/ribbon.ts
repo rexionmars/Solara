@@ -7,13 +7,21 @@ import type { Panels } from "../../lib/layout"
  */
 export type RibbonItem = {
   command: string
-  /** Shown pressed while this panel is visible. */
-  pressedWhen?: keyof Panels
+  /**
+   * Large: icon over label, one column. Small: icon beside label, stacked
+   * three to a column, for the secondary commands of a group.
+   */
+  size?: "large" | "small"
+  /** Shown pressed while this panel or layer is visible. */
+  pressedWhen?: keyof Panels | "terrainLayer"
 }
 
 export type RibbonGroup = { title: string; items: RibbonItem[] }
 
 export type RibbonTab = { id: string; label: string; groups: RibbonGroup[] }
+
+/** The quick access toolbar in the title bar: commands reached from any tab. */
+export const QUICK_ACCESS = ["HOME", "SITE", "AREA", "CANCEL"]
 
 export const RIBBON: RibbonTab[] = [
   {
@@ -23,14 +31,14 @@ export const RIBBON: RibbonTab[] = [
       {
         title: "Navigate",
         items: [
-          { command: "ZOOMIN" },
-          { command: "ZOOMOUT" },
           { command: "HOME" },
-          { command: "NORTH" },
+          { command: "ZOOMIN", size: "small" },
+          { command: "ZOOMOUT", size: "small" },
+          { command: "NORTH", size: "small" },
         ],
       },
       { title: "Sidecar", items: [{ command: "PING" }] },
-      { title: "Account", items: [{ command: "ACCOUNT" }] },
+      { title: "Account", items: [{ command: "ACCOUNT" }, { command: "LOGOUT", size: "small" }] },
     ],
   },
   {
@@ -38,7 +46,15 @@ export const RIBBON: RibbonTab[] = [
     label: "Energy",
     groups: [
       { title: "Site", items: [{ command: "SITE" }] },
+      { title: "Area", items: [{ command: "AREA" }, { command: "AREACLEAR", size: "small" }] },
       { title: "Resource", items: [{ command: "SOLAR" }, { command: "WIND" }] },
+      {
+        title: "Terrain",
+        items: [
+          { command: "TERRAIN" },
+          { command: "TERRAINLAYER", size: "small", pressedWhen: "terrainLayer" },
+        ],
+      },
       { title: "Run", items: [{ command: "CANCEL" }] },
     ],
   },
@@ -47,13 +63,19 @@ export const RIBBON: RibbonTab[] = [
     label: "View",
     groups: [
       {
-        title: "Panels",
+        title: "Palettes",
         items: [
           { command: "PROPERTIES", pressedWhen: "properties" },
           { command: "COMMANDLINE", pressedWhen: "commandLine" },
         ],
       },
-      { title: "History", items: [{ command: "CLEAR" }, { command: "HELP" }] },
+      {
+        title: "History",
+        items: [
+          { command: "CLEAR", size: "small" },
+          { command: "HELP", size: "small" },
+        ],
+      },
     ],
   },
 ]

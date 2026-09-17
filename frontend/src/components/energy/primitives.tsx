@@ -1,7 +1,5 @@
 import type { ReactNode } from "react"
 import type { energy } from "../../../wailsjs/go/models"
-import { formatLat, formatLng } from "../../lib/format"
-import type { Site } from "../../lib/site"
 
 /**
  * The pieces a result document is built from: a figure, a stat row, a chip,
@@ -68,12 +66,13 @@ export function Section({ title, children }: { title: string; children: ReactNod
 /** The product, where it was computed, on what record, and its standing. */
 export function DocumentHeader({
   product,
-  site,
+  title,
   meta,
   chips,
 }: {
   product: string
-  site: Site
+  /** Where: the site's coordinates, or the area and its window. */
+  title: string
   meta: string
   chips?: string[]
 }) {
@@ -83,9 +82,7 @@ export function DocumentHeader({
         <p className={EYEBROW}>{product}</p>
         {chips?.map((c) => <Chip key={c}>{c}</Chip>)}
       </div>
-      <h2 className="mt-1 font-mono text-xl tabular-nums text-ink">
-        {formatLat(site.lat)}  {formatLng(site.lon)}
-      </h2>
+      <h2 className="mt-1 whitespace-pre font-mono text-xl tabular-nums text-ink">{title}</h2>
       <p className="mt-1 text-xs text-muted">{meta}</p>
     </header>
   )
@@ -121,10 +118,18 @@ export function ProvenanceNote({ provenance }: { provenance?: energy.PowerProven
 }
 
 /** Shown in a result tab that has no result yet. */
-export function NoResult({ product, command }: { product: string; command: string }) {
+export function NoResult({
+  product,
+  command,
+  setup = "Set a site with SITE",
+}: {
+  product: string
+  command: string
+  setup?: string
+}) {
   return (
     <p className="py-16 text-center text-sm text-muted">
-      No {product.toLowerCase()} yet. Set a site with SITE, then run {command}.
+      No {product.toLowerCase()} yet. {setup}, then run {command}.
     </p>
   )
 }

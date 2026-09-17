@@ -1,5 +1,6 @@
 import type { energy } from "../../../wailsjs/go/models"
 import { analysis } from "../../lib/analysis"
+import { formatLat, formatLng } from "../../lib/format"
 import {
   airDensityKgM3,
   capacityFactorPct,
@@ -252,7 +253,7 @@ function WindBody({ wind, site }: { wind: Wind; site: { lon: number; lat: number
     <>
       <DocumentHeader
         product="Wind screening"
-        site={site}
+        title={`${formatLat(site.lat)}  ${formatLng(site.lon)}`}
         chips={["gross", "unvalidated"]}
         meta={`MERRA-2 cell at ${cell?.[1]?.toFixed(2) ?? wind.lat.toFixed(2)}, ${cell?.[0]?.toFixed(2) ?? wind.lon.toFixed(2)} · ${wind.record_window} · hub ${wind.hub_height_m.toFixed(0)} m`}
       />
@@ -304,7 +305,7 @@ function WindBody({ wind, site }: { wind: Wind; site: { lon: number; lat: number
 export function WindDocument() {
   const { wind } = useStore(analysis)
   return (
-    <div className="@container min-h-0 flex-1 overflow-y-auto bg-surface px-8 py-8">
+    <div className="@container min-h-0 flex-1 overflow-y-auto bg-surface px-8 pb-28 pt-8">
       <div className="mx-auto max-w-4xl">
         {wind ? <WindBody wind={wind.result} site={wind.site} /> : <NoResult product="Wind screening" command="WIND" />}
       </div>

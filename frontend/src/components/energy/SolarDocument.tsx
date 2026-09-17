@@ -1,6 +1,7 @@
 import { Label, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import type { energy } from "../../../wailsjs/go/models"
 import { analysis } from "../../lib/analysis"
+import { formatLat, formatLng } from "../../lib/format"
 import { useStore } from "../../lib/store"
 import {
   DocumentHeader,
@@ -91,7 +92,7 @@ function SolarBody({ solar, site }: { solar: energy.SolarAnalysis; site: { lon: 
     <>
       <DocumentHeader
         product="Solar resource"
-        site={site}
+        title={`${formatLat(site.lat)}  ${formatLng(site.lon)}`}
         meta={`Radiation cell at ${solar.lat.toFixed(2)}, ${solar.lon.toFixed(2)} · ${r.n_years} years daily, ${pv.hourly_years} years hourly · NASA POWER`}
       />
       <FigureGrid>
@@ -164,7 +165,7 @@ function SolarBody({ solar, site }: { solar: energy.SolarAnalysis; site: { lon: 
 export function SolarDocument() {
   const { solar } = useStore(analysis)
   return (
-    <div className="@container min-h-0 flex-1 overflow-y-auto bg-surface px-8 py-8">
+    <div className="@container min-h-0 flex-1 overflow-y-auto bg-surface px-8 pb-28 pt-8">
       <div className="mx-auto max-w-4xl">
         {solar ? (
           <SolarBody solar={solar.result} site={solar.site} />

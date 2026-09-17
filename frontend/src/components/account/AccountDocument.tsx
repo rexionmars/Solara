@@ -334,7 +334,7 @@ function ProfileView({ user }: { user: User }) {
 export function AccountDocument() {
   const { loaded, user } = useStore(account)
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-surface px-8 py-10">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-surface px-8 pb-28 pt-10">
       {!loaded ? (
         <p className="text-center text-sm text-muted">Loading…</p>
       ) : user ? (

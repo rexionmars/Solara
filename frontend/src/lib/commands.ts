@@ -6,18 +6,24 @@ import {
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
   MapPin,
+  Mountains,
+  Polygon as PolygonIcon,
   Question,
   SidebarSimple,
   SignOut,
+  StackSimple,
   StopCircle,
   Sun,
   TerminalWindow,
+  Trash,
   UserCircle,
   Wind,
   type Icon,
 } from "@phosphor-icons/react"
 import { account, logout } from "./account"
-import { cancelRun, runSolar, runWind } from "./analysis"
+import { analysis, cancelRun, runSolar, runTerrain, runWind } from "./analysis"
+import { clearArea, startDrawing } from "./area"
+import { toggleTerrainLayer } from "./layers"
 import { clearLog, print } from "./commandLog"
 import { activateDocument, openDocument } from "./documents"
 import { errorMessage } from "./errors"
@@ -139,6 +145,48 @@ export const COMMANDS: Command[] = [
     run: runWind,
   },
   {
+    name: "AREA",
+    aliases: ["AR"],
+    label: "Area",
+    description: "Draw the analysis area on the map; a new area replaces the old one",
+    icon: PolygonIcon,
+    run: () => {
+      activateDocument("map")
+      startDrawing()
+      print("Click to add vertices; click the first vertex to close the area. Esc cancels.")
+    },
+  },
+  {
+    name: "AREACLEAR",
+    aliases: ["AC"],
+    label: "Clear Area",
+    description: "Remove the analysis area",
+    icon: Trash,
+    run: clearArea,
+  },
+  {
+    name: "TERRAIN",
+    aliases: ["ST"],
+    label: "Solar Terrain",
+    description: "Plane-of-array irradiation over the area's terrain (Copernicus DEM, NASA POWER)",
+    icon: Mountains,
+    run: runTerrain,
+  },
+  {
+    name: "TERRAINLAYER",
+    aliases: ["TL"],
+    label: "Terrain Layer",
+    description: "Show or hide the solar terrain layer on the map",
+    icon: StackSimple,
+    run: () => {
+      if (!analysis.get().terrain) {
+        print("No solar terrain layer yet. Run TERRAIN over an area.", "error")
+        return
+      }
+      toggleTerrainLayer()
+    },
+  },
+  {
     name: "CANCEL",
     aliases: ["STOP"],
     label: "Cancel",
@@ -242,6 +290,25 @@ export function completions(prefix: string): string[] {
   const p = prefix.trimStart().toUpperCase()
   if (!p || /\s/.test(p)) return []
   return COMMANDS.map((c) => c.name).filter((n) => n.startsWith(p))
+}
+
+/**
+ * Commands matching a search, for the title bar's command search: by name,
+ * alias, label or description, with the ones whose name starts with the query
+ * first.
+ */
+export function searchCommands(query: string): Command[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const hits = COMMANDS.filter(
+    (c) =>
+      c.name.toLowerCase().includes(q) ||
+      c.aliases.some((a) => a.toLowerCase() === q) ||
+      c.label.toLowerCase().includes(q) ||
+      c.description.toLowerCase().includes(q)
+  )
+  const starts = (c: Command) => c.name.toLowerCase().startsWith(q) || c.label.toLowerCase().startsWith(q)
+  return [...hits.filter(starts), ...hits.filter((c) => !starts(c))]
 }
 
 /**

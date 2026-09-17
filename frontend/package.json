@@ -13,7 +13,9 @@
     "maplibre-gl": "^6.6.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "recharts": "^2.15.4"
+    "recharts": "^2.15.4",
+    "terra-draw": "^1.33.0",
+    "terra-draw-maplibre-gl-adapter": "^1.4.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
