@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { CaretRight } from "@phosphor-icons/react"
+import { CaretRight, X } from "@phosphor-icons/react"
 import { Marker } from "maplibre-gl"
 import type { energy } from "../../../wailsjs/go/models"
 import { currentMap } from "../../lib/mapEngine"
-import { legendsShown, mapLoaded } from "../../lib/mapState"
+import { legendsShown, mapLoaded, pickedGrid, type PickedGrid } from "../../lib/mapState"
 import { seasonLabel } from "../../lib/params"
 import { findItem, project, type TerrainResult } from "../../lib/project"
 import { useStore } from "../../lib/store"
@@ -25,6 +25,9 @@ import { overlays } from "../../lib/tools"
  * SHOWN BY ASKING: from the layer's row in the Outliner, its Properties, or
  * the Object menu. A new layer arrives with its legend up. The Legend overlay
  * hides every one at once.
+ *
+ * THE SAME BOX CAPTIONS A GRID FEATURE the reader clicks -- a plant, a line, a
+ * substation bus -- as TERRA captions them, tied to where it was clicked.
  */
 
 /** Where a box starts, in pixels from its anchor: up and to the left. */
@@ -44,11 +47,18 @@ const STRAIGHT = 0.34
 */
 const offsets = new Map<string, { x: number; y: number }>()
 
-export type TerrainCaption = {
+/**
+ * What a box says. A layer's legend is a ramp; a grid feature clicked on the
+ * map is a few figures and the qualification they are read under, as TERRA's
+ * "stats" legend.
+ */
+export type Caption = {
   subject: string
   area: string
-  detail: string
-  scale: energy.RenderScale
+  detail?: string
+  body: { kind: "ramp"; scale: energy.RenderScale } | { kind: "stats"; rows: { label: string; value: string }[]; note?: string }
+  /** Drawn as a close button; a legend is closed from where it was asked for instead. */
+  onClose?: () => void
 }
 
 /** What the ramp's endpoints are the endpoints of, in the fewest words that keep the claim. */
@@ -58,7 +68,7 @@ function basisShort(scale: energy.RenderScale): string {
   return "own range, relative contrast"
 }
 
-function captionOf(d: ReturnType<typeof project.get>["data"], r: TerrainResult): TerrainCaption {
+function captionOf(d: ReturnType<typeof project.get>["data"], r: TerrainResult): Caption {
   const t = r.data
   return {
     subject: "Solar terrain",
@@ -73,22 +83,90 @@ function captionOf(d: ReturnType<typeof project.get>["data"], r: TerrainResult):
     ]
       .filter(Boolean)
       .join(" · "),
-    scale: t.scale,
+    body: { kind: "ramp", scale: t.scale },
+  }
+}
+
+/** A clicked plant, line or bus, in TERRA's words for each. */
+function pickedCaption(p: PickedGrid): Caption {
+  const onClose = () => pickedGrid.set(null)
+  if (p.kind === "plant") {
+    const f = p.props
+    const rows: { label: string; value: string }[] = []
+    if (f.mw != null) rows.push({ label: "Capacity", value: `${f.mw} MW` })
+    // The register often writes the state into the municipality already ("Brejinhos - BA").
+    if (f.municipality) rows.push({ label: "Where", value: f.uf && !f.municipality.includes(f.uf) ? `${f.municipality} · ${f.uf}` : f.municipality })
+    if (f.since) rows.push({ label: "Operating since", value: String(f.since) })
+    if (f.ceg) rows.push({ label: "CEG", value: String(f.ceg) })
+    return {
+      subject: `${f.kind ?? "Plant"} · ${f.metered ? "metered" : "not metered"}`,
+      area: f.name ?? "—",
+      onClose,
+      body: {
+        kind: "stats",
+        rows,
+        note: f.metered
+          ? "In ONS's operational record, so a connection reading over an area containing it reports what it lost."
+          : "The operational record does not cover this plant, so a reading over it reports no curtailment. That is an absence of measurement, not a curtailment of zero.",
+      },
+    }
+  }
+  if (p.kind === "line") {
+    const f = p.props
+    const rows: { label: string; value: string }[] = []
+    if (f.kv) rows.push({ label: "Voltage", value: `${f.kv} kV` })
+    rows.push({ label: "Rating", value: f.mva == null ? "not published" : `${f.mva} MVA` })
+    if (f.straight_km != null) rows.push({ label: "Drawn", value: `${f.straight_km.toFixed(0)} km` })
+    if (f.published_km != null) rows.push({ label: "Route", value: `${f.published_km.toFixed(0)} km` })
+    if (f.straight_km && f.published_km) {
+      rows.push({ label: "Longer than drawn", value: `${(((f.published_km - f.straight_km) / f.straight_km) * 100).toFixed(0)}%` })
+    }
+    return {
+      subject: f.in_service ? "Circuit · in service" : "Circuit · out of service",
+      area: (f.name ?? "—").replace(/\s+/g, " "),
+      onClose,
+      body: {
+        kind: "stats",
+        rows,
+        note: "Drawn terminal to terminal, which is all the register publishes. A distance measured against this line on screen is short of the conductor.",
+      },
+    }
+  }
+  const f = p.props
+  const rows: { label: string; value: string }[] = []
+  if (f.kv) rows.push({ label: "Voltage", value: `${f.kv} kV` })
+  if (f.subsystem) rows.push({ label: "Subsystem", value: String(f.subsystem) })
+  if (f.uf) rows.push({ label: "State", value: String(f.uf) })
+  if (f.operator) rows.push({ label: "Operator", value: String(f.operator) })
+  rows.push({ label: "Bus", value: String(f.bus) })
+  return {
+    subject: "Substation bus",
+    area: f.name ?? "—",
+    onClose,
+    body: {
+      kind: "stats",
+      rows,
+      note: "A station's buses are published at one coordinate, so the marks of several voltages sit on top of each other. Which one a plant attaches to is published separately and is not this.",
+    },
   }
 }
 
 /** The legends to draw: layers on the map whose legend was asked for, while the Legend overlay is on. */
-function useCaptions(): { key: string; at: [number, number]; caption: TerrainCaption }[] {
+function useCaptions(): { key: string; at: [number, number]; caption: Caption }[] {
   const d = useStore(project).data
   const o = useStore(overlays)
   const shown = useStore(legendsShown)
-  if (!o.legend || !o.layers) return []
-  return d.results
+  const picked = useStore(pickedGrid)
+  // On the ground where it was clicked, and first, so a new pick is the box added last and drawn over the legends.
+  const pick = picked ? [{ key: `picked:${picked.kind}`, at: picked.at, caption: pickedCaption(picked) }] : []
+  if (!o.legend || !o.layers) return pick
+  const legends = d.results
     .filter((r): r is TerrainResult => r.kind === "terrain" && !r.hidden && !findItem(d, r.sourceId)?.hidden && shown.has(r.id))
     .map((r) => {
       const e = r.data.extent
-      return { key: r.id, at: [(e.lon_min + e.lon_max) / 2, (e.lat_min + e.lat_max) / 2], caption: captionOf(d, r) }
+      return { key: r.id, at: [(e.lon_min + e.lon_max) / 2, (e.lat_min + e.lat_max) / 2] as [number, number], caption: captionOf(d, r) }
     })
+  return [...legends, ...pick]
 }
 
 export function OverlayCallouts() {
@@ -219,6 +297,21 @@ function Disclosed({ text, className = "" }: { text: string; className?: string 
   )
 }
 
+/** A few figures and the qualification they are read under. */
+function Stats({ rows, note }: { rows: { label: string; value: string }[]; note?: string }) {
+  return (
+    <div className="mt-1.5 flex flex-col gap-0.5">
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-baseline justify-between gap-2">
+          <span className="min-w-0 truncate text-micro text-muted-foreground">{r.label}</span>
+          <span className="telemetry selectable shrink-0 text-micro text-foreground">{r.value}</span>
+        </div>
+      ))}
+      {note && <Disclosed text={note} className="text-micro leading-snug text-muted-foreground" />}
+    </div>
+  )
+}
+
 /** The ramp the layer was drawn on, its two ends, and the reference value where the quantity has one. */
 function Ramp({ scale }: { scale: energy.RenderScale }) {
   const gradient = scale.stops?.length ? `linear-gradient(to right, ${scale.stops.join(", ")})` : "rgb(var(--p-line))"
@@ -239,7 +332,7 @@ function Ramp({ scale }: { scale: energy.RenderScale }) {
   )
 }
 
-function CalloutBody({ id, caption }: { id: string; caption: TerrainCaption }) {
+function CalloutBody({ id, caption }: { id: string; caption: Caption }) {
   const [off, setOff] = useState(() => offsets.get(id) ?? { x: START_X, y: START_Y })
   const from = useRef<{ x: number; y: number } | null>(null)
 
@@ -326,10 +419,24 @@ function CalloutBody({ id, caption }: { id: string; caption: TerrainCaption }) {
           border: "1px solid rgb(var(--p-line) / 0.35)",
         }}
       >
-        <p className="eyebrow !text-[9px] truncate !text-primary">{caption.subject}</p>
+        <div className="flex items-center gap-1">
+          <p className="eyebrow !text-[9px] min-w-0 flex-1 truncate !text-primary">{caption.subject}</p>
+          {caption.onClose && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={caption.onClose}
+              aria-label="Close"
+              title="Close (Esc)"
+              className="-mr-1 grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground"
+            >
+              <X className="size-2.5" />
+            </button>
+          )}
+        </div>
         <Disclosed text={caption.area} className="text-emphasis italic text-foreground" />
-        <Disclosed text={caption.detail} className="telemetry text-micro text-muted-foreground" />
-        <Ramp scale={caption.scale} />
+        {caption.detail && <Disclosed text={caption.detail} className="telemetry text-micro text-muted-foreground" />}
+        {caption.body.kind === "ramp" ? <Ramp scale={caption.body.scale} /> : <Stats rows={caption.body.rows} note={caption.body.note} />}
       </div>
     </div>
   )

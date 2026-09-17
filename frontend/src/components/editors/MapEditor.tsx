@@ -5,6 +5,7 @@ import { runSolar, runTerrain, runWind } from "../../lib/analysis"
 import { BASEMAP_NAME } from "../../lib/basemap"
 import { formatLat, formatLng } from "../../lib/format"
 import { distanceKm } from "../../lib/geo"
+import { networkRegister, plantRegister } from "../../lib/grid"
 import { mountMap, setBearing } from "../../lib/mapEngine"
 import { mapView, measure } from "../../lib/mapState"
 import { setSiteCoordinate } from "../../lib/objects"
@@ -51,6 +52,29 @@ const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "statistics", label: "Credit and scale" },
 ]
 
+const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
+  { key: "gridMetered", label: "Plants in the record" },
+  { key: "gridRegistered", label: "Registered only" },
+  { key: "gridLines", label: "Transmission lines" },
+  { key: "gridBuses", label: "Substations" },
+]
+
+/** A layer's toggle, with what it holds once read, or why it could not be. */
+function gridLabel(key: keyof Overlays, label: string): string {
+  const plants = plantRegister.get()
+  const network = networkRegister.get()
+  const state = key === "gridMetered" || key === "gridRegistered" ? plants : network
+  if (state.kind === "loading") return `${label} (reading…)`
+  if (state.kind === "failed") return `${label} (unavailable)`
+  if (plants.kind === "ready" && key === "gridMetered") return `${label} · ${plants.data.counts.metered.toLocaleString()}`
+  if (plants.kind === "ready" && key === "gridRegistered") {
+    return `${label} · ${(plants.data.counts.returned - plants.data.counts.metered).toLocaleString()}`
+  }
+  if (network.kind === "ready" && key === "gridLines") return `${label} · ${network.data.counts.lines_in_service.toLocaleString()} in service`
+  if (network.kind === "ready" && key === "gridBuses") return `${label} · ${network.data.counts.substations.toLocaleString()}`
+  return label
+}
+
 const overlaysMenu = (): MenuItem[] => {
   const o = overlays.get()
   return [
@@ -62,6 +86,19 @@ const overlaysMenu = (): MenuItem[] => {
         checked: o[it.key],
         run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
       })
+    ),
+    { type: "heading", label: "Grid store" },
+    ...GRID_ITEMS.map(
+      (it): MenuItem => {
+        const state = it.key === "gridMetered" || it.key === "gridRegistered" ? plantRegister.get() : networkRegister.get()
+        return {
+          type: "action",
+          label: gridLabel(it.key, it.label),
+          checked: o[it.key],
+          disabled: state.kind === "failed" && !o[it.key] ? state.message : false,
+          run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
+        }
+      }
     ),
   ]
 }

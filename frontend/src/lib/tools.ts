@@ -75,12 +75,29 @@ export type Overlays = {
   layers: boolean
   legend: boolean
   statistics: boolean
+  /** The grid store's registers: plants in the operational record, the rest, lines and buses. */
+  gridMetered: boolean
+  gridRegistered: boolean
+  gridLines: boolean
+  gridBuses: boolean
 }
 
 const OVERLAYS_KEY = "terra-energy.overlays.v1"
 
 function restoreOverlays(): Overlays {
-  const fallback: Overlays = { siteLabels: true, areas: true, layers: true, legend: true, statistics: true }
+  const fallback: Overlays = {
+    siteLabels: true,
+    areas: true,
+    layers: true,
+    legend: true,
+    statistics: true,
+    // Off until asked for: the register is several megabytes, and a store that
+    // is not running should not be the first thing a new user is told about.
+    gridMetered: false,
+    gridRegistered: false,
+    gridLines: false,
+    gridBuses: false,
+  }
   try {
     return { ...fallback, ...(JSON.parse(localStorage.getItem(OVERLAYS_KEY) ?? "{}") as Partial<Overlays>) }
   } catch {

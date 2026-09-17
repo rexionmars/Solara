@@ -1,4 +1,5 @@
-import { InspectGridStore, SetGridStore } from "../../wailsjs/go/main/App"
+import type { FeatureCollection, LineString, Point } from "geojson"
+import { GridNetwork, GridPlants, InspectGridStore, SetGridStore } from "../../wailsjs/go/main/App"
 import type { grid } from "../../wailsjs/go/models"
 import { errorMessage } from "./errors"
 import { fail, info, note } from "./reports"
@@ -8,8 +9,11 @@ import { createStore } from "./store"
  * The grid store: the local PostGIS database TERRA loads with the Brazilian
  * electrical record, as TERRA's plantRegister.ts and its store card read it.
  *
- * Whether the store answered, what it holds, and which database it is: the
- * variable, the one chosen in Settings, or the default.
+ * Three things live here: whether the store answered and what it holds, the
+ * plant register and the transmission network as map layers, and the words
+ * the record's codes stand for. The layers are read once per session and only
+ * when first drawn: the register is several megabytes, and a map with the
+ * layer off should not pay for it.
  */
 
 // ---- The store ----------------------------------------------------------------------
@@ -37,7 +41,10 @@ export function dsnSourceLabel(source: string): string {
 }
 
 function settle(report: grid.StoreReport, announce: boolean): void {
+  const wasReachable = storeReachable()
   gridStore.set({ kind: "known", report })
+  // A store that came back is read again, so layers asked for while it was away arrive.
+  if (report.reachable && !wasReachable) retryLayers()
   if (!announce) return
   if (report.reachable) {
     const c = report.coverage
@@ -84,3 +91,120 @@ export async function chooseGridStore(dsn: string): Promise<boolean> {
     return false
   }
 }
+
+// ---- The layers ---------------------------------------------------------------------
+
+export type PlantProps = {
+  ceg: string
+  name: string
+  kind: string | null
+  uf: string | null
+  municipality: string | null
+  mw: number | null
+  since: string | null
+  metered: boolean
+}
+
+export type LineProps = {
+  id: number
+  name: string
+  kv: number | null
+  mva: number | null
+  in_service: boolean
+  published_km: number | null
+  straight_km: number | null
+}
+
+export type BusProps = {
+  bus: number
+  name: string
+  kv: number | null
+  uf: string | null
+  subsystem: string | null
+  operator: string | null
+}
+
+export type PlantRegister = {
+  geojson: FeatureCollection<Point, PlantProps>
+  counts: grid.PlantCounts
+  note: string
+}
+
+export type NetworkRegister = {
+  lines: FeatureCollection<LineString, LineProps>
+  substations: FeatureCollection<Point, BusProps>
+  counts: grid.NetworkCounts
+  routeFactor: grid.RouteFactor
+  note: string
+}
+
+export type LayerState<T> = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; data: T } | { kind: "failed"; message: string }
+
+export const plantRegister = createStore<LayerState<PlantRegister>>({ kind: "idle" })
+export const networkRegister = createStore<LayerState<NetworkRegister>>({ kind: "idle" })
+
+/** Read the plant register, once. A failure is kept, and retried when asked again. */
+export function loadPlants(): void {
+  const s = plantRegister.get()
+  if (s.kind === "loading" || s.kind === "ready") return
+  plantRegister.set({ kind: "loading" })
+  GridPlants()
+    .then((layer) => {
+      // The Go side passes the collection through undecoded; it arrives parsed.
+      plantRegister.set({ kind: "ready", data: { geojson: layer.geojson, counts: layer.counts, note: layer.note } })
+    })
+    .catch((e) => plantRegister.set({ kind: "failed", message: errorMessage(e) }))
+}
+
+/** Read the transmission register, once. */
+export function loadNetwork(): void {
+  const s = networkRegister.get()
+  if (s.kind === "loading" || s.kind === "ready") return
+  networkRegister.set({ kind: "loading" })
+  GridNetwork()
+    .then((layer) =>
+      networkRegister.set({
+        kind: "ready",
+        data: {
+          lines: layer.lines,
+          substations: layer.substations,
+          counts: layer.counts,
+          routeFactor: layer.route_factor,
+          note: layer.note,
+        },
+      })
+    )
+    .catch((e) => networkRegister.set({ kind: "failed", message: errorMessage(e) }))
+}
+
+function retryLayers(): void {
+  if (plantRegister.get().kind === "failed") {
+    plantRegister.set({ kind: "idle" })
+    loadPlants()
+  }
+  if (networkRegister.get().kind === "failed") {
+    networkRegister.set({ kind: "idle" })
+    loadNetwork()
+  }
+}
+
+/** Forget both layers, so the next draw reads the store now chosen. */
+export function forgetLayers(): void {
+  plantRegister.set({ kind: "idle" })
+  networkRegister.set({ kind: "idle" })
+}
+
+// ---- The record's words ---------------------------------------------------------------
+
+/**
+ * The colours ANEEL's own network map uses by voltage (TERRA's gridVoltage.ts),
+ * so a line reads as the level a reader who knows that map expects.
+ */
+export const VOLTAGE_COLOUR: readonly { kv: number; colour: string }[] = [
+  { kv: 138, colour: "#F3C71F" },
+  { kv: 230, colour: "#1A9B43" },
+  { kv: 345, colour: "#00A2EC" },
+  { kv: 440, colour: "#B684A1" },
+  { kv: 500, colour: "#C90E16" },
+]
+export const UNNAMED_VOLTAGE = "#C6D4E1"

@@ -17,7 +17,8 @@ import { addArea } from "./objects"
 import { beginStep, findItem, isResult, mutate, project, type AnyItem, type TerrainResult } from "./project"
 import { runOperator } from "./operators"
 import { select, selection } from "./selection"
-import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure } from "./mapState"
+import { UNNAMED_VOLTAGE, VOLTAGE_COLOUR, loadNetwork, loadPlants, networkRegister, plantRegister } from "./grid"
+import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
 import { activeTool, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
 
@@ -69,6 +70,16 @@ const AREA_LABELS = "area-labels"
 const MEASURE = "measure"
 const TERRAIN_PREFIX = "terrain-"
 
+// The grid store's registers.
+const GRID_PLANTS = "grid-plants"
+const GRID_LINES = "grid-lines"
+const GRID_BUSES = "grid-buses"
+const PLANT_OTHER = "grid-plants-other"
+const PLANT_METERED = "grid-plants-metered"
+const LINE_LAYER = "grid-lines"
+const BUS_LAYER = "grid-buses"
+const GRID_LAYERS = [LINE_LAYER, BUS_LAYER, PLANT_OTHER, PLANT_METERED]
+
 /** The source and scene object a result's layer is drawn with. */
 const terrainLayerId = (r: TerrainResult) => TERRAIN_PREFIX + r.id
 
@@ -100,6 +111,8 @@ function create(container: HTMLDivElement): void {
     project.subscribe(syncAll)
     selection.subscribe(syncAll)
     overlays.subscribe(syncAll)
+    plantRegister.subscribe(syncGrid)
+    networkRegister.subscribe(syncGrid)
     measure.subscribe(syncMeasure)
     activeTool.subscribe(syncTool)
     syncTool()
@@ -117,6 +130,160 @@ function empty(): FeatureCollection {
 
 // Selected objects are drawn in the active orange, as Blender draws the active object.
 const selectedColour = (base: string): ExpressionSpecification => ["case", ["get", "selected"], ACTIVE, base]
+
+/** A line's or bus's colour by its voltage, as ANEEL's own network map. */
+const voltageColour = (): ExpressionSpecification =>
+  ["match", ["get", "kv"], ...VOLTAGE_COLOUR.flatMap(({ kv, colour }) => [kv, colour]), UNNAMED_VOLTAGE] as unknown as ExpressionSpecification
+
+/**
+ * The grid registers, under the user's areas and every result layer: they are
+ * the ground a question is drawn over, not an answer to it. Styled as TERRA
+ * draws them. UNMETERED PLANTS FIRST, so a metered plant standing beside one
+ * -- the register cuts arrays into 40 MW pieces a hundred metres apart -- is
+ * drawn over it, because it is the one that can be asked about.
+ */
+function addGridLayers(m: MapLibreMap): void {
+  m.addSource(GRID_LINES, { type: "geojson", data: empty() })
+  m.addSource(GRID_BUSES, { type: "geojson", data: empty() })
+  m.addSource(GRID_PLANTS, { type: "geojson", data: empty() })
+  const hidden = { visibility: "none" as const }
+  m.addLayer(
+    {
+      id: LINE_LAYER,
+      type: "line",
+      source: GRID_LINES,
+      layout: hidden,
+      paint: {
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          4, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 230], 230, 0.4, 800, 1.4],
+          10, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 230], 230, 1.1, 800, 3],
+        ],
+        "line-color": voltageColour(),
+        // Out of service is kept, faint: a line being built is still where a connection could go.
+        "line-opacity": ["case", ["get", "in_service"], 0.75, 0.28],
+      },
+    },
+    "area-fill"
+  )
+  m.addLayer(
+    {
+      id: BUS_LAYER,
+      type: "circle",
+      source: GRID_BUSES,
+      layout: hidden,
+      paint: {
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          4, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 69], 69, 0.8, 800, 2.4],
+          10, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 69], 69, 2, 800, 5],
+        ],
+        "circle-color": "#0F1620",
+        "circle-stroke-width": 1,
+        "circle-stroke-color": voltageColour(),
+        "circle-opacity": 0.85,
+      },
+    },
+    "area-fill"
+  )
+  m.addLayer(
+    {
+      id: PLANT_OTHER,
+      type: "circle",
+      source: GRID_PLANTS,
+      layout: hidden,
+      filter: ["!", ["get", "metered"]],
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 1.4, 11, 2.6, 15, 4],
+        "circle-color": "#9AA0A6",
+        "circle-opacity": 0.5,
+        "circle-stroke-width": 0,
+      },
+    },
+    "area-fill"
+  )
+  m.addLayer(
+    {
+      id: PLANT_METERED,
+      type: "circle",
+      source: GRID_PLANTS,
+      layout: hidden,
+      filter: ["get", "metered"],
+      paint: {
+        // Area by capacity: a 400 MW complex and a 5 MW array should not be the same dot.
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          6, ["*", 0.55, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
+          11, ["*", 1.1, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
+          15, ["*", 1.9, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
+        ],
+        "circle-color": "#ED8744",
+        "circle-opacity": 0.55,
+        "circle-stroke-width": 1.2,
+        "circle-stroke-color": "#FFD9B8",
+        "circle-stroke-opacity": 0.9,
+      },
+    },
+    "area-fill"
+  )
+}
+
+/**
+ * Show the grid layers the overlays ask for, reading each register the first
+ * time it is wanted. A register that failed stays empty; the Overlays popover
+ * and Settings say why.
+ */
+function syncGrid(): void {
+  const m = map
+  if (!m || !m.getLayer(LINE_LAYER)) return
+  const o = overlays.get()
+  const show = (id: string, on: boolean) => m.setLayoutProperty(id, "visibility", on ? "visible" : "none")
+  show(PLANT_METERED, o.gridMetered)
+  show(PLANT_OTHER, o.gridRegistered)
+  show(LINE_LAYER, o.gridLines)
+  show(BUS_LAYER, o.gridBuses)
+  if (o.gridMetered || o.gridRegistered) loadPlants()
+  if (o.gridLines || o.gridBuses) loadNetwork()
+
+  const plants = plantRegister.get()
+  const network = networkRegister.get()
+  const plantSource = m.getSource<GeoJSONSource>(GRID_PLANTS)
+  const lineSource = m.getSource<GeoJSONSource>(GRID_LINES)
+  const busSource = m.getSource<GeoJSONSource>(GRID_BUSES)
+  // Set once per register: setData re-tiles the whole collection, which is seconds for the plants.
+  if (plants.kind === "ready" && plantSource && loadedPlants !== plants.data) {
+    plantSource.setData(plants.data.geojson)
+    loadedPlants = plants.data
+  }
+  if (network.kind === "ready" && lineSource && busSource && loadedNetwork !== network.data) {
+    lineSource.setData(network.data.lines)
+    busSource.setData(network.data.substations)
+    loadedNetwork = network.data
+  }
+  if (plants.kind !== "ready" && loadedPlants) {
+    plantSource?.setData(empty())
+    loadedPlants = null
+  }
+  if (network.kind !== "ready" && loadedNetwork) {
+    lineSource?.setData(empty())
+    busSource?.setData(empty())
+    loadedNetwork = null
+  }
+
+  // A caption on a layer that has been hidden describes something no longer drawn.
+  const picked = pickedGrid.get()
+  if (
+    picked &&
+    ((picked.kind === "plant" && !(picked.props.metered ? o.gridMetered : o.gridRegistered)) ||
+      (picked.kind === "line" && !o.gridLines) ||
+      (picked.kind === "bus" && !o.gridBuses))
+  ) {
+    pickedGrid.set(null)
+  }
+}
+
+let loadedPlants: object | null = null
+let loadedNetwork: object | null = null
 
 function addLayers(m: MapLibreMap): void {
   m.addSource(AREAS, { type: "geojson", data: empty() })
@@ -143,6 +310,8 @@ function addLayers(m: MapLibreMap): void {
     },
     BASEMAP_FIRST_LABEL
   )
+  // After the areas, because each grid layer is placed beneath them.
+  addGridLayers(m)
 
   // Sites, the measure and every label above the basemap: they are what is clicked.
   m.addLayer({
@@ -255,6 +424,7 @@ function syncAll(): void {
   })
 
   syncTerrain(m)
+  syncGrid()
 }
 
 /** One image layer per visible terrain result, newest on top, all under the areas. */
@@ -291,6 +461,7 @@ function syncTerrain(m: MapLibreMap): void {
           // smoothing would draw structure the elevation model lacks.
           paint: { "raster-opacity": r.opacity, "raster-resampling": "nearest" },
         },
+        // Over the grid registers and under the areas: a result reads over the ground it was asked about.
         "area-fill"
       )
     } else {
@@ -433,10 +604,32 @@ function onMouseMove(e: MapMouseEvent): void {
     return
   }
   if (tool === "select") {
-    e.target.getCanvas().style.cursor = pick(e.target, e.point) ? "pointer" : ""
+    const over = pick(e.target, e.point) ?? pickGrid(e.target, e.point, [e.lngLat.lng, e.lngLat.lat])
+    e.target.getCanvas().style.cursor = over ? "pointer" : ""
   } else if (tool === "measure" && measure.get().length === 1) {
     syncMeasure()
   }
+}
+
+/** The grid feature under the pointer, topmost first: a metered plant, then any plant, a bus, a line. */
+function pickGrid(m: MapLibreMap, point: { x: number; y: number }, at: [number, number]): import("./mapState").PickedGrid | null {
+  const pad = 4
+  const box: [[number, number], [number, number]] = [
+    [point.x - pad, point.y - pad],
+    [point.x + pad, point.y + pad],
+  ]
+  const layers = GRID_LAYERS.filter((l) => m.getLayer(l) && m.getLayoutProperty(l, "visibility") === "visible")
+  if (!layers.length) return null
+  const hits = m.queryRenderedFeatures(box, { layers })
+  const order = [PLANT_METERED, PLANT_OTHER, BUS_LAYER, LINE_LAYER]
+  hits.sort((a, b) => order.indexOf(a.layer.id) - order.indexOf(b.layer.id))
+  const hit = hits[0]
+  if (!hit) return null
+  const pointAt = (): [number, number] =>
+    hit.geometry.type === "Point" ? (hit.geometry.coordinates as [number, number]) : at
+  if (hit.layer.id === LINE_LAYER) return { kind: "line", at, props: hit.properties as never }
+  if (hit.layer.id === BUS_LAYER) return { kind: "bus", at: pointAt(), props: hit.properties as never }
+  return { kind: "plant", at: pointAt(), props: hit.properties as never }
 }
 
 function onClick(e: MapMouseEvent): void {
@@ -446,9 +639,13 @@ function onClick(e: MapMouseEvent): void {
   }
   const at = { lon: e.lngLat.lng, lat: e.lngLat.lat }
   switch (activeTool.get()) {
-    case "select":
-      select(pick(e.target, e.point)?.id ?? null)
+    case "select": {
+      const item = pick(e.target, e.point)
+      select(item?.id ?? null)
+      // The project's own objects are what a click is for; a grid feature answers only where there is none.
+      pickedGrid.set(item ? null : pickGrid(e.target, e.point, [at.lon, at.lat]))
       return
+    }
     case "site":
       void runOperator("SITE_ADD", [at.lat.toFixed(6), at.lon.toFixed(6)])
       return
@@ -561,7 +758,11 @@ export function frameItem(item: AnyItem): boolean {
 /** Leave the drawing and measuring gestures: Escape. */
 export function cancelGesture(): boolean {
   const tool = activeTool.get()
-  if (tool === "select") return false
+  if (tool === "select") {
+    if (!pickedGrid.get()) return false
+    pickedGrid.set(null)
+    return true
+  }
   setTool("select")
   return true
 }

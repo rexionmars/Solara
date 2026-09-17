@@ -1,3 +1,4 @@
+import type { BusProps, LineProps, PlantProps } from "./grid"
 import { createStore } from "./store"
 
 /**
@@ -50,3 +51,10 @@ export function setLegendShown(id: string, on: boolean): void {
   })
 }
 
+/** A feature of the grid layers the reader clicked, captioned where it was clicked (OverlayCallouts). */
+export type PickedGrid =
+  | { kind: "plant"; at: [number, number]; props: PlantProps }
+  | { kind: "line"; at: [number, number]; props: LineProps }
+  | { kind: "bus"; at: [number, number]; props: BusProps }
+
+export const pickedGrid = createStore<PickedGrid | null>(null)

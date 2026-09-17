@@ -5,7 +5,7 @@ import { BRAND_TAGLINE, RELEASE_NAME } from "../../lib/brand"
 import { defaults, loadDefaults } from "../../lib/defaults"
 import { formatKeys, OPERATORS, type Scope } from "../../lib/operators"
 import { SOLAR_FIELDS, TERRAIN_FIELDS, WIND_FIELDS, seasonLabel } from "../../lib/params"
-import { checkGridStore, chooseGridStore, dsnSourceLabel, gridStore, storeReport } from "../../lib/grid"
+import { checkGridStore, chooseGridStore, dsnSourceLabel, forgetLayers, gridStore, storeReport } from "../../lib/grid"
 import { sidecar } from "../../lib/sidecarStatus"
 import { useStore } from "../../lib/store"
 import { preferences, type PreferencesSection } from "../../lib/ui"
@@ -88,6 +88,8 @@ function GridSection() {
   const save = async (dsn: string) => {
     if (await chooseGridStore(dsn)) {
       setDraft(null)
+      // The layers were read from the store that was chosen before.
+      forgetLayers()
     }
   }
 
