@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/rexionmars/TerraEnergyEngine/internal/energy"
 	"github.com/rexionmars/TerraEnergyEngine/internal/sidecar"
@@ -84,6 +86,24 @@ func (a *App) AnalyzeSolarTerrain(req energy.SolarTerrainRequest) (*energy.Solar
 		return nil, err
 	}
 	return res, nil
+}
+
+// How long ParameterDefaults waits. The action reads only constants, but the
+// first interpreter start after a reboot can take several seconds, and numpy is
+// imported on the way.
+const parameterDefaultsTimeout = 20 * time.Second
+
+// ParameterDefaults reports the value the sidecar applies to each parameter a
+// request omits, so the interface can show the real figure beside an empty
+// field. It answers while an analysis is running; see sidecar.Runner.Query.
+func (a *App) ParameterDefaults() (*energy.ParameterDefaults, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, parameterDefaultsTimeout)
+	defer cancel()
+	return energy.FetchParameterDefaults(ctx, r)
 }
 
 // CancelRun stops the analysis in progress and reports whether there was one.

@@ -42,6 +42,10 @@ export function Logout() {
   return window['go']['main']['App']['Logout']();
 }
 
+export function ParameterDefaults() {
+  return window['go']['main']['App']['ParameterDefaults']();
+}
+
 export function Ping() {
   return window['go']['main']['App']['Ping']();
 }

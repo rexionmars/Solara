@@ -24,6 +24,8 @@ export function Login(arg1:string,arg2:string):Promise<store.User>;
 
 export function Logout():Promise<void>;
 
+export function ParameterDefaults():Promise<energy.ParameterDefaults>;
+
 export function Ping():Promise<main.SidecarStatus>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;

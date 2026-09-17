@@ -130,6 +130,18 @@ func (r *Runner) Probe(ctx context.Context) (json.RawMessage, error) {
 	return r.execute(ctx, map[string]any{"action": "ping"}, nil)
 }
 
+// Query runs an action that answers from constants, such as
+// parameter_defaults, and returns its raw result. It is exempt from the
+// one-request rule for the reason Probe is: it reads no data, finishes in the
+// time the interpreter takes to start, and emits no progress, so it can run
+// beside an analysis without a progress line being taken for its own. Held to
+// the one-request rule instead, the interface could not show a parameter's
+// default while a run was in progress. Cancel does not reach it; the caller's
+// context bounds it.
+func (r *Runner) Query(ctx context.Context, action string) (json.RawMessage, error) {
+	return r.execute(ctx, map[string]any{"action": action}, nil)
+}
+
 func (r *Runner) execute(ctx context.Context, req any, onProgress func(Progress)) (json.RawMessage, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
