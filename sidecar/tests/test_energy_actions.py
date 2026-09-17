@@ -67,6 +67,43 @@ def test_a_zero_record_is_refused_before_anything_is_fetched(capsys):
     assert 'climatology_years' in msg
 
 
-@pytest.mark.parametrize('name', ['solar_resource', 'wind_resource'])
+@pytest.mark.parametrize('name', [
+    'solar_resource', 'wind_resource', 'solar_terrain',
+])
 def test_the_registry_routes_the_energy_actions(name):
     assert registry.resolve(name) is getattr(actions, name)
+
+
+def square(lon=-47.9, lat=-15.8, side=0.05):
+    return {'type': 'Polygon', 'coordinates': [[
+        [lon, lat], [lon + side, lat], [lon + side, lat + side],
+        [lon, lat + side], [lon, lat],
+    ]]}
+
+
+def test_a_small_valid_area_is_accepted():
+    polygon = actions.request_area({'polygon_geojson': square()}, 1700.0)
+    assert polygon.is_valid and polygon.area > 0
+
+
+@pytest.mark.parametrize('geom, fragment', [
+    (None, 'no area'),
+    ({'type': 'Point', 'coordinates': [-47.9, -15.8]}, 'single polygon'),
+    # A bow tie: the outline crosses itself.
+    ({'type': 'Polygon', 'coordinates': [[[0, 0], [1, 1], [1, 0], [0, 1], [0, 0]]]}, 'crosses itself'),
+    # Two degrees square is several hundred million elevation cells.
+    (square(side=2.0), 'too large'),
+])
+def test_an_area_that_cannot_be_computed_is_refused_before_any_download(capsys, geom, fragment):
+    msg = refused(capsys, lambda: actions.request_area({'polygon_geojson': geom}, 1700.0))
+    assert fragment in msg
+
+
+def test_the_terrain_product_needs_a_directory_for_its_layer(capsys):
+    msg = refused(capsys, lambda: actions.solar_terrain({'polygon_geojson': square()}))
+    assert 'work_dir' in msg
+
+
+def test_an_unknown_season_is_refused_before_any_download(capsys, tmp_path):
+    req = {'polygon_geojson': square(), 'work_dir': str(tmp_path), 'season': 'monsoon'}
+    assert 'unknown season' in refused(capsys, lambda: actions.solar_terrain(req))
