@@ -26,6 +26,10 @@ export function CurrentUser() {
   return window['go']['main']['App']['CurrentUser']();
 }
 
+export function ExportResultFile(arg1, arg2) {
+  return window['go']['main']['App']['ExportResultFile'](arg1, arg2);
+}
+
 export function GetAppVersion() {
   return window['go']['main']['App']['GetAppVersion']();
 }
@@ -42,6 +46,10 @@ export function Logout() {
   return window['go']['main']['App']['Logout']();
 }
 
+export function OpenProject(arg1) {
+  return window['go']['main']['App']['OpenProject'](arg1);
+}
+
 export function ParameterDefaults() {
   return window['go']['main']['App']['ParameterDefaults']();
 }
@@ -54,12 +62,28 @@ export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }
 
+export function RevealInFileManager(arg1) {
+  return window['go']['main']['App']['RevealInFileManager'](arg1);
+}
+
 export function RevealMainWindow() {
   return window['go']['main']['App']['RevealMainWindow']();
 }
 
+export function SaveProject(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveProject'](arg1, arg2, arg3);
+}
+
+export function SaveTextFile(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SaveTextFile'](arg1, arg2, arg3, arg4);
+}
+
 export function SetAvatar(arg1) {
   return window['go']['main']['App']['SetAvatar'](arg1);
+}
+
+export function SetProjectDirty(arg1) {
+  return window['go']['main']['App']['SetProjectDirty'](arg1);
 }
 
 export function UpdateDisplayName(arg1) {

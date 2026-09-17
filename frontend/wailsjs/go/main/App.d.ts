@@ -16,6 +16,8 @@ export function ClearAvatar():Promise<store.User>;
 
 export function CurrentUser():Promise<store.User>;
 
+export function ExportResultFile(arg1:string,arg2:string):Promise<string>;
+
 export function GetAppVersion():Promise<string>;
 
 export function GetBootLogs():Promise<Array<string>>;
@@ -24,14 +26,24 @@ export function Login(arg1:string,arg2:string):Promise<store.User>;
 
 export function Logout():Promise<void>;
 
+export function OpenProject(arg1:string):Promise<main.OpenedProject>;
+
 export function ParameterDefaults():Promise<energy.ParameterDefaults>;
 
 export function Ping():Promise<main.SidecarStatus>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
+export function RevealInFileManager(arg1:string):Promise<void>;
+
 export function RevealMainWindow():Promise<void>;
 
+export function SaveProject(arg1:string,arg2:string,arg3:Array<string>):Promise<string>;
+
+export function SaveTextFile(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
 export function SetAvatar(arg1:string):Promise<store.User>;
+
+export function SetProjectDirty(arg1:boolean):Promise<void>;
 
 export function UpdateDisplayName(arg1:string):Promise<store.User>;

@@ -1050,6 +1050,22 @@ export namespace energy {
 
 export namespace main {
 	
+	export class OpenedProject {
+	    path: string;
+	    content: string;
+	    run_dirs: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new OpenedProject(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.content = source["content"];
+	        this.run_dirs = source["run_dirs"];
+	    }
+	}
 	export class SidecarStatus {
 	    ok: boolean;
 	    python: string;

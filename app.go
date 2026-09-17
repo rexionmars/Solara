@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rexionmars/TerraEnergyEngine/internal/sidecar"
@@ -42,6 +43,10 @@ type App struct {
 	// the write.
 	resultsDir string
 	resultsErr error
+
+	// Whether the open project has unsaved changes, as the interface last
+	// reported through SetProjectDirty; read by beforeClose. See app_project.go.
+	projectDirty atomic.Bool
 }
 
 // NewApp creates a new App.

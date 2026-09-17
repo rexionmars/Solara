@@ -41,8 +41,10 @@ func main() {
 		},
 		OnStartup:  app.startup,
 		OnDomReady: app.domReady,
-		OnShutdown: app.shutdown,
-		Bind:       []interface{}{app},
+		// Asks before quitting with unsaved project changes; see app_project.go.
+		OnBeforeClose: app.beforeClose,
+		OnShutdown:    app.shutdown,
+		Bind:          []interface{}{app},
 		Mac: &mac.Options{
 			// A titled window with a transparent, title-less bar and full-size
 			// content: the splash has no title strip above it, and the main
