@@ -9,6 +9,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime"
 import { errorMessage } from "./errors"
 import { formatLat, formatLng } from "./format"
 import { polygonAreaKm2 } from "./geo"
+import { setLegendShown } from "./mapState"
 import { seasonLabel, windSettingsError } from "./params"
 import {
   PRODUCT_NAMES,
@@ -120,6 +121,11 @@ async function run(
     })
     running.set(null)
     lastFailure.set(null)
+    // A new layer arrives with its legend up, taken over from the one it replaces.
+    if (product === "terrain") {
+      setLegendShown(id, true)
+      if (replace) setLegendShown(replace, false)
+    }
     const result = project.get().data.results.find((r) => r.id === id)
     if (result) info(summary(result), { label: "Show", run: () => showResult(id, product) })
     return id

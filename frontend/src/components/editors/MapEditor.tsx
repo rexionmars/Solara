@@ -9,17 +9,15 @@ import { mountMap, setBearing } from "../../lib/mapEngine"
 import { mapView, measure } from "../../lib/mapState"
 import { setSiteCoordinate } from "../../lib/objects"
 import { findOperator, formatKeys, runOperator } from "../../lib/operators"
-import { seasonLabel } from "../../lib/params"
-import { PRODUCT_NAMES, findItem, isResult, project, renameItem, type TerrainResult } from "../../lib/project"
-import { useActiveItem } from "../../lib/selection"
+import { PRODUCT_NAMES, findItem, isResult, project, renameItem } from "../../lib/project"
 import { useStore } from "../../lib/store"
 import { TOOLS, activeTool, overlays, type Overlays } from "../../lib/tools"
 import { coordinatePrompt, lastOperation, lastOperationOpen, type MenuItem } from "../../lib/ui"
-import { Legend } from "../energy/Legend"
 import { StudioHeaderMenu, StudioHeaderPopover, StudioHeaderRule, StudioHeaderToggle } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
 import { btnPrimary } from "../ui/buttons"
 import { NumberField, TextField } from "../ui/Fields"
+import { OverlayCallouts } from "./OverlayCallouts"
 import { ParamFields } from "./ParamFields"
 
 const op = (name: string, label?: string): MenuItem => ({ type: "op", op: name, label })
@@ -36,6 +34,7 @@ const objectMenu = (): MenuItem[] => [
   op("RENAME"),
   op("HIDE"),
   op("UNHIDE_ALL"),
+  op("LEGEND"),
   op("DELETE"),
   { type: "heading", label: "Analyze" },
   op("SOLAR"),
@@ -160,25 +159,6 @@ function Navigation() {
           )
         })}
       </div>
-    </div>
-  )
-}
-
-/** The legend of the active terrain result, or of the newest one drawn. */
-function LegendPlate() {
-  const d = useStore(project).data
-  const o = useStore(overlays)
-  const active = useActiveItem()
-  if (!o.legend || !o.layers) return null
-  const drawn = d.results.filter((r): r is TerrainResult => r.kind === "terrain" && !r.hidden)
-  const shown = active?.kind === "terrain" && !active.hidden ? active : drawn.at(-1)
-  if (!shown) return null
-  const source = findItem(d, shown.sourceId)
-  return (
-    <div className={`${PLATE} w-64 p-2.5`} style={plateStyle}>
-      <p className="eyebrow !text-[9px]">Solar terrain</p>
-      <p className="mb-1.5 text-emphasis italic text-foreground">{source?.name ?? shown.name}</p>
-      <Legend scale={shown.data.scale} unit={shown.data.unit} title={seasonLabel(shown.data.season)} />
     </div>
   )
 }
@@ -351,12 +331,12 @@ export function MapEditor() {
           workspace switch.
         */}
         <div ref={container} className="absolute inset-0" />
+        <OverlayCallouts />
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute right-2 top-2">
             <Navigation />
           </div>
           <div className="absolute left-2 top-2 flex flex-col items-start gap-2">
-            <LegendPlate />
             <MeasurePlate />
           </div>
           <div className="absolute bottom-7 left-2">

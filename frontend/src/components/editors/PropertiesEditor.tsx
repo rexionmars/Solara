@@ -4,6 +4,7 @@ import { running } from "../../lib/analysis"
 import { reveal } from "../../lib/export"
 import { formatLat, formatLng } from "../../lib/format"
 import { polygonAreaKm2, ringCentre } from "../../lib/geo"
+import { legendsShown, setLegendShown } from "../../lib/mapState"
 import { setResultOpacity, setSiteCoordinate } from "../../lib/objects"
 import { runOperator } from "../../lib/operators"
 import { seasonLabel } from "../../lib/params"
@@ -202,9 +203,16 @@ function ProductCard({ product, source }: { product: Product; source: SiteObject
 }
 
 function TerrainLayer({ result }: { result: Extract<ResultObject, { kind: "terrain" }> }) {
+  const legends = useStore(legendsShown)
   return (
     <PanelSection title="Layer">
       <Checkbox checked={!result.hidden} onChange={(v) => setHidden(result.id, !v)} label="Drawn on the map" />
+      <Checkbox
+        checked={legends.has(result.id)}
+        onChange={(v) => setLegendShown(result.id, v)}
+        label="Legend on the map"
+        title="Its legend, tied to the layer it describes; drag the box out of the way"
+      />
       <FieldRow label="Opacity">
         <NumberField
           label="Opacity"

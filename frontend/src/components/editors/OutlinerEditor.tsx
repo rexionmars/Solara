@@ -11,10 +11,12 @@ import {
   Pentagon,
   Stack,
   Sun,
+  Swatches,
   Warning,
   type Icon,
 } from "@phosphor-icons/react"
 import { running } from "../../lib/analysis"
+import { legendsShown, setLegendShown } from "../../lib/mapState"
 import { project, renameItem, resultsOf, setHidden, staleReason, type AnyItem } from "../../lib/project"
 import { areaStates, setAreaState, showResult } from "../../lib/screen"
 import { select, selection } from "../../lib/selection"
@@ -60,7 +62,18 @@ function itemMenu(item: AnyItem): MenuItem[] {
     { type: "sep" },
     op("EXPORT_CSV"),
     op("EXPORT_JSON"),
-    ...(item.kind === "terrain" ? [op("EXPORT_GEOTIFF")] : []),
+    ...(item.kind === "terrain"
+      ? [
+          op("EXPORT_GEOTIFF"),
+          {
+            type: "action" as const,
+            label: "Legend on the map",
+            icon: Swatches,
+            checked: legendsShown.get().has(item.id),
+            run: () => setLegendShown(item.id, !legendsShown.get().has(item.id)),
+          },
+        ]
+      : []),
     ...common,
   ]
 }
@@ -70,6 +83,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   const { id: selected } = useStore(selection)
   const editing = useStore(renaming)
   const job = useStore(running)
+  const legends = useStore(legendsShown)
   const state = useStore(areaStates)[areaId] ?? {}
   const mode = (state.mode as Mode | undefined) ?? "scene"
   const onlyVisible = !!state.onlyVisible
@@ -294,6 +308,26 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
                   <span className="mr-1 shrink-0" style={{ color: "var(--warning)" }} title={`${stale}. Its figures describe the source as it was.`}>
                     <Warning className="size-3" weight="fill" aria-label="Stale" />
                   </span>
+                )}
+                {/* A terrain layer's legend, tied to it on the map: shown by asking, from here. */}
+                {item.kind === "terrain" && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setLegendShown(item.id, !legends.has(item.id))
+                    }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    tabIndex={-1}
+                    aria-pressed={legends.has(item.id)}
+                    aria-label={`${legends.has(item.id) ? "Remove" : "Draw"} the legend of ${item.name}`}
+                    title={legends.has(item.id) ? "Legend on the map" : "Draw its legend on the map, tied to the layer"}
+                    className={`mr-0.5 grid size-4 shrink-0 place-items-center rounded-sm transition-colors hover:text-foreground ${
+                      legends.has(item.id) ? "text-accent" : "text-muted-foreground/40"
+                    }`}
+                  >
+                    <Swatches className="size-3" weight={legends.has(item.id) ? "fill" : "regular"} />
+                  </button>
                 )}
                 {/* What the row IS, in a fixed column: muted, because the name is what is scanned for. */}
                 <span className="w-[62px] shrink-0 truncate pl-2 text-right text-meta text-muted-foreground/70">{KIND[item.kind]}</span>

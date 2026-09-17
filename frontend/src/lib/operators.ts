@@ -32,6 +32,7 @@ import {
   SlidersHorizontal,
   StopCircle,
   Sun,
+  Swatches,
   Trash,
   UserCircle,
   Wind,
@@ -45,7 +46,7 @@ import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
 import { cancelGesture, frameAll, frameItem, resetNorth, zoomIn, zoomOut } from "./mapEngine"
-import { mapMounted } from "./mapState"
+import { legendsShown, mapMounted, setLegendShown } from "./mapState"
 import { addSite, validLonLat } from "./objects"
 import { IS_MAC } from "./platform"
 import {
@@ -390,6 +391,20 @@ export const OPERATORS: Operator[] = [
       if (!item) return
       select(null)
       info(`Deleted ${item.name}.`, { label: "Undo", run: () => void runOperator("UNDO") })
+    },
+  },
+  {
+    name: "LEGEND",
+    aliases: [],
+    label: "Legend on the map",
+    description: "Draw or remove the active terrain layer's legend, tied to the layer on the map",
+    icon: Swatches,
+    menu: "Map › Object",
+    scope: "objects",
+    poll: needTerrainResult,
+    run: () => {
+      const item = activeItem()
+      if (item?.kind === "terrain") setLegendShown(item.id, !legendsShown.get().has(item.id))
     },
   },
   {

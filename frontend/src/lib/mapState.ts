@@ -27,3 +27,26 @@ export const mapMounted = createStore<boolean>(false)
 
 /** The Measure tool's points: none, a start, or a start and an end. */
 export const measure = createStore<{ lon: number; lat: number }[]>([])
+
+/** Whether the map's style has loaded, so a marker placed now is placed by the projection that stays. */
+export const mapLoaded = createStore<boolean>(false)
+
+/**
+ * The terrain results whose legend is drawn on the map, tied to the layer it
+ * describes (OverlayCallouts). Shown by asking, as TERRA's: a legend per layer
+ * nobody asked for is a map covered in boxes. Kept for the session rather than
+ * in the project, since which legends are up is about what is being looked at
+ * now.
+ */
+export const legendsShown = createStore<ReadonlySet<string>>(new Set())
+
+export function setLegendShown(id: string, on: boolean): void {
+  legendsShown.set((prev) => {
+    if (prev.has(id) === on) return prev
+    const next = new Set(prev)
+    if (on) next.add(id)
+    else next.delete(id)
+    return next
+  })
+}
+

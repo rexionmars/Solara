@@ -17,7 +17,7 @@ import { addArea } from "./objects"
 import { beginStep, findItem, isResult, mutate, project, type AnyItem, type TerrainResult } from "./project"
 import { runOperator } from "./operators"
 import { select, selection } from "./selection"
-import { HOME_VIEW, cursor, mapMounted, mapView, measure } from "./mapState"
+import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure } from "./mapState"
 import { activeTool, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
 
@@ -40,6 +40,9 @@ setWorkerUrl(maplibreWorkerUrl)
 
 let map: MapLibreMap | null = null
 let host: HTMLDivElement | null = null
+
+/** The map, once created; for what draws over it from outside this module, as the tied legends. */
+export const currentMap = (): MapLibreMap | null => map
 
 /** Put the map into `container`. Returns the function that takes it out again. */
 export function mountMap(container: HTMLElement): () => void {
@@ -91,6 +94,7 @@ function create(container: HTMLDivElement): void {
 
   m.on("load", () => {
     addLayers(m)
+    mapLoaded.set(true)
     draw = startDraw(m)
     syncAll()
     project.subscribe(syncAll)
