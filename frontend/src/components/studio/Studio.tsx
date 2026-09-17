@@ -20,6 +20,7 @@ import { AreaTree } from "./AreaTree"
 import { ConfirmDialog, CoordinatesDialog, OperatorSearch } from "./Dialogs"
 import { ContextMenuHost, StudioSurface } from "./Popover"
 import { Settings } from "./Settings"
+import { StartSplash } from "./StartSplash"
 import { StatusBar } from "./StatusBar"
 import { StudioArea } from "./StudioArea"
 import { TitleBar } from "./TitleBar"
@@ -126,6 +127,7 @@ export function Studio() {
                   rect: { x: half * 2, y: half * 2, w: size.w - AREA_GUTTER_PX * 2, h: size.h - AREA_GUTTER_PX * 2 },
                 })
               : <AreaTree key={s.active} tree={tree} viewport={viewport} surface={surface} renderArea={renderArea} />)}
+          <StartSplash />
           <ContextMenuHost />
         </div>
         <StatusBar />

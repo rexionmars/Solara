@@ -73,7 +73,7 @@ import { SetProjectDirty } from "../../wailsjs/go/main/App"
 import { checkSidecar, sidecar } from "./sidecarStatus"
 import { createStore, useStore } from "./store"
 import { activeTool, mapRegions, setTool } from "./tools"
-import { lastOperation, lastOperationOpen, operatorSearch, preferences, renaming } from "./ui"
+import { lastOperation, lastOperationOpen, operatorSearch, preferences, renaming, splashOpen } from "./ui"
 
 /**
  * Every action the application performs, in one registry, as Blender's
@@ -791,6 +791,15 @@ export const OPERATORS: Operator[] = [
     menu: "Studio",
     quiet: true,
     run: () => preferences.set("about"),
+  },
+  {
+    name: "SPLASH",
+    aliases: ["START"],
+    label: "Splash screen",
+    description: "Show the start screen: first steps and recent projects",
+    menu: "Studio",
+    quiet: true,
+    run: () => splashOpen.set(true),
   },
   {
     name: "ACCOUNT",

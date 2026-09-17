@@ -65,6 +65,9 @@ export type PreferencesSection = "account" | "engine" | "keymap" | "about"
 
 export const preferences = createStore<PreferencesSection | null>(null)
 
+/** The start screen (StartSplash): open at launch, as Blender's splash. */
+export const splashOpen = createStore<boolean>(true)
+
 /** Renaming in place: the id of the item whose name is being edited in the Outliner. */
 export const renaming = createStore<string | null>(null)
 

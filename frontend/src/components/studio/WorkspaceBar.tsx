@@ -89,6 +89,7 @@ export function WorkspaceBar() {
         <OperatorMenuItem name="PREFERENCES" label="Settings…" onDone={done} />
         <OperatorMenuItem name="KEYMAP" label="Keymap" onDone={done} />
         <OperatorMenuItem name="PING" label="Check the engine" onDone={done} />
+        <OperatorMenuItem name="SPLASH" label="Splash screen" onDone={done} />
         <OperatorMenuItem name="ABOUT" label="About" onDone={done} />
         <StudioMenuRule />
         <OperatorMenuItem name="QUIT" onDone={done} />

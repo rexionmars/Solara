@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { CaretDown, CaretRight, House, MagnifyingGlassMinus, MagnifyingGlassPlus, Stack, Tag } from "@phosphor-icons/react"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { runSolar, runTerrain, runWind } from "../../lib/analysis"
@@ -18,7 +18,7 @@ import { coordinatePrompt, lastOperation, lastOperationOpen, type MenuItem } fro
 import { Legend } from "../energy/Legend"
 import { StudioHeaderMenu, StudioHeaderPopover, StudioHeaderRule, StudioHeaderToggle } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
-import { btnGhostDense, btnPrimary } from "../ui/buttons"
+import { btnPrimary } from "../ui/buttons"
 import { NumberField, TextField } from "../ui/Fields"
 import { ParamFields } from "./ParamFields"
 
@@ -273,39 +273,6 @@ function RedoPlate() {
   )
 }
 
-/** Shown over an empty project: where to begin. */
-function StartPlate() {
-  const d = useStore(project).data
-  const tool = useStore(activeTool)
-  const [dismissed, setDismissed] = useState(false)
-  if (dismissed || d.sites.length || d.areas.length || tool !== "select") return null
-  return (
-    <div className={`${PLATE} max-w-sm p-3.5`} style={plateStyle}>
-      <p className="eyebrow">Start</p>
-      <p className="mt-0.5 text-emphasis font-semibold text-foreground">A site, or an area</p>
-      <p className="mt-1.5 text-body leading-relaxed text-muted-foreground">
-        The resource and the wind screening are read at a site; the terrain product over an area. Place one, then run it from
-        Properties.
-      </p>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <button type="button" className={btnPrimary} onClick={() => void runOperator("TOOL_SITE")}>
-          Place a site <span className="telemetry opacity-70">{formatKeys("P")}</span>
-        </button>
-        <button type="button" className={btnGhostDense} onClick={() => void runOperator("TOOL_AREA")}>
-          Draw an area <span className="telemetry opacity-70">{formatKeys("D")}</span>
-        </button>
-        <button type="button" className={btnGhostDense} onClick={() => void runOperator("OPEN")}>
-          Open a project
-        </button>
-        <span className="flex-1" />
-        <button type="button" onClick={() => setDismissed(true)} className="text-meta text-muted-foreground hover:text-foreground">
-          Dismiss
-        </button>
-      </div>
-    </div>
-  )
-}
-
 const CREDITS = [
   { label: "MapLibre", href: "https://maplibre.org" },
   { label: "OpenFreeMap", href: "https://openfreemap.org" },
@@ -391,9 +358,6 @@ export function MapEditor() {
           <div className="absolute left-2 top-2 flex flex-col items-start gap-2">
             <LegendPlate />
             <MeasurePlate />
-          </div>
-          <div className="absolute inset-x-0 top-[28%] flex justify-center px-4">
-            <StartPlate />
           </div>
           <div className="absolute bottom-7 left-2">
             <RedoPlate />
