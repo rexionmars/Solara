@@ -5,6 +5,14 @@ pandas>=2.0
 scipy>=1.11
 pvlib>=0.11
 
+# The terrain product: the Copernicus DEM read from the Planetary Computer
+# STAC catalogue, windowed and reprojected with rasterio, clipped to the area.
+rasterio>=1.3
+shapely>=2.0
+pyproj>=3.6
+pystac-client>=0.7
+planetary-computer>=1.0
+
 # The NASA POWER cache is parquet, and pandas needs an engine to read or write
 # it. Without one the cache fails inside the guard that keeps a cache failure
 # from failing a run, so every run silently repays the hourly fetch -- which is
