@@ -33,6 +33,7 @@ import { Legend } from "../energy/Legend"
 import { AreaHeader } from "../studio/StudioArea"
 import { btnGhostDense } from "../ui/buttons"
 import { Checkbox, FieldRow, Figure, NumberField, OperatorButton, PanelSection, TextField } from "../ui/Fields"
+import { NowSection } from "./NowSection"
 import { ParamFields } from "./ParamFields"
 
 /**
@@ -275,6 +276,7 @@ function SiteBody({ site }: { site: SiteObject }) {
         </FieldRow>
         <Checkbox checked={!site.hidden} onChange={(v) => setHidden(site.id, !v)} label="Drawn on the map" />
       </PanelSection>
+      <NowSection lat={site.lat} lon={site.lon} sourceId={site.id} />
       <ProductCard product="solar" source={site} />
       <ProductCard product="wind" source={site} />
     </>
@@ -294,6 +296,7 @@ function AreaBody({ area }: { area: AreaObject }) {
         <Figure label="Centre" value={`${formatLat(c.lat, 3)} ${formatLng(c.lon, 3)}`} />
         <Checkbox checked={!area.hidden} onChange={(v) => setHidden(area.id, !v)} label="Drawn on the map" />
       </PanelSection>
+      <NowSection lat={c.lat} lon={c.lon} sourceId={area.id} />
       <ProductCard product="terrain" source={area} />
       {latest?.kind === "terrain" && <TerrainLayer result={latest} />}
       <ProductCard product="connection" source={area} />

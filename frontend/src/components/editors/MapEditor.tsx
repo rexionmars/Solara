@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react"
-import { CaretDown, CaretRight, House, MagnifyingGlassMinus, MagnifyingGlassPlus, Stack, Tag } from "@phosphor-icons/react"
+import { useEffect, useRef, useState } from "react"
+import { CaretDown, CaretRight, House, MagnifyingGlassMinus, MagnifyingGlassPlus, Pause, Play, Stack, Tag } from "@phosphor-icons/react"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { runConnection, runSolar, runTerrain, runWind } from "../../lib/analysis"
 import { BASEMAP_NAME } from "../../lib/basemap"
@@ -13,6 +13,24 @@ import { findOperator, formatKeys, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, findItem, isResult, project, renameItem } from "../../lib/project"
 import { useStore } from "../../lib/store"
 import { TOOLS, activeTool, overlays, type Overlays } from "../../lib/tools"
+import {
+  SATELLITE,
+  ageLabel,
+  clockLabel,
+  frameAt,
+  refreshRadar,
+  refreshSatellite,
+  setMoment,
+  setOpacity,
+  setPlaying,
+  setSatelliteProduct,
+  tilesFailing,
+  timelineTimes,
+  weather,
+  type Frame,
+  type LayerFrames,
+  type SatelliteProduct,
+} from "../../lib/weather"
 import { coordinatePrompt, lastOperation, lastOperationOpen, type MenuItem } from "../../lib/ui"
 import { StudioHeaderMenu, StudioHeaderPopover, StudioHeaderRule, StudioHeaderToggle } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
@@ -52,6 +70,11 @@ const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "statistics", label: "Credit and scale" },
 ]
 
+const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
+  { key: "weatherSatellite", label: "Clouds, GOES-East satellite" },
+  { key: "weatherRadar", label: "Rain, radar" },
+]
+
 const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "gridMetered", label: "Plants in the record" },
   { key: "gridRegistered", label: "Registered only" },
@@ -80,6 +103,15 @@ const overlaysMenu = (): MenuItem[] => {
   return [
     { type: "heading", label: "Overlays" },
     ...OVERLAY_ITEMS.map(
+      (it): MenuItem => ({
+        type: "action",
+        label: it.label,
+        checked: o[it.key],
+        run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
+      })
+    ),
+    { type: "heading", label: "Weather now (internet)" },
+    ...WEATHER_ITEMS.map(
       (it): MenuItem => ({
         type: "action",
         label: it.label,
@@ -196,6 +228,175 @@ function Navigation() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/**
+ * The weather overlays' timeline: which moment is drawn, how old each layer's
+ * frame is, and where the layers come from. Only while one is on.
+ *
+ * THE AGE IS WRITTEN, NOT IMPLIED. The satellite is published about forty
+ * minutes late and the radar about ten, so "now" on this map is two different
+ * moments, and each layer says its own.
+ */
+function WeatherPlate() {
+  const o = useStore(overlays)
+  const w = useStore(weather)
+  const [, tick] = useState(0)
+  const times = timelineTimes(w, o.weatherSatellite, o.weatherRadar)
+  const index = w.at === null ? times.length - 1 : Math.max(0, times.findIndex((t) => t >= w.at!))
+
+  // Ages are relative to the clock, so they are redrawn as it moves.
+  useEffect(() => {
+    const timer = window.setInterval(() => tick((n) => n + 1), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!w.playing) return
+    const timer = window.setInterval(() => {
+      const s = weather.get()
+      const all = timelineTimes(s, overlays.get().weatherSatellite, overlays.get().weatherRadar)
+      if (!all.length) return
+      const at = s.at === null ? all[all.length - 1] : s.at
+      const i = all.findIndex((t) => t > at)
+      setMoment(i < 0 ? all[0] : all[i])
+    }, 700)
+    return () => window.clearInterval(timer)
+  }, [w.playing])
+
+  if (!o.weatherSatellite && !o.weatherRadar) return null
+  const observed = o.weatherSatellite || o.weatherRadar
+  const sat = frameAt(w.satellite, w.at)
+  const radar = frameAt(w.radar, w.at)
+  const layerLine = (label: string, state: LayerFrames, frame: Frame | null, retry: () => void) => (
+    <div className="flex items-baseline gap-2">
+      <span className="w-10 shrink-0 text-micro text-muted-foreground">{label}</span>
+      {frame ? (
+        <span className="telemetry min-w-0 flex-1 truncate text-micro text-foreground">
+          {clockLabel(frame.time)} <span className="text-muted-foreground">· {ageLabel(frame.time)}</span>
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1 truncate text-micro text-muted-foreground">{state.kind === "failed" ? "unavailable" : "reading…"}</span>
+      )}
+      {state.kind === "failed" && (
+        <button type="button" onClick={retry} title={state.message} className="shrink-0 text-micro text-accent hover:underline">
+          Retry
+        </button>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={`${PLATE} w-72 px-2.5 py-2`} style={plateStyle}>
+      <div className="flex items-center gap-1.5">
+        <p className="eyebrow !text-[9px] min-w-0 flex-1 truncate">Weather now</p>
+        {observed && (
+          <span className="telemetry text-[9px] text-muted-foreground" title="Measured by satellite and radar, not modelled">
+            observed
+          </span>
+        )}
+      </div>
+      {observed && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPlaying(!w.playing)}
+            disabled={times.length < 2}
+            aria-label={w.playing ? "Pause" : "Play the last two hours"}
+            title={w.playing ? "Pause" : "Play the last two hours"}
+            className="grid size-6 shrink-0 place-items-center rounded-sm bg-selected text-foreground hover:bg-hover disabled:opacity-40"
+          >
+            {w.playing ? <Pause className="size-3" weight="fill" /> : <Play className="size-3" weight="fill" />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, times.length - 1)}
+            value={Math.max(0, index)}
+            disabled={times.length < 2}
+            aria-label="Moment shown"
+            onKeyDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const i = Number(e.target.value)
+              setPlaying(false)
+              setMoment(i >= times.length - 1 ? null : times[i])
+            }}
+            className="min-w-0 flex-1 accent-[rgb(var(--p-accent))]"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setPlaying(false)
+              setMoment(null)
+            }}
+            disabled={w.at === null}
+            className="shrink-0 text-micro text-muted-foreground hover:text-foreground disabled:opacity-40"
+          >
+            Latest
+          </button>
+        </div>
+      )}
+      <div className={observed ? "mt-1.5 flex flex-col gap-0.5" : "hidden"}>
+        {o.weatherSatellite && layerLine("Clouds", w.satellite, sat, () => void refreshSatellite())}
+        {o.weatherRadar && layerLine("Rain", w.radar, radar, () => void refreshRadar())}
+      </div>
+      {o.weatherSatellite && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          {(Object.keys(SATELLITE) as SatelliteProduct[]).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setSatelliteProduct(p)}
+              aria-pressed={w.product === p}
+              title={p === "geocolor" ? "True colour by day, infrared by night" : "Infrared day and night: clouds read the same at any hour"}
+              className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
+                w.product === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
+              }`}
+            >
+              {SATELLITE[p].label}
+            </button>
+          ))}
+          <input
+            type="range"
+            min={0.2}
+            max={1}
+            step={0.05}
+            value={w.satelliteOpacity}
+            aria-label="Cloud layer opacity"
+            title="Cloud layer opacity"
+            onKeyDown={(e) => e.stopPropagation()}
+            onChange={(e) => setOpacity("satellite", Number(e.target.value))}
+            className="ml-auto w-16 accent-[rgb(var(--p-accent))]"
+          />
+        </div>
+      )}
+      {(["satellite", "radar"] as const).some((l) => (l === "satellite" ? o.weatherSatellite : o.weatherRadar) && tilesFailing(w, l)) && (
+        <p className="mt-1.5 text-micro leading-snug" style={{ color: "var(--warning)" }}>
+          {o.weatherRadar && tilesFailing(w, "radar")
+            ? "Radar tiles are being refused. RainViewer limits requests from one address; the radar comes back once the limit resets, usually within a minute."
+            : "Satellite tiles are not loading. The connection or NASA GIBS may be down; the map keeps what it has."}
+        </p>
+      )}
+      {o.weatherRadar && (
+        <p className="mt-1.5 text-micro leading-snug text-muted-foreground">
+          Radar reaches where Brazil's radars do: dense in the South and Southeast, sparse inland in the Northeast. No colour where there is no
+          radar is not no rain.
+        </p>
+      )}
+      <p className="mt-1.5 flex flex-wrap gap-x-1.5 text-[9px] text-muted-foreground">
+        {o.weatherSatellite && (
+          <button type="button" onClick={() => BrowserOpenURL("https://earthdata.nasa.gov/gibs")} className="hover:text-foreground hover:underline">
+            NASA GIBS · NOAA GOES-East
+          </button>
+        )}
+        {o.weatherRadar && (
+          <button type="button" onClick={() => BrowserOpenURL("https://www.rainviewer.com")} className="hover:text-foreground hover:underline">
+            RainViewer
+          </button>
+        )}
+      </p>
     </div>
   )
 }
@@ -376,6 +577,9 @@ export function MapEditor() {
           </div>
           <div className="absolute left-2 top-2 flex flex-col items-start gap-2">
             <MeasurePlate />
+          </div>
+          <div className="absolute bottom-7 right-2">
+            <WeatherPlate />
           </div>
           <div className="absolute bottom-7 left-2">
             <RedoPlate />

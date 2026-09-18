@@ -80,6 +80,9 @@ export type Overlays = {
   gridRegistered: boolean
   gridLines: boolean
   gridBuses: boolean
+  /** The weather now, from the internet: clouds from GOES-East and rain from radar. */
+  weatherSatellite: boolean
+  weatherRadar: boolean
 }
 
 const OVERLAYS_KEY = "terra-energy.overlays.v1"
@@ -97,6 +100,8 @@ function restoreOverlays(): Overlays {
     gridRegistered: false,
     gridLines: false,
     gridBuses: false,
+    weatherSatellite: false,
+    weatherRadar: false,
   }
   try {
     return { ...fallback, ...(JSON.parse(localStorage.getItem(OVERLAYS_KEY) ?? "{}") as Partial<Overlays>) }

@@ -19,6 +19,7 @@ import { runOperator } from "./operators"
 import { select, selection } from "./selection"
 import { UNNAMED_VOLTAGE, VOLTAGE_COLOUR, loadNetwork, loadPlants, networkRegister, plantRegister } from "./grid"
 import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
+import { RADAR_MAXZOOM, SATELLITE, frameAt, noteTileFailure, refreshRadar, refreshSatellite, weather, type Frame } from "./weather"
 import { activeTool, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
 
@@ -113,9 +114,17 @@ function create(container: HTMLDivElement): void {
     overlays.subscribe(syncAll)
     plantRegister.subscribe(syncGrid)
     networkRegister.subscribe(syncGrid)
+    weather.subscribe(syncWeather)
     measure.subscribe(syncMeasure)
     activeTool.subscribe(syncTool)
     syncTool()
+  })
+
+  // A weather tile refused -- RainViewer limits requests per address -- is said on the weather plate, not only in the console.
+  m.on("error", (e) => {
+    const sourceId = (e as { sourceId?: string }).sourceId
+    if (sourceId?.startsWith(RADAR_PREFIX)) noteTileFailure("radar")
+    else if (sourceId?.startsWith(SAT_PREFIX)) noteTileFailure("satellite")
   })
 
   m.on("click", onClick)
@@ -282,6 +291,82 @@ function syncGrid(): void {
   }
 }
 
+// ---- The weather now ------------------------------------------------------------------
+
+const SAT_PREFIX = "wx-sat-"
+const RADAR_PREFIX = "wx-radar-"
+
+/** How often the frame lists are asked for again while a weather overlay is on. */
+const WEATHER_REFRESH_MS = 5 * 60_000
+let weatherTimer: number | undefined
+
+/** The frames that have been shown, per layer: they keep their layer, so going back is a redraw. */
+const visitedFrames: Record<string, Set<string>> = { [SAT_PREFIX]: new Set(), [RADAR_PREFIX]: new Set() }
+
+/**
+ * The satellite and radar frames, one raster layer each, only the shown one
+ * visible. A frame gets its layer the first time it is shown and keeps it, and
+ * a layer at opacity 0 keeps its tiles, so stepping back through frames already
+ * seen redraws rather than downloads. Not every frame at once: that is a dozen
+ * viewports of tiles in one burst, and RainViewer refuses a burst -- without a
+ * CORS header, so the webview reports it as a blocked request rather than as a
+ * limit. Under the result layers, the grid and the areas: the weather is the
+ * ground's condition, and what was asked about it reads over it.
+ */
+function syncWeather(): void {
+  const m = map
+  if (!m || !m.getLayer(LINE_LAYER)) return
+  const o = overlays.get()
+  const w = weather.get()
+
+  if (o.weatherSatellite && w.satellite.kind === "idle") void refreshSatellite()
+  if (o.weatherRadar && w.radar.kind === "idle") void refreshRadar()
+  const on = o.weatherSatellite || o.weatherRadar
+  if (on && weatherTimer === undefined) {
+    weatherTimer = window.setInterval(() => {
+      const now = overlays.get()
+      if (now.weatherSatellite) void refreshSatellite()
+      if (now.weatherRadar) void refreshRadar()
+    }, WEATHER_REFRESH_MS)
+  } else if (!on && weatherTimer !== undefined) {
+    window.clearInterval(weatherTimer)
+    weatherTimer = undefined
+  }
+
+  const firstRadar = () => (m.getStyle().layers ?? []).find((l) => l.id.startsWith(RADAR_PREFIX))?.id
+  const place = (prefix: string, frames: Frame[], shown: Frame | null, opacity: number, maxzoom: number, before: () => string) => {
+    const visited = visitedFrames[prefix]
+    if (shown) visited.add(shown.key)
+    for (const key of [...visited]) if (!frames.some((f) => f.key === key)) visited.delete(key)
+    frames = frames.filter((f) => visited.has(f.key))
+    const wanted = new Set(frames.map((f) => prefix + f.key))
+    for (const layer of m.getStyle().layers ?? []) {
+      if (layer.id.startsWith(prefix) && !wanted.has(layer.id)) {
+        m.removeLayer(layer.id)
+        if (m.getSource(layer.id)) m.removeSource(layer.id)
+      }
+    }
+    for (const f of frames) {
+      const id = prefix + f.key
+      const visible = shown?.key === f.key ? opacity : 0
+      if (!m.getSource(id)) {
+        m.addSource(id, { type: "raster", tiles: [f.tiles], tileSize: 256, maxzoom })
+        m.addLayer(
+          { id, type: "raster", source: id, paint: { "raster-opacity": visible, "raster-fade-duration": 0 } },
+          before()
+        )
+      } else {
+        m.setPaintProperty(id, "raster-opacity", visible)
+      }
+    }
+  }
+  const sat = o.weatherSatellite && w.satellite.kind !== "idle" ? w.satellite.frames : []
+  const radar = o.weatherRadar && w.radar.kind !== "idle" ? w.radar.frames : []
+  // The radar over the clouds: rain is the finer statement, and it is transparent where there is none.
+  place(RADAR_PREFIX, radar, frameAt(w.radar, w.at), w.radarOpacity, RADAR_MAXZOOM, () => LINE_LAYER)
+  place(SAT_PREFIX, sat, frameAt(w.satellite, w.at), w.satelliteOpacity, SATELLITE[w.product].maxzoom, () => firstRadar() ?? LINE_LAYER)
+}
+
 let loadedPlants: object | null = null
 let loadedNetwork: object | null = null
 
@@ -425,6 +510,7 @@ function syncAll(): void {
 
   syncTerrain(m)
   syncGrid()
+  syncWeather()
 }
 
 /** One image layer per visible terrain result, newest on top, all under the areas. */
