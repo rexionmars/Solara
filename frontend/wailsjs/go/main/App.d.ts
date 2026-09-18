@@ -4,6 +4,7 @@ import {grid} from '../models';
 import {energy} from '../models';
 import {store} from '../models';
 import {main} from '../models';
+import {weather} from '../models';
 
 export function AnalyzeGridConnection(arg1:grid.ConnectionRequest):Promise<grid.ConnectionAnalysis>;
 
@@ -58,3 +59,5 @@ export function SetGridStore(arg1:string):Promise<grid.StoreReport>;
 export function SetProjectDirty(arg1:boolean):Promise<void>;
 
 export function UpdateDisplayName(arg1:string):Promise<store.User>;
+
+export function WindField(arg1:number):Promise<weather.WindField>;

@@ -1697,3 +1697,44 @@ export namespace store {
 
 }
 
+export namespace weather {
+	
+	export class WindField {
+	    height_m: number;
+	    valid: string;
+	    run?: string;
+	    lon0: number;
+	    lat0: number;
+	    dlon: number;
+	    dlat: number;
+	    nx: number;
+	    ny: number;
+	    u: number[];
+	    v: number[];
+	    source: string;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WindField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.height_m = source["height_m"];
+	        this.valid = source["valid"];
+	        this.run = source["run"];
+	        this.lon0 = source["lon0"];
+	        this.lat0 = source["lat0"];
+	        this.dlon = source["dlon"];
+	        this.dlat = source["dlat"];
+	        this.nx = source["nx"];
+	        this.ny = source["ny"];
+	        this.u = source["u"];
+	        this.v = source["v"];
+	        this.source = source["source"];
+	        this.note = source["note"];
+	    }
+	}
+
+}
+

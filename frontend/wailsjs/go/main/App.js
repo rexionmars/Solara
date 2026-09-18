@@ -109,3 +109,7 @@ export function SetProjectDirty(arg1) {
 export function UpdateDisplayName(arg1) {
   return window['go']['main']['App']['UpdateDisplayName'](arg1);
 }
+
+export function WindField(arg1) {
+  return window['go']['main']['App']['WindField'](arg1);
+}
