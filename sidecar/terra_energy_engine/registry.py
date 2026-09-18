@@ -27,6 +27,8 @@ ACTIONS: dict[str, str] = {
     'grid_plants': 'terra_energy_engine.grid.actions:grid_plants',
     'grid_network': 'terra_energy_engine.grid.actions:grid_network',
     'grid_congestion': 'terra_energy_engine.grid.actions:grid_congestion',
+    # The weather now, where only the sidecar can read the format.
+    'wind_field': 'terra_energy_engine.weather.actions:wind_field',
 }
 
 
