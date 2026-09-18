@@ -1,0 +1,17 @@
+.temp
+
+# Build output
+build/bin/
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/package.json.md5
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store

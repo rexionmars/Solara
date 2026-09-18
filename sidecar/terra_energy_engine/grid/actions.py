@@ -1,0 +1,210 @@
+"""
+The questions the shell can ask about the electrical system.
+
+Siblings of energy/actions.py, not extensions of it: each answers about the
+system a site would join, none about its resource, and none appends itself to
+an action that does. Every one needs the store; there is no file-reading
+fallback, so an installation without it gets a failure that says what is
+missing. Carried over from TERRA's terra/grid/actions.py, with its action names
+and result shapes, so a request moves between the two programs unchanged.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+
+from terra_energy_engine import protocol
+from terra_energy_engine.protocol import Request
+
+
+def _reply(result: dict) -> None:
+    # default=str: dates and Decimals come back from psycopg as themselves.
+    sys.stdout.write(json.dumps(result, default=str, allow_nan=False))
+    sys.stdout.flush()
+
+
+def _window(req: Request, conn, dataset: str = 'pv_curtailment_detail'):
+    """
+    The window a reading covers: what the caller asked for, bounded by what the
+    store holds. The record begins in 2024-04, so a request outside it is
+    refused rather than answered over a fraction reported as whole.
+    """
+    from terra_energy_engine.grid import store
+
+    held = [c for c in store.coverage(conn) if c['dataset'] == dataset]
+    if not held:
+        raise protocol.Unavailable(
+            f'the store holds no {dataset!r}; it is loaded in TERRA with '
+            f'terra.grid.store.load_period.')
+    lo, hi = f"{held[0]['from']}-01", f"{held[0]['to']}-28"
+    start = max(str(req.get('start') or lo), lo)
+    end = min(str(req.get('end') or hi), hi)
+    if start > end:
+        raise protocol.Unavailable(
+            f'the requested window {start}..{end} lies outside the record, '
+            f'which runs {lo}..{hi}')
+    return start, end, {'requested': [req.get('start'), req.get('end')],
+                        'record': [lo, hi], 'used': [start, end]}
+
+
+def _aoi(req: Request):
+    if not req.get('polygon_geojson'):
+        protocol.fail('this action needs polygon_geojson')
+    return req['polygon_geojson']
+
+
+def _padded_bbox(req: Request, default_pad: float):
+    """The caller's bbox, else the AOI's envelope padded by pad_degrees, else None."""
+    bbox = req.get('bbox')
+    if bbox is None and req.get('polygon_geojson'):
+        pad = float(protocol.request_number(req, 'pad_degrees', default_pad))
+        xs, ys = [], []
+        for ring in req['polygon_geojson'].get('coordinates') or []:
+            for pt in ring:
+                xs.append(float(pt[0]))
+                ys.append(float(pt[1]))
+        if xs:
+            bbox = [min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad]
+    return bbox
+
+
+# The radius the connection reading searches when the request names none.
+SEARCH_RADIUS_KM = 100.0
+
+
+def grid_congestion(req: Request) -> None:
+    """
+    The transmission network within reach of an area, and what the plants
+    already on it experienced.
+
+    The two are reported side by side and never combined: distance says
+    whether a connection is plausible, the curtailment at the plants already
+    connected says what one would be worth.
+
+    THE SECOND HALF MAY BE MISSING WHERE THE FIRST IS NOT. A store with the
+    registers loaded and no curtailment record, or no rollup over it, still
+    answers where the network is; the reading then carries why the other half
+    is absent instead of failing whole. TERRA fails whole.
+    """
+    from terra_energy_engine.grid import congestion, curtailment, store
+
+    radius = float(protocol.request_positive(req, 'search_radius_km', SEARCH_RADIUS_KM))
+    protocol.emit_progress(10, 'opening the grid store')
+    with store.connect(req) as conn:
+        protocol.emit_progress(35, 'transmission register')
+        reach = congestion.connection_context(conn, _aoi(req), max_km=radius)
+        protocol.emit_progress(70, 'curtailment at connected plants')
+        experienced = None
+        window = None
+        absent = None
+        try:
+            start, end, window = _window(req, conn)
+            experienced = curtailment.curtailment_context(conn, _aoi(req), start, end)
+        except protocol.Unavailable as e:
+            absent = str(e)
+
+    protocol.emit_progress(100, 'done')
+    _reply({
+        'grid_congestion': {
+            'connection': reach,
+            'curtailment_at_connected_plants': experienced,
+            'curtailment_absent': absent,
+            'window': window,
+            'note': (
+                'Proximity and curtailment are reported apart and must not be '
+                'summed into a score. A site 1.3 km from a 440 kV line rated '
+                '2,664 MVA can still lose 14 percent of its output, because '
+                'the binding constraint is upstream of the connection.'
+            ),
+        }
+    })
+
+
+def grid_plants(req: Request) -> None:
+    """
+    The plant register as a layer, so an area is drawn over something visible.
+    A register is not a reading: it takes no window, and an AOI only narrows
+    the extent to its neighbourhood.
+    """
+    from terra_energy_engine.grid import store
+
+    kinds = req.get('kinds')
+    if isinstance(kinds, str):
+        kinds = [kinds]
+    bbox = _padded_bbox(req, 0.25)
+
+    protocol.emit_progress(20, 'opening the grid store')
+    with store.connect(req) as conn:
+        protocol.emit_progress(50, 'reading the register')
+        layer = store.register_geojson(
+            conn, bbox=bbox, kinds=kinds,
+            limit=int(protocol.request_positive(req, 'limit', 40000, cast=int)))
+
+    protocol.emit_progress(100, 'done')
+    _reply({
+        'grid_plants': {
+            'geojson': layer,
+            'counts': layer['counts'],
+            'bbox': bbox,
+            'note': (
+                'A point is one enterprise as ANEEL registers it, not a '
+                'footprint: a 40 MW array over a square kilometre is one dot. '
+                'Only the metered plants are in the operational record.'
+            ),
+        }
+    })
+
+
+def grid_network(req: Request) -> None:
+    """
+    The transmission network as a layer, sibling of grid_plants and apart from
+    it: the network is a megabyte and the register several, and a caller
+    looking at one does not always want the other.
+    """
+    from terra_energy_engine.grid import store
+
+    bbox = _padded_bbox(req, 1.0)
+    protocol.emit_progress(20, 'opening the grid store')
+    with store.connect(req) as conn:
+        protocol.emit_progress(50, 'reading the network register')
+        layer = store.network_geojson(
+            conn, bbox=bbox, min_kv=float(protocol.request_number(req, 'min_kv', 0.0)))
+
+    protocol.emit_progress(100, 'done')
+    _reply({'grid_network': layer})
+
+
+def grid_coverage(req: Request) -> None:
+    """
+    What the store holds, and which revision of it. The record is revised in
+    batches, so a figure is a figure about one revision, and this is what says
+    which.
+    """
+    from terra_energy_engine.grid import store
+
+    with store.connect(req) as conn:
+        held = store.coverage(conn)
+        with conn.cursor() as cur:
+            cur.execute('SELECT count(*), count(geom) FROM br.plant')
+            plants, located = cur.fetchone()
+            cur.execute('SELECT count(*) FROM br.substation')
+            substations = cur.fetchone()[0]
+            cur.execute('SELECT count(*) FROM br.transmission_line WHERE in_service')
+            lines = cur.fetchone()[0]
+            cur.execute('SELECT count(*), count(*) FILTER (WHERE identical) '
+                        'FROM br.load_conflict')
+            conflicts, identical = cur.fetchone()
+
+    _reply({
+        'grid_coverage': {
+            'datasets': held,
+            'plants': {'registered': plants, 'with_geometry': located},
+            'network': {'substations': substations, 'lines_in_service': lines},
+            'load_conflicts': {'total': conflicts, 'identical': identical,
+                               'note': (
+                                   'Instants where one plant had two rows. The '
+                                   'first was kept; br.load_conflict records '
+                                   'every choice.')},
+        }
+    })

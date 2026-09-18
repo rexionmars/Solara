@@ -1,0 +1,5 @@
+# Tool configuration for the sidecar. There is no [project] table: the sidecar
+# is shipped as files and run by path, never installed.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

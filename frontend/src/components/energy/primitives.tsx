@@ -1,0 +1,128 @@
+import type { ReactNode } from "react"
+import type { energy } from "../../../wailsjs/go/models"
+
+/**
+ * The pieces a result document is built from: a figure, a stat row, a chip,
+ * a section, the header. Ported from TERRA's analysisPrimitives, restyled to
+ * this application's tokens.
+ *
+ * Grids here follow the CONTAINER, not the window (the document declares
+ * `@container`), because TERRA found that viewport breakpoints give a narrow
+ * panel on a wide screen the layout of a wide one.
+ */
+
+export const EYEBROW = "text-[11px] uppercase tracking-[0.1em] text-muted-foreground"
+
+/** A label, the figure it names, and the assumption the figure was read under. */
+export function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="min-w-0">
+      <div className={EYEBROW}>{label}</div>
+      <div className="selectable mt-0.5 truncate font-mono text-lg tabular-nums text-foreground" title={value}>
+        {value}
+      </div>
+      {sub && (
+        <div className="truncate font-mono text-[11px] tabular-nums text-muted-foreground" title={sub}>
+          {sub}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A label and its value on one baseline, for a dense run of parameters. */
+export function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    // The label has a floor and the value wraps below it rather than beside
+    // it: in a narrow column a truncated label beside a kept number leaves an
+    // unlabelled figure, which is worse than a wrapped one.
+    <div className="flex flex-wrap items-baseline justify-between gap-x-2 py-0.5">
+      <span className="min-w-[8rem] flex-1 text-xs text-muted-foreground">{label}</span>
+      <span className="shrink-0 font-mono text-xs tabular-nums text-foreground">{value}</span>
+    </div>
+  )
+}
+
+export function StatGrid({ children }: { children: ReactNode }) {
+  return <div className="grid grid-cols-1 gap-x-8 @2xl:grid-cols-2">{children}</div>
+}
+
+export function FigureGrid({ children }: { children: ReactNode }) {
+  return <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">{children}</div>
+}
+
+/**
+ * A result's standing, such as "gross" or "unvalidated". Drawn in the warning
+ * colour: a qualifier that changes how every figure below it reads must not be
+ * the least visible text on the page.
+ */
+export function Chip({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-[3px] bg-warning/15 px-1.5 py-px text-[11px] font-medium uppercase tracking-wide text-warning">
+      {children}
+    </span>
+  )
+}
+
+export function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="border-t border-border py-5">
+      <h3 className="mb-3 text-[13px] font-medium text-foreground">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+/** The product, where it was computed, on what record, and its standing. */
+export function DocumentHeader({
+  product,
+  title,
+  meta,
+  chips,
+}: {
+  product: string
+  /** Where: the site's coordinates, or the area and its window. */
+  title: string
+  meta: string
+  chips?: string[]
+}) {
+  return (
+    <header className="pb-5">
+      <div className="flex items-center gap-2">
+        <p className={EYEBROW}>{product}</p>
+        {chips?.map((c) => <Chip key={c}>{c}</Chip>)}
+      </div>
+      <h2 className="selectable mt-1 whitespace-pre font-mono text-xl tabular-nums text-foreground">{title}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{meta}</p>
+    </header>
+  )
+}
+
+/**
+ * Which NASA POWER series the figures were read from, and when. POWER
+ * reprocesses historical data and the cache never expires, so a cached run
+ * and a fetched one must be distinguishable on screen.
+ */
+export function ProvenanceNote({ provenance }: { provenance?: energy.PowerProvenance }) {
+  if (!provenance) return null
+  const series = [
+    ["Daily", provenance.daily],
+    ["Hourly", provenance.hourly],
+  ] as const
+  const present = series.filter(([, s]) => !!s)
+  if (!present.length) return null
+  return (
+    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+      {present.map(([label, s], i) => (
+        <span key={label}>
+          {i > 0 ? " " : ""}
+          {label} series{" "}
+          {s!.source === "cache"
+            ? `read from cache${s!.fetched_utc ? `, fetched ${s!.fetched_utc}` : ", fetch date not recorded"}`
+            : "fetched during this run"}
+          .
+        </span>
+      ))}
+    </p>
+  )
+}

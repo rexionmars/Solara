@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TERRA Energy Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- TERRA's three faces: Inter with its optical size axis for the interface,
+       JetBrains Mono for telemetry, Space Grotesk for the wordmark. Offline, the
+       system faces in the stacks in index.css take over. -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=JetBrains+Mono:wght@400..500&family=Space+Grotesk:wght@500..700&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    // Claims this launch's still before any bundle loads. The list is
+    // substituted at build time from src/lib/splashBackground.ts, and the two
+    // storage keys are the ones claimSplashStill reads there, so React shows
+    // the same still instead of advancing to the next one.
+    (function () {
+      var images = __SPLASH_IMAGES__;
+      var nextKey = "terra-energy.splash.next";
+      var currentKey = "terra-energy.splash.current";
+      var index = 0;
+      try {
+        var parsed = parseInt(localStorage.getItem(nextKey) || "0", 10);
+        if (isFinite(parsed)) index = ((parsed % images.length) + images.length) % images.length;
+        localStorage.setItem(nextKey, String((index + 1) % images.length));
+        sessionStorage.setItem(currentKey, String(index));
+      } catch (e) {}
+      document.documentElement.style.setProperty(
+        "--splash-html-bg",
+        "linear-gradient(to bottom, rgba(23,23,23,0.35) 0%, rgba(23,23,23,0.45) 45%, rgba(23,23,23,0.8) 100%)," +
+          'url("' + images[index] + '") center / cover no-repeat'
+      );
+      // Only this launch's still is fetched, ahead of the bundle.
+      var link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = images[index];
+      document.head.appendChild(link);
+    })();
+  </script>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: rgb(23, 23, 23);
+      overflow: hidden;
+    }
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+      padding: 1.25rem;
+      box-sizing: border-box;
+      background: var(--splash-html-bg, rgb(23, 23, 23));
+      opacity: 1;
+      transition: opacity 280ms ease;
+      pointer-events: none;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: rgb(229, 229, 229);
+    }
+    #splash.is-done { opacity: 0; }
+    #splash img { width: 56px; height: 56px; object-fit: contain; filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.55)); }
+    #splash .brand { margin: 0; font-weight: 600; font-size: 1.05rem; letter-spacing: 0.18em; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65); }
+    #splash .eyebrow { margin: 0; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(229, 229, 229, 0.8); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
+    #splash .release { margin: 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.58rem; letter-spacing: 0.08em; color: rgba(229, 229, 229, 0.7); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
+    #splash .log { position: absolute; left: 1rem; right: 1rem; bottom: 1rem; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.62rem; letter-spacing: 0.04em; color: rgba(229, 229, 229, 0.85); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75); }
+    #splash .led { width: 6px; height: 6px; margin-top: 0.25rem; border-radius: 1px; background: rgb(97, 167, 255); animation: splash-blink 1.2s ease-in-out infinite; }
+    @keyframes splash-blink { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      #splash .led { animation: none; opacity: 0.85; }
+      #splash { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="splash" aria-hidden="true">
+    <img src="/terra-logo.png" alt="" width="56" height="56" />
+    <p class="brand">TERRA</p>
+    <p class="eyebrow">__BRAND_TAGLINE__</p>
+    <p class="release">__RELEASE_NAME__</p>
+    <p class="log">booting…</p>
+    <div class="led"></div>
+  </div>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
