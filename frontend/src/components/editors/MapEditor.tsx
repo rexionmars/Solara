@@ -30,6 +30,12 @@ import {
   type Frame,
   type LayerFrames,
   type SatelliteProduct,
+  WIND_STOPS,
+  fieldOf,
+  refreshWind,
+  setWindHeight,
+  windField,
+  windProbe,
 } from "../../lib/weather"
 import { coordinatePrompt, lastOperation, lastOperationOpen, type MenuItem } from "../../lib/ui"
 import { StudioHeaderMenu, StudioHeaderPopover, StudioHeaderRule, StudioHeaderToggle } from "../studio/HeaderControls"
@@ -73,6 +79,7 @@ const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
 const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "weatherSatellite", label: "Clouds, GOES-East satellite" },
   { key: "weatherRadar", label: "Rain, radar" },
+  { key: "weatherWind", label: "Wind, GFS model" },
 ]
 
 const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
@@ -232,6 +239,97 @@ function Navigation() {
   )
 }
 
+/** A run or valid time as the hour it names, in UTC, the way model runs are called. */
+const utcHour = (iso: string) => `${iso.slice(11, 13)}Z`
+
+/**
+ * The wind field's part of the plate: which height, which run and which hour
+ * the field is, and what its colours mean. Modelled, and it says so.
+ */
+function WindSection({ divided }: { divided: boolean }) {
+  const { height, state } = useStore(windField)
+  const field = fieldOf(state)
+  const gradient = `linear-gradient(to right, ${WIND_STOPS.map(([s, [r, g, b]]) => `rgb(${r} ${g} ${b}) ${(s / 32) * 100}%`).join(", ")})`
+  return (
+    <div className={divided ? "mt-2 border-t pt-1.5" : "mt-1.5"} style={{ borderColor: "rgb(var(--p-line) / 0.3)" }}>
+      <div className="flex items-center gap-1.5">
+        <span className="w-10 shrink-0 text-micro text-muted-foreground">Wind</span>
+        {([10, 100] as const).map((h) => (
+          <button
+            key={h}
+            type="button"
+            onClick={() => setWindHeight(h)}
+            aria-pressed={height === h}
+            title={h === 10 ? "At 10 m, the height stations measure at" : "At 100 m, near a turbine's hub"}
+            className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
+              height === h ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
+            }`}
+          >
+            {h} m
+          </button>
+        ))}
+        <span className="ml-auto telemetry text-[9px] text-muted-foreground" title="A forecast from a model run, not a measurement">
+          modelled
+        </span>
+      </div>
+      <p className="telemetry mt-1 text-micro text-foreground">
+        {field ? (
+          <>
+            valid {clockLabel(Date.parse(field.valid))}
+            <span className="text-muted-foreground">
+              {" "}
+              · GFS {field.run ? `${utcHour(field.run)} run` : "run unknown"}
+            </span>
+          </>
+        ) : state.kind === "failed" ? (
+          <span className="text-muted-foreground">unavailable</span>
+        ) : (
+          <span className="text-muted-foreground">reading…</span>
+        )}
+        {state.kind === "loading" && field && <span className="text-muted-foreground"> · updating</span>}
+      </p>
+      {state.kind === "failed" && (
+        <p className="mt-0.5 flex items-start gap-2 text-micro leading-snug text-destructive-quiet">
+          <span className="min-w-0 flex-1">{state.message}</span>
+          <button type="button" onClick={() => void refreshWind()} className="shrink-0 text-accent hover:underline">
+            Retry
+          </button>
+        </p>
+      )}
+      <div className="mt-1.5 h-1.5 w-full rounded-[1px]" style={{ background: gradient }} />
+      <div className="telemetry mt-0.5 flex justify-between text-[9px] text-muted-foreground">
+        <span>0</span>
+        <span>8</span>
+        <span>16</span>
+        <span>24</span>
+        <span>32 m/s</span>
+      </div>
+    </div>
+  )
+}
+
+/** Speed and direction beside the pointer, while the wind field is drawn. */
+function WindReadout() {
+  const probe = useStore(windProbe)
+  if (!probe) return null
+  return (
+    <div
+      className="pointer-events-none absolute z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-md px-2 py-1 text-body text-foreground shadow-lg"
+      style={{ left: probe.x, top: probe.y - 40, background: "rgb(var(--p-ink) / 0.9)" }}
+    >
+      <span className="telemetry">{probe.speed.toFixed(1)} m/s</span>
+      <span className="telemetry text-muted-foreground">{(probe.speed * 3.6).toFixed(0)} km/h</span>
+      <span aria-hidden className="inline-block" style={{ transform: `rotate(${probe.towardsDeg}deg)` }}>
+        ↑
+      </span>
+      <span className="telemetry" title="Where the wind comes from">
+        {probe.from}
+      </span>
+      <span className="telemetry text-[9px] text-muted-foreground">{probe.height} m</span>
+    </div>
+  )
+}
+
 /**
  * The weather overlays' timeline: which moment is drawn, how old each layer's
  * frame is, and where the layers come from. Only while one is on.
@@ -266,7 +364,7 @@ function WeatherPlate() {
     return () => window.clearInterval(timer)
   }, [w.playing])
 
-  if (!o.weatherSatellite && !o.weatherRadar) return null
+  if (!o.weatherSatellite && !o.weatherRadar && !o.weatherWind) return null
   const observed = o.weatherSatellite || o.weatherRadar
   const sat = frameAt(w.satellite, w.at)
   const radar = frameAt(w.radar, w.at)
@@ -385,6 +483,7 @@ function WeatherPlate() {
           radar is not no rain.
         </p>
       )}
+      {o.weatherWind && <WindSection divided={observed} />}
       <p className="mt-1.5 flex flex-wrap gap-x-1.5 text-[9px] text-muted-foreground">
         {o.weatherSatellite && (
           <button type="button" onClick={() => BrowserOpenURL("https://earthdata.nasa.gov/gibs")} className="hover:text-foreground hover:underline">
@@ -394,6 +493,11 @@ function WeatherPlate() {
         {o.weatherRadar && (
           <button type="button" onClick={() => BrowserOpenURL("https://www.rainviewer.com")} className="hover:text-foreground hover:underline">
             RainViewer
+          </button>
+        )}
+        {o.weatherWind && (
+          <button type="button" onClick={() => BrowserOpenURL("https://www.unidata.ucar.edu/software/tds/")} className="hover:text-foreground hover:underline">
+            NOAA GFS · UCAR THREDDS
           </button>
         )}
       </p>
@@ -572,6 +676,7 @@ export function MapEditor() {
         <div ref={container} className="absolute inset-0" />
         <OverlayCallouts />
         <div className="pointer-events-none absolute inset-0">
+          <WindReadout />
           <div className="absolute right-2 top-2">
             <Navigation />
           </div>

@@ -249,7 +249,7 @@ function AboutSection() {
         <Figure label="Terrain" value="Copernicus DEM GLO-30" />
         <Figure label="Photovoltaic model" value="pvlib" />
         <Figure label="Electrical system" value="ONS, ANEEL (grid store)" />
-        <Figure label="Weather now" value="NASA GIBS (GOES-East), RainViewer, Open-Meteo" />
+        <Figure label="Weather now" value="NASA GIBS (GOES-East), RainViewer, NOAA GFS via UCAR THREDDS, Open-Meteo" />
         <Figure label="Basemap" value="OpenFreeMap, © OpenStreetMap" />
         <p className="pt-1 text-body leading-relaxed text-muted-foreground">
           Screening figures. The wind results are gross and unvalidated; read each result's notes before using a figure.

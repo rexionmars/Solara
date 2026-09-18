@@ -1,4 +1,6 @@
 import { useEffect } from "react"
+import { WindField as WindFieldBinding } from "../../wailsjs/go/main/App"
+import type { weather as weatherModels } from "../../wailsjs/go/models"
 import { errorMessage } from "./errors"
 import { createStore, useStore } from "./store"
 
@@ -345,3 +347,111 @@ export function useNow(lat: number, lon: number): NowState | undefined {
 
 export const nowOf = (s: NowState | undefined): Now | null =>
   !s ? null : s.kind === "ready" ? s.now : s.last
+
+// ---- The wind field ----------------------------------------------------------------------
+
+/**
+ * GFS's wind over South America at one height, read by the sidecar (it arrives
+ * as NetCDF). Modelled: a forecast for this hour from a run a few hours old.
+ * The grid is half a degree, west to east and north to south.
+ */
+export type WindHeight = 10 | 100
+
+export type WindFieldState =
+  | { kind: "idle" }
+  | { kind: "loading"; field: weatherModels.WindField | null }
+  | { kind: "ready"; field: weatherModels.WindField; checked: number }
+  | { kind: "failed"; message: string; field: weatherModels.WindField | null }
+
+export const windField = createStore<{ height: WindHeight; state: WindFieldState }>({ height: 10, state: { kind: "idle" } })
+
+export const fieldOf = (s: WindFieldState): weatherModels.WindField | null => (s.kind === "idle" ? null : s.field)
+
+export async function refreshWind(): Promise<void> {
+  const height = windField.get().height
+  const prior = fieldOf(windField.get().state)
+  windField.set((w) => ({ ...w, state: { kind: "loading", field: prior } }))
+  try {
+    const field = await WindFieldBinding(height)
+    // A height switched while this was in flight has its own refresh coming.
+    if (windField.get().height !== height) return
+    windField.set((w) => ({ ...w, state: { kind: "ready", field, checked: Date.now() } }))
+  } catch (e) {
+    windField.set((w) => ({ ...w, state: { kind: "failed", message: errorMessage(e), field: prior?.height_m === height ? prior : null } }))
+  }
+}
+
+export function setWindHeight(height: WindHeight): void {
+  if (windField.get().height === height) return
+  // Idle, and the map asks for the new height's field while the overlay is on.
+  windField.set({ height, state: { kind: "idle" } })
+}
+
+/** The wind at a place, bilinear between the four grid points around it; null outside the grid or where a corner is missing. */
+export function windAt(f: weatherModels.WindField, lon: number, lat: number): { u: number; v: number } | null {
+  const x = (lon - f.lon0) / f.dlon
+  const y = (f.lat0 - lat) / f.dlat
+  if (!(x >= 0 && y >= 0 && x <= f.nx - 1 && y <= f.ny - 1)) return null
+  const i = Math.min(Math.floor(x), f.nx - 2)
+  const j = Math.min(Math.floor(y), f.ny - 2)
+  const fx = x - i
+  const fy = y - j
+  const at = (a: (number | null)[], ii: number, jj: number) => a[jj * f.nx + ii]
+  const pick = (a: (number | null)[]) => {
+    const c00 = at(a, i, j)
+    const c10 = at(a, i + 1, j)
+    const c01 = at(a, i, j + 1)
+    const c11 = at(a, i + 1, j + 1)
+    if (c00 == null || c10 == null || c01 == null || c11 == null) return null
+    return (c00 * (1 - fx) + c10 * fx) * (1 - fy) + (c01 * (1 - fx) + c11 * fx) * fy
+  }
+  const u = pick(f.u)
+  const v = pick(f.v)
+  return u === null || v === null ? null : { u, v }
+}
+
+/**
+ * Speed to colour, dark violet for calm through cyan and green to yellow and
+ * red for a gale, the order the wind maps readers know use. Stops in m/s.
+ */
+export const WIND_STOPS: readonly [number, [number, number, number]][] = [
+  [0, [45, 38, 110]],
+  [3, [62, 76, 170]],
+  [6, [58, 128, 200]],
+  [9, [72, 186, 200]],
+  [12, [118, 206, 140]],
+  [15, [214, 224, 104]],
+  [20, [244, 168, 60]],
+  [25, [226, 86, 58]],
+  [32, [170, 36, 92]],
+]
+
+export function windColour(speed: number): [number, number, number] {
+  if (speed <= WIND_STOPS[0][0]) return WIND_STOPS[0][1]
+  for (let k = 1; k < WIND_STOPS.length; k++) {
+    const [s1, c1] = WIND_STOPS[k]
+    if (speed <= s1) {
+      const [s0, c0] = WIND_STOPS[k - 1]
+      const t = (speed - s0) / (s1 - s0)
+      return [0, 1, 2].map((n) => Math.round(c0[n] + (c1[n] - c0[n]) * t)) as [number, number, number]
+    }
+  }
+  return WIND_STOPS[WIND_STOPS.length - 1][1]
+}
+
+const POINTS16 = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+
+/**
+ * Where the wind comes FROM, as a meteorologist names it (u, v blow towards
+ * east and north), and the bearing it blows TOWARDS, which is what an arrow
+ * on a map draws.
+ */
+export function windDirection(u: number, v: number): { from: string; fromDeg: number; towardsDeg: number } {
+  const towards = (Math.atan2(u, v) * 180) / Math.PI
+  const towardsDeg = (towards + 360) % 360
+  const fromDeg = (towardsDeg + 180) % 360
+  return { from: POINTS16[Math.round(fromDeg / 22.5) % 16], fromDeg, towardsDeg }
+}
+
+/** The wind under the pointer, for the readout beside it; null when the pointer is off the field. */
+export const windProbe = createStore<{ x: number; y: number; speed: number; from: string; towardsDeg: number; height: number } | null>(null)

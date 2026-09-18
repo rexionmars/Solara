@@ -19,7 +19,23 @@ import { runOperator } from "./operators"
 import { select, selection } from "./selection"
 import { UNNAMED_VOLTAGE, VOLTAGE_COLOUR, loadNetwork, loadPlants, networkRegister, plantRegister } from "./grid"
 import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
-import { RADAR_MAXZOOM, SATELLITE, frameAt, noteTileFailure, refreshRadar, refreshSatellite, weather, type Frame } from "./weather"
+import {
+  RADAR_MAXZOOM,
+  SATELLITE,
+  fieldOf,
+  frameAt,
+  noteTileFailure,
+  refreshRadar,
+  refreshSatellite,
+  refreshWind,
+  weather,
+  windAt,
+  windDirection,
+  windField,
+  windProbe,
+  type Frame,
+} from "./weather"
+import { LABEL_SOURCE, WindParticles, drawLabels, drawSpeed, removeLabels, removeSpeed } from "./windLayer"
 import { activeTool, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
 
@@ -102,7 +118,10 @@ function create(container: HTMLDivElement): void {
   }
   m.on("move", onMove)
   onMove()
-  m.on("mouseout", () => cursor.set(null))
+  m.on("mouseout", () => {
+    cursor.set(null)
+    windProbe.set(null)
+  })
 
   m.on("load", () => {
     addLayers(m)
@@ -115,6 +134,7 @@ function create(container: HTMLDivElement): void {
     plantRegister.subscribe(syncGrid)
     networkRegister.subscribe(syncGrid)
     weather.subscribe(syncWeather)
+    windField.subscribe(syncWind)
     measure.subscribe(syncMeasure)
     activeTool.subscribe(syncTool)
     syncTool()
@@ -313,6 +333,59 @@ const visitedFrames: Record<string, Set<string>> = { [SAT_PREFIX]: new Set(), [R
  * limit. Under the result layers, the grid and the areas: the weather is the
  * ground's condition, and what was asked about it reads over it.
  */
+// ---- The wind field ------------------------------------------------------------------------
+
+/** GFS publishes a forecast hour every three; asking every half hour catches the next one within the hour. */
+const WIND_REFRESH_MS = 30 * 60_000
+let windTimer: number | undefined
+let particles: WindParticles | null = null
+let drawnField: object | null = null
+
+/**
+ * The wind field: the speed as an image under every other weather layer, the
+ * particles over the map, and a label at each of the project's places. The
+ * image is rebuilt only when the field changes; the labels follow the project.
+ */
+function syncWind(): void {
+  const m = map
+  if (!m || !m.getLayer(LINE_LAYER)) return
+  const o = overlays.get()
+  const { state } = windField.get()
+  if (o.weatherWind && state.kind === "idle") void refreshWind()
+  if (o.weatherWind && windTimer === undefined) {
+    windTimer = window.setInterval(() => void refreshWind(), WIND_REFRESH_MS)
+  } else if (!o.weatherWind && windTimer !== undefined) {
+    window.clearInterval(windTimer)
+    windTimer = undefined
+  }
+
+  const field = o.weatherWind ? fieldOf(state) : null
+  if (!field) {
+    removeSpeed(m)
+    removeLabels(m)
+    particles?.destroy()
+    particles = null
+    drawnField = null
+    windProbe.set(null)
+    return
+  }
+  if (drawnField !== field) {
+    const layers = m.getStyle().layers ?? []
+    const before = layers.find((l) => l.id.startsWith(SAT_PREFIX) || l.id.startsWith(RADAR_PREFIX))?.id ?? LINE_LAYER
+    drawSpeed(m, field, 0.85, before)
+    drawnField = field
+  }
+  particles ??= new WindParticles(m)
+  particles.setField(field)
+  const d = project.get().data
+  const places = [
+    ...d.sites.filter((s) => !s.hidden).map((s) => ({ lon: s.lon, lat: s.lat })),
+    ...d.areas.filter((a) => !a.hidden).map((a) => ringCentre(a.polygon)),
+  ]
+  drawLabels(m, field, places)
+  if (m.getLayer(LABEL_SOURCE) && m.getLayer("site-label")) m.moveLayer(LABEL_SOURCE)
+}
+
 function syncWeather(): void {
   const m = map
   if (!m || !m.getLayer(LINE_LAYER)) return
@@ -511,6 +584,7 @@ function syncAll(): void {
   syncTerrain(m)
   syncGrid()
   syncWeather()
+  syncWind()
 }
 
 /** One image layer per visible terrain result, newest on top, all under the areas. */
@@ -676,6 +750,14 @@ function onMouseDown(e: MapMouseEvent): void {
 
 function onMouseMove(e: MapMouseEvent): void {
   cursor.set({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+  const field = overlays.get().weatherWind ? fieldOf(windField.get().state) : null
+  const wind = field ? windAt(field, e.lngLat.lng, e.lngLat.lat) : null
+  if (field && wind) {
+    const dir = windDirection(wind.u, wind.v)
+    windProbe.set({ x: e.point.x, y: e.point.y, speed: Math.hypot(wind.u, wind.v), from: dir.from, towardsDeg: dir.towardsDeg, height: field.height_m })
+  } else if (windProbe.get()) {
+    windProbe.set(null)
+  }
   const tool = activeTool.get()
   if (drag) {
     if (!drag.moved) {
