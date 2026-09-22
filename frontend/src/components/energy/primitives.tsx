@@ -313,6 +313,49 @@ export function KpiCard({
   )
 }
 
+/**
+ * One figure, for a board card that has no header.
+ *
+ * NOT `KpiCard` WITH A DIFFERENT SIZE. That one is a card: it draws its own
+ * border and its own ground, because it sits in a document beside other
+ * bordered things. This one draws neither, because the board's card already
+ * did -- and its label is sentence case at reading size, since on a board the
+ * label is a name and not a column heading.
+ */
+export function Metric({
+  label,
+  value,
+  unit,
+  note,
+  spark,
+}: {
+  label: string
+  value: string
+  unit?: string
+  note?: string
+  spark?: number[]
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="truncate text-[11px] text-muted-foreground" title={label}>
+        {label}
+      </div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <span className="selectable truncate text-[22px] font-medium leading-none tracking-tight text-foreground tabular-nums" title={value}>
+          {value}
+        </span>
+        {unit && <span className="shrink-0 text-[11px] text-muted-foreground">{unit}</span>}
+      </div>
+      {note && (
+        <div className="mt-1.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground" title={note}>
+          {note}
+        </div>
+      )}
+      {spark && spark.length > 1 && <Spark values={spark} />}
+    </div>
+  )
+}
+
 /** The shape of the run behind a figure. No axis, no label: shape only. */
 function Spark({ values }: { values: number[] }) {
   const max = Math.max(...values) || 1

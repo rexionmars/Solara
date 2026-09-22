@@ -54,6 +54,18 @@
   --s-selected: rgb(255 255 255 / 0.13);
   --s-float: rgb(var(--p-surface-raised));
 
+  /*
+    THE BOARD. A reading is not a page in a panel: it is cards on a ground the
+    reader pans and zooms. So the board needs a ground DEEPER than the window's
+    own (13 against the chassis' 24), or a card floating on it reads as just
+    another region of the chrome. The card is opaque and one step above the
+    application's sunk surface, and it redefines --s-sunk locally so a chart
+    drawn inside it paints its gaps and rings in the card's colour.
+  */
+  --p-void: 13 13 13;
+  --p-card: 25 25 25;
+  --s-board: rgb(var(--p-void));
+  --s-card: rgb(var(--p-card));
 
   --background: var(--s-app);
   --foreground: rgb(var(--p-text));
@@ -114,6 +126,8 @@
   --color-hover: var(--s-hover);
   --color-selected: var(--s-selected);
   --color-float: var(--s-float);
+  --color-board: var(--s-board);
+  --color-card: var(--s-card);
 
   --color-line: rgb(var(--p-line));
   --color-line-strong: rgb(var(--p-line-strong));
