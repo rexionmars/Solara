@@ -91,10 +91,10 @@ export function watchProjectState(): () => void {
 
 async function write(path: string): Promise<boolean> {
   const data = project.get().data
-  const runIds = data.results
-    .filter((r): r is Extract<ResultObject, { kind: "terrain" }> => r.kind === "terrain")
-    .map(runIdOf)
-    .filter((id): id is string => !!id)
+  // Every result that drew a layer, not only the terrain ones: the demand
+  // layer lives in a run directory too, and a project saved without it
+  // reopens with a raster nothing serves.
+  const runIds = data.results.map(runIdOf).filter((id): id is string => !!id)
   const doc: ProjectDocument = { format: FORMAT, version: VERSION, savedAt: new Date().toISOString(), ...data }
   try {
     const saved = await SaveProject(path, JSON.stringify(doc, null, 2), runIds)

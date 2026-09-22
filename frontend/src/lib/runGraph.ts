@@ -4,6 +4,7 @@ import { seasonLabel } from "./params"
 import {
   type AreaObject,
   type ConnectionParams,
+  type DemandParams,
   type Polygon,
   type Product,
   type ProjectData,
@@ -129,11 +130,12 @@ export type RunInputs = {
   wind: WindParams
   terrain: TerrainParams
   connection: ConnectionParams
+  demand: DemandParams
   /** Whether the grid store answered: what the store card supplies. */
   storeReachable: boolean
 }
 
-export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind", connection: "Connection" }
+export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind", connection: "Connection", demand: "Demand" }
 
 /**
  * Total over the node ids, so a card added without saying what it supplies
@@ -222,7 +224,7 @@ export function lastRun(
   if (!source) return null
   const result = d.results.filter((r) => r.kind === product && r.sourceId === source.id).at(-1)
   // A run that reached the sidecar read the store it was pointed at, so the store card's wire settles with it.
-  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {}, connection: {}, storeReachable: true }
+  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {}, connection: {}, demand: {}, storeReachable: true }
   const failed =
     failure && failure.product === product && failure.sourceId === source.id && (!result || Date.parse(result.createdAt) < failure.at)
       ? failure
@@ -249,7 +251,9 @@ export function lastRun(
         ? { ...base, area: { name: source.name, polygon: result.polygon }, terrain: result.params }
         : result.kind === "connection"
           ? { ...base, area: { name: source.name, polygon: result.polygon }, connection: result.params }
-          : result.kind === "solar"
+          : result.kind === "demand"
+            ? { ...base, area: { name: source.name, polygon: result.polygon }, demand: result.params }
+            : result.kind === "solar"
             ? { ...base, site: { name: source.name, ...result.site }, solar: result.params }
           : { ...base, site: { name: source.name, ...result.site }, wind: result.params },
   }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react"
-import { ArrowsClockwise, CircleNotch, Eye, Fan, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { ArrowsClockwise, ChartBar, CircleNotch, Eye, Fan, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
 import { lastFailure, running } from "../../lib/analysis"
 import { defaults } from "../../lib/defaults"
 import { formatLat, formatLng } from "../../lib/format"
@@ -7,7 +7,7 @@ import { polygonAreaKm2 } from "../../lib/geo"
 import { RUN_OPERATOR, runOperator, useOperator } from "../../lib/operators"
 import {
   FALLBACK_SEASONS,
-  CONNECTION_FIELDS,
+  CONNECTION_FIELDS, DEMAND_FIELDS,
   SOLAR_FIELDS,
   TERRAIN_FIELDS,
   WIND_FIELDS,
@@ -51,7 +51,7 @@ import { NumberField, Select } from "../ui/Fields"
  * screen read what its card holds now; see NodeCanvas for the five states.
  */
 
-const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan, connection: PlugsConnected }
+const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan, connection: PlugsConnected, demand: ChartBar }
 const PRODUCTS: Product[] = ["solar", "terrain", "wind", "connection"]
 const OPERATOR = RUN_OPERATOR
 
@@ -118,6 +118,7 @@ const FIELDS: Record<Group, FieldDef<string>[]> = {
   wind: WIND_FIELDS,
   terrain: TERRAIN_FIELDS,
   connection: CONNECTION_FIELDS,
+  demand: DEMAND_FIELDS,
 }
 
 /** A project setting, in a card: the drag field Properties uses, with its name inside it. */

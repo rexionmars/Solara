@@ -1,21 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import {
-  CaretDown,
-  CaretRight,
-  Eye,
-  EyeSlash,
-  Fan,
-  Lightning,
-  MapPin,
-  Mountains,
-  Pentagon,
-  PlugsConnected,
-  Stack,
-  Sun,
-  Swatches,
-  Warning,
-  type Icon,
-} from "@phosphor-icons/react"
+import { CaretDown, CaretRight, ChartBar, Eye, EyeSlash, Fan, Lightning, MapPin, Mountains, Pentagon, PlugsConnected, Stack, Sun, Swatches, Warning, type Icon } from "@phosphor-icons/react"
 import { running } from "../../lib/analysis"
 import { legendsShown, setLegendShown } from "../../lib/mapState"
 import { isResult, project, renameItem, resultsOf, setHidden, staleReason, type AnyItem } from "../../lib/project"
@@ -33,8 +17,8 @@ import { AreaHeader } from "../studio/StudioArea"
  * is active, so the tree's cost does not grow with the number of results.
  */
 
-const ICON: Record<AnyItem["kind"], Icon> = { site: MapPin, area: Pentagon, solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected }
-const KIND: Record<AnyItem["kind"], string> = { site: "Site", area: "Area", solar: "Solar", wind: "Wind", terrain: "Terrain", connection: "Grid" }
+const ICON: Record<AnyItem["kind"], Icon> = { site: MapPin, area: Pentagon, solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar }
+const KIND: Record<AnyItem["kind"], string> = { site: "Site", area: "Area", solar: "Solar", wind: "Wind", terrain: "Terrain", connection: "Grid", demand: "Demand" }
 
 type Mode = "scene" | "results"
 

@@ -54,6 +54,7 @@
   --s-selected: rgb(255 255 255 / 0.13);
   --s-float: rgb(var(--p-surface-raised));
 
+
   --background: var(--s-app);
   --foreground: rgb(var(--p-text));
   --muted-foreground: rgb(var(--p-muted));
@@ -220,6 +221,33 @@
 }
 .app-no-drag {
   --wails-draggable: no-drag;
+}
+
+/*
+  THE WORDMARK, as the TERRA website sets it (TERRA-website global.css,
+  .brand): Archivo at its widest and heaviest, tracked out, then a hairline and
+  the product's name in two lines of IBM Plex Mono. The colours are the site's
+  bone and dust rather than the studio's greys, because the mark is the same
+  object on both and should read as one.
+*/
+.brand-word {
+  font-family: "Archivo", var(--font-display);
+  font-stretch: 125%;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  color: #ece8df;
+}
+
+.brand-sub {
+  padding-left: 0.625rem;
+  border-left: 1px solid rgb(236 232 223 / 0.26);
+  font-family: "IBM Plex Mono", var(--font-telemetry);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: #a9adb8;
 }
 
 .eyebrow {

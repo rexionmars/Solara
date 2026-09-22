@@ -1,4 +1,4 @@
-import { Cube, Fan, Graph, Mountains, PlugsConnected, Sun, Table, TerminalWindow, type Icon } from "@phosphor-icons/react"
+import { ChartBar, Cube, Fan, Graph, Mountains, PlugsConnected, Sun, Table, TerminalWindow, type Icon } from "@phosphor-icons/react"
 import { EDITORS, editorMeta, type EditorId, type StudioGroup } from "./editors"
 import type { Product } from "./project"
 import { select } from "./selection"
@@ -131,6 +131,14 @@ export const WORKSPACES: WorkspacePreset[] = [
     icon: PlugsConnected,
     hint: "Where an area could join the transmission network, beside the map of plants and lines",
     build: () => split("row", 0.74, split("row", 0.55, area("map"), area("connection")), sideColumn()),
+  },
+  {
+    id: "demand",
+    label: "Demand",
+    group: "grid",
+    icon: ChartBar,
+    hint: "What an area already draws from the network, beside the map",
+    build: () => split("row", 0.74, split("row", 0.55, area("map"), area("demand")), sideColumn()),
   },
 ]
 
@@ -399,7 +407,7 @@ export function setAreaState(areaId: string, patch: AreaState): void {
 
 // ---- Navigation between editors ---------------------------------------------
 
-const WORKSPACE_OF: Record<Product, string> = { solar: "solar", wind: "wind", terrain: "terrain", connection: "connection" }
+const WORKSPACE_OF: Record<Product, string> = { solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand" }
 
 /**
  * Bring a result into view: select it, and open the workspace built around

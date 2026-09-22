@@ -1,5 +1,5 @@
 import type { energy } from "../../wailsjs/go/models"
-import { commit, project, type ConnectionParams, type Settings, type SolarParams, type TerrainParams, type WindParams } from "./project"
+import { commit, project, type ConnectionParams, type DemandParams, type Settings, type SolarParams, type TerrainParams, type WindParams } from "./project"
 
 /**
  * The analysis settings as fields: label, unit, and what the sidecar accepts.
@@ -208,3 +208,32 @@ export function settings(): Settings {
 }
 
 export type { ConnectionParams, SolarParams, TerrainParams, WindParams }
+
+/**
+ * The demand reading's one setting. Left empty, the sidecar audits generators
+ * against its own convention and says so in the reading; set, it audits them
+ * against what the solar product read at this very place.
+ */
+export const DEMAND_FIELDS: NumberField<keyof DemandParams>[] = [
+  {
+    key: "yieldCeilingKWhKWp",
+    label: "Yield Ceiling",
+    unit: "kWh/kWp/yr",
+    min: 0,
+    exclusiveMin: true,
+    step: 50,
+    description:
+      "What a generator of the area is audited against. The specific yield the solar product read here is the figure to put in",
+    defaultOf: (d) => d.demand?.yield_ceiling_kwh_kwp,
+  },
+  {
+    key: "cellKm",
+    label: "Layer Cell",
+    unit: "km",
+    min: 0,
+    exclusiveMin: true,
+    step: 0.25,
+    description: "Side of the cell the density layer is drawn on; a very large area is drawn coarser and says so",
+    defaultOf: (d) => d.demand?.cell_km,
+  },
+]

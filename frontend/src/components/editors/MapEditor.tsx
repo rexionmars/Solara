@@ -163,7 +163,7 @@ function Toolbar() {
             aria-pressed={on}
             onClick={() => void runOperator(t.operator)}
             title={`${t.label}${key ? ` (${formatKeys(key)})` : ""}\n${t.description}`}
-            className={`flex size-6 items-center justify-center rounded-sm transition-colors ${
+            className={`flex size-7 items-center justify-center transition-colors ${
               on ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
             }`}
           >
@@ -680,7 +680,8 @@ export function MapEditor() {
           <div className="absolute right-2 top-2">
             <Navigation />
           </div>
-          <div className="absolute left-2 top-2 flex flex-col items-start gap-2">
+          {/* Clear of the floating tool plate, which now sits at this corner. */}
+          <div className="absolute left-12 top-2 flex flex-col items-start gap-2">
             <MeasurePlate />
           </div>
           <div className="absolute bottom-7 right-2">

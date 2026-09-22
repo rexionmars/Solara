@@ -156,6 +156,44 @@ export const COLUMNS: Record<Product, Column[]> = {
     },
     ...trailing,
   ],
+  demand: [
+    ...common,
+    { key: "area", label: "Area", unit: "km²", decimals: 2, value: (r) => (r.kind === "demand" ? polygonAreaKm2(r.polygon) : null) },
+    {
+      key: "consumed",
+      label: "Consumed",
+      unit: "MWh/yr",
+      decimals: 0,
+      value: (r) => (r.kind === "demand" ? r.data.totais.energia_consumida_ano_mwh : null),
+    },
+    {
+      key: "units",
+      label: "Consumer Units",
+      decimals: 0,
+      value: (r) =>
+        r.kind === "demand" ? Object.values(r.data.consumo).reduce((n, l) => n + (l?.unidades ?? 0), 0) : null,
+    },
+    {
+      key: "injected",
+      label: "Injected",
+      unit: "MWh/yr",
+      decimals: 0,
+      value: (r) => (r.kind === "demand" ? r.data.totais.energia_injetada_ano_mwh : null),
+    },
+    {
+      key: "injectedPct",
+      label: "Injected Of Consumed",
+      unit: "%",
+      decimals: 1,
+      value: (r) => (r.kind === "demand" ? (r.data.totais.injetada_sobre_consumida_pct ?? null) : null),
+    },
+    {
+      key: "register",
+      label: "Register",
+      value: (r) => (r.kind === "demand" ? r.data.register.base : null),
+    },
+    ...trailing,
+  ],
 }
 
 export function formatCell(c: Column, v: number | string | null): string {

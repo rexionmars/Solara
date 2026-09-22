@@ -1,17 +1,4 @@
-import {
-  Fan,
-  Graph,
-  MapTrifold,
-  PlugsConnected,
-  Mountains,
-  Scroll,
-  SlidersHorizontal,
-  Sun,
-  Table,
-  TerminalWindow,
-  TreeView,
-  type Icon,
-} from "@phosphor-icons/react"
+import { ChartBar, Fan, Graph, MapTrifold, Mountains, PlugsConnected, Scroll, SlidersHorizontal, Sun, Table, TerminalWindow, TreeView, type Icon } from "@phosphor-icons/react"
 
 /**
  * What an area can be, named once, as TERRA's studioEditors names its own.
@@ -21,7 +8,7 @@ import {
  * the switch from an id to a component lives where the props are.
  */
 
-export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain" | "connection"
+export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain" | "connection" | "demand"
 
 /**
  * What kind of work a thing is FOR. The workspace bar and the type menu group
@@ -156,6 +143,15 @@ export const EDITORS: readonly EditorMeta[] = [
     minRem: 22,
     minRowRem: 14,
     hint: "Where an area could join the transmission network, read from the grid store",
+  },
+  {
+    id: "demand",
+    group: "grid",
+    label: "Area demand",
+    icon: ChartBar,
+    minRem: 22,
+    minRowRem: 14,
+    hint: "What an area already draws from the network, and what it generates behind the meter",
   },
 ]
 

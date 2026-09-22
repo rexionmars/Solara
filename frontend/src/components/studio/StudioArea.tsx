@@ -267,12 +267,7 @@ export function StudioArea({
         </StudioPopover>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1">
-        <div
-          ref={setToolbarHost}
-          className={hasToolbar && fits ? "flex w-8 shrink-0 flex-col items-center gap-0.5 border-r py-1" : "hidden"}
-          style={{ background: "var(--s-panel-head)", borderColor: "rgb(var(--p-line) / 0.22)" }}
-        />
+      <div className="relative flex min-h-0 min-w-0 flex-1">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {fits ? (
             <AreaHosts.Provider value={hosts}>{children}</AreaHosts.Provider>
@@ -287,6 +282,22 @@ export function StudioArea({
             </div>
           )}
         </div>
+        {/*
+          The tools float over the work, hugging themselves, rather than
+          holding a column of their own down the whole edge: four buttons were
+          reserving a strip the length of the area and giving back a strip of
+          empty ground. Same plate as the map's own navigation group, so the
+          two read as one family of floating controls.
+        */}
+        <div
+          ref={setToolbarHost}
+          className={
+            hasToolbar && fits
+              ? "absolute left-1.5 top-1.5 z-10 flex flex-col overflow-hidden rounded-sm border shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+              : "hidden"
+          }
+          style={{ background: "rgb(var(--p-ink) / 0.72)", borderColor: "rgb(var(--p-line) / 0.4)" }}
+        />
       </div>
     </div>
   )

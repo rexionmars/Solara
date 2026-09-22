@@ -14,7 +14,16 @@ import { BASEMAP_FIRST_LABEL, BASEMAP_STYLE } from "./basemap"
 import { ACTIVE, AREA, SITE, SITE_OUTLINE } from "./colors"
 import { bounds, distanceKm, ringCentre } from "./geo"
 import { addArea } from "./objects"
-import { beginStep, findItem, isResult, mutate, project, type AnyItem, type TerrainResult } from "./project"
+import {
+  beginStep,
+  findItem,
+  isResult,
+  mutate,
+  project,
+  type AnyItem,
+  type DemandResult,
+  type TerrainResult,
+} from "./project"
 import { runOperator } from "./operators"
 import { select, selection } from "./selection"
 import { UNNAMED_VOLTAGE, VOLTAGE_COLOUR, loadNetwork, loadPlants, networkRegister, plantRegister } from "./grid"
@@ -98,7 +107,19 @@ const BUS_LAYER = "grid-buses"
 const GRID_LAYERS = [LINE_LAYER, BUS_LAYER, PLANT_OTHER, PLANT_METERED]
 
 /** The source and scene object a result's layer is drawn with. */
-const terrainLayerId = (r: TerrainResult) => TERRAIN_PREFIX + r.id
+const terrainLayerId = (r: OverlayResult) => TERRAIN_PREFIX + r.id
+
+/**
+ * A result that draws a raster over its area: the terrain layer and the
+ * demand layer. They share one sync because they share one rule -- newest on
+ * top, all of them under the areas -- and two copies of it drifted in TERRA.
+ */
+type OverlayResult = TerrainResult | DemandResult
+
+/** Where the layer is and what it covers, whichever product drew it. */
+function overlayOf(r: OverlayResult) {
+  return r.kind === "terrain" ? r.data : r.data.density
+}
 
 function create(container: HTMLDivElement): void {
   const m = new MapLibreMap({
@@ -587,11 +608,19 @@ function syncAll(): void {
   syncWind()
 }
 
-/** One image layer per visible terrain result, newest on top, all under the areas. */
+/** One image layer per visible raster result, newest on top, all under the areas. */
 function syncTerrain(m: MapLibreMap): void {
   const d = project.get().data
   const wanted = overlays.get().layers
-    ? d.results.filter((r): r is TerrainResult => r.kind === "terrain" && !r.hidden && !findItem(d, r.sourceId)?.hidden)
+    ? d.results.filter(
+        (r): r is OverlayResult =>
+          (r.kind === "terrain" || r.kind === "demand") &&
+          !r.hidden &&
+          !findItem(d, r.sourceId)?.hidden &&
+          // A demand reading over ground the register does not reach drew
+          // nothing, and has no layer to place.
+          !!overlayOf(r as OverlayResult)
+      )
     : []
   const wantedIds = new Set(wanted.map(terrainLayerId))
 
@@ -603,7 +632,8 @@ function syncTerrain(m: MapLibreMap): void {
   }
   for (const r of wanted) {
     const id = terrainLayerId(r)
-    const e = r.data.extent
+    const layer = overlayOf(r)!
+    const e = layer.extent
     const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
       [e.lon_min, e.lat_max],
       [e.lon_max, e.lat_max],
@@ -611,7 +641,7 @@ function syncTerrain(m: MapLibreMap): void {
       [e.lon_min, e.lat_min],
     ]
     if (!m.getSource<ImageSource>(id)) {
-      m.addSource(id, { type: "image", url: r.data.overlay_url, coordinates })
+      m.addSource(id, { type: "image", url: layer.overlay_url, coordinates })
       m.addLayer(
         {
           id,

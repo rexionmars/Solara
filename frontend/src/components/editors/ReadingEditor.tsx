@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { ChartBar, Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "@phosphor-icons/react"
 import { RUN_OPERATOR, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
 import { areaStates, setAreaState } from "../../lib/screen"
@@ -10,6 +10,7 @@ import { SolarBody } from "../energy/SolarDocument"
 import { TerrainBody } from "../energy/TerrainDocument"
 import { WindBody } from "../energy/WindDocument"
 import { ConnectionBody } from "../energy/ConnectionDocument"
+import { DemandBody } from "../energy/DemandDocument"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AreaHeader } from "../studio/StudioArea"
@@ -24,7 +25,7 @@ import { OperatorButton } from "../ui/Fields"
  * newest in the project.
  */
 
-const ICON: Record<Product, Icon> = { solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected }
+const ICON: Record<Product, Icon> = { solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar }
 
 function shown(d: ProjectData, product: Product, pinned: string | undefined, active: AnyItem | null): ResultObject | null {
   const pin = pinned ? findItem(d, pinned) : null
@@ -64,8 +65,10 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
     <WindBody wind={result.data} site={result.site} />
   ) : result.kind === "terrain" ? (
     <TerrainBody terrain={result.data} area={result.polygon} />
-  ) : (
+  ) : result.kind === "connection" ? (
     <ConnectionBody connection={result.data} area={result.polygon} />
+  ) : (
+    <DemandBody demand={result.data} area={result.polygon} />
   )
 
   return (
