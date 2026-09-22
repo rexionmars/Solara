@@ -30,6 +30,20 @@ export namespace energy {
 	        this.search_radius_km = source["search_radius_km"];
 	    }
 	}
+	export class DemandDefaults {
+	    yield_ceiling_kwh_kwp: number;
+	    cell_km: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandDefaults(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.yield_ceiling_kwh_kwp = source["yield_ceiling_kwh_kwp"];
+	        this.cell_km = source["cell_km"];
+	    }
+	}
 	export class TerrainDefaults {
 	    hourly_years: number;
 	    season: string;
@@ -89,6 +103,7 @@ export namespace energy {
 	    wind: WindDefaults;
 	    terrain: TerrainDefaults;
 	    connection: ConnectionDefaults;
+	    demand: DemandDefaults;
 	
 	    static createFrom(source: any = {}) {
 	        return new ParameterDefaults(source);
@@ -100,6 +115,7 @@ export namespace energy {
 	        this.wind = this.convertValues(source["wind"], WindDefaults);
 	        this.terrain = this.convertValues(source["terrain"], TerrainDefaults);
 	        this.connection = this.convertValues(source["connection"], ConnectionDefaults);
+	        this.demand = this.convertValues(source["demand"], DemandDefaults);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1474,6 +1490,508 @@ export namespace grid {
 		    return a;
 		}
 	}
+	
+	
+	export class DemandAbove {
+	    teto_kwh_kwp_ano: number;
+	    unidades: number;
+	    potencia_kw: number;
+	    nota: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandAbove(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.teto_kwh_kwp_ano = source["teto_kwh_kwp_ano"];
+	        this.unidades = source["unidades"];
+	        this.potencia_kw = source["potencia_kw"];
+	        this.nota = source["nota"];
+	    }
+	}
+	export class DemandCeiling {
+	    valor_kwh_kwp_ano: number;
+	    origem: string;
+	    nota: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandCeiling(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.valor_kwh_kwp_ano = source["valor_kwh_kwp_ano"];
+	        this.origem = source["origem"];
+	        this.nota = source["nota"];
+	    }
+	}
+	export class DemandAssumptions {
+	    energia_da_geracao: string;
+	    potencia_instalada: string;
+	    posicao: string;
+	    teto_de_rendimento: DemandCeiling;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandAssumptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.energia_da_geracao = source["energia_da_geracao"];
+	        this.potencia_instalada = source["potencia_instalada"];
+	        this.posicao = source["posicao"];
+	        this.teto_de_rendimento = this.convertValues(source["teto_de_rendimento"], DemandCeiling);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DemandByGroup {
+	    clas_sub?: string;
+	    mun?: string;
+	    unidades: number;
+	    energia_ano_mwh: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandByGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.clas_sub = source["clas_sub"];
+	        this.mun = source["mun"];
+	        this.unidades = source["unidades"];
+	        this.energia_ano_mwh = source["energia_ano_mwh"];
+	    }
+	}
+	export class DemandGrid {
+	    nx: number;
+	    ny: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandGrid(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.nx = source["nx"];
+	        this.ny = source["ny"];
+	    }
+	}
+	export class DemandDensity {
+	    overlay_url: string;
+	    overlay_png?: string;
+	    extent: energy.Bounds;
+	    scale: energy.RenderScale;
+	    cell_km: number;
+	    cells: number;
+	    grid: DemandGrid;
+	    unit: string;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandDensity(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.overlay_url = source["overlay_url"];
+	        this.overlay_png = source["overlay_png"];
+	        this.extent = this.convertValues(source["extent"], energy.Bounds);
+	        this.scale = this.convertValues(source["scale"], energy.RenderScale);
+	        this.cell_km = source["cell_km"];
+	        this.cells = source["cells"];
+	        this.grid = this.convertValues(source["grid"], DemandGrid);
+	        this.unit = source["unit"];
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DemandCentre {
+	    lon: number;
+	    lat: number;
+	    desloc_km: number;
+	    rumo: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandCentre(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lon = source["lon"];
+	        this.lat = source["lat"];
+	        this.desloc_km = source["desloc_km"];
+	        this.rumo = source["rumo"];
+	    }
+	}
+	export class DemandConcentration {
+	    celulas_com_metade: number;
+	    km2_com_metade: number;
+	    pct_das_celulas_ocupadas: number;
+	    decil_superior_pct: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandConcentration(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.celulas_com_metade = source["celulas_com_metade"];
+	        this.km2_com_metade = source["km2_com_metade"];
+	        this.pct_das_celulas_ocupadas = source["pct_das_celulas_ocupadas"];
+	        this.decil_superior_pct = source["decil_superior_pct"];
+	    }
+	}
+	export class DemandTrust {
+	    geradores_impossiveis: number;
+	    geradores: number;
+	    pct_dos_geradores: number;
+	    pct_da_potencia: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandTrust(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.geradores_impossiveis = source["geradores_impossiveis"];
+	        this.geradores = source["geradores"];
+	        this.pct_dos_geradores = source["pct_dos_geradores"];
+	        this.pct_da_potencia = source["pct_da_potencia"];
+	    }
+	}
+	export class DemandMix {
+	    classe: string;
+	    pct_da_energia: number;
+	    pct_das_unidades: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandMix(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.classe = source["classe"];
+	        this.pct_da_energia = source["pct_da_energia"];
+	        this.pct_das_unidades = source["pct_das_unidades"];
+	    }
+	}
+	export class DemandSeasonality {
+	    mes_pico: number;
+	    mes_vale: number;
+	    pico_mwh: number;
+	    vale_mwh: number;
+	    amplitude_pct?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandSeasonality(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mes_pico = source["mes_pico"];
+	        this.mes_vale = source["mes_vale"];
+	        this.pico_mwh = source["pico_mwh"];
+	        this.vale_mwh = source["vale_mwh"];
+	        this.amplitude_pct = source["amplitude_pct"];
+	    }
+	}
+	export class DemandFindings {
+	    sazonalidade?: DemandSeasonality;
+	    mix?: DemandMix;
+	    confianca_do_registro?: DemandTrust;
+	    concentracao?: DemandConcentration;
+	    centro_de_carga?: DemandCentre;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandFindings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sazonalidade = this.convertValues(source["sazonalidade"], DemandSeasonality);
+	        this.mix = this.convertValues(source["mix"], DemandMix);
+	        this.confianca_do_registro = this.convertValues(source["confianca_do_registro"], DemandTrust);
+	        this.concentracao = this.convertValues(source["concentracao"], DemandConcentration);
+	        this.centro_de_carga = this.convertValues(source["centro_de_carga"], DemandCentre);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DemandTotals {
+	    energia_consumida_ano_mwh: number;
+	    energia_injetada_ano_mwh: number;
+	    injetada_sobre_consumida_pct?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandTotals(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.energia_consumida_ano_mwh = source["energia_consumida_ano_mwh"];
+	        this.energia_injetada_ano_mwh = source["energia_injetada_ano_mwh"];
+	        this.injetada_sobre_consumida_pct = source["injetada_sobre_consumida_pct"];
+	    }
+	}
+	export class DemandGeneration {
+	    unidades: number;
+	    potencia_instalada_kw: number;
+	    potencia_instalada_plausivel_kw: number;
+	    energia_injetada_ano_mwh: number;
+	    acima_do_teto: DemandAbove;
+	    amostra: number[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandGeneration(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.unidades = source["unidades"];
+	        this.potencia_instalada_kw = source["potencia_instalada_kw"];
+	        this.potencia_instalada_plausivel_kw = source["potencia_instalada_plausivel_kw"];
+	        this.energia_injetada_ano_mwh = source["energia_injetada_ano_mwh"];
+	        this.acima_do_teto = this.convertValues(source["acima_do_teto"], DemandAbove);
+	        this.amostra = source["amostra"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DemandConsumption {
+	    unidades: number;
+	    energia_ano_mwh: number;
+	    energia_mensal_mwh: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandConsumption(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.unidades = source["unidades"];
+	        this.energia_ano_mwh = source["energia_ano_mwh"];
+	        this.energia_mensal_mwh = source["energia_mensal_mwh"];
+	    }
+	}
+	export class DemandHolding {
+	    distribuidora: string;
+	    ano: number;
+	    unidades: number;
+	    sem_ponto: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandHolding(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.distribuidora = source["distribuidora"];
+	        this.ano = source["ano"];
+	        this.unidades = source["unidades"];
+	        this.sem_ponto = source["sem_ponto"];
+	    }
+	}
+	export class DemandRegister {
+	    distribuidora: string;
+	    ano: number;
+	    base: string;
+	    holdings: DemandHolding[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandRegister(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.distribuidora = source["distribuidora"];
+	        this.ano = source["ano"];
+	        this.base = source["base"];
+	        this.holdings = this.convertValues(source["holdings"], DemandHolding);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DemandAnalysis {
+	    register: DemandRegister;
+	    consumo: Record<string, DemandConsumption>;
+	    geracao: Record<string, DemandGeneration>;
+	    totais: DemandTotals;
+	    analise: DemandFindings;
+	    density?: DemandDensity;
+	    por_classe: DemandByGroup[];
+	    por_municipio: DemandByGroup[];
+	    assumptions: DemandAssumptions;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.register = this.convertValues(source["register"], DemandRegister);
+	        this.consumo = this.convertValues(source["consumo"], DemandConsumption, true);
+	        this.geracao = this.convertValues(source["geracao"], DemandGeneration, true);
+	        this.totais = this.convertValues(source["totais"], DemandTotals);
+	        this.analise = this.convertValues(source["analise"], DemandFindings);
+	        this.density = this.convertValues(source["density"], DemandDensity);
+	        this.por_classe = this.convertValues(source["por_classe"], DemandByGroup);
+	        this.por_municipio = this.convertValues(source["por_municipio"], DemandByGroup);
+	        this.assumptions = this.convertValues(source["assumptions"], DemandAssumptions);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	export class DemandRequest {
+	    area: energy.Polygon;
+	    distribuidora?: string;
+	    ano?: number;
+	    specific_yield_ceiling_kwh_kwp?: number;
+	    cell_km?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemandRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area = this.convertValues(source["area"], energy.Polygon);
+	        this.distribuidora = source["distribuidora"];
+	        this.ano = source["ano"];
+	        this.specific_yield_ceiling_kwh_kwp = source["specific_yield_ceiling_kwh_kwp"];
+	        this.cell_km = source["cell_km"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	
 	

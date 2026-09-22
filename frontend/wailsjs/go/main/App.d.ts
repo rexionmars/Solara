@@ -8,6 +8,8 @@ import {weather} from '../models';
 
 export function AnalyzeGridConnection(arg1:grid.ConnectionRequest):Promise<grid.ConnectionAnalysis>;
 
+export function AnalyzeGridDemand(arg1:grid.DemandRequest):Promise<grid.DemandAnalysis>;
+
 export function AnalyzeSolarResource(arg1:energy.SolarRequest):Promise<energy.SolarAnalysis>;
 
 export function AnalyzeSolarTerrain(arg1:energy.SolarTerrainRequest):Promise<energy.SolarTerrainAnalysis>;

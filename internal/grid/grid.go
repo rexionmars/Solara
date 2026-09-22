@@ -238,3 +238,97 @@ func normalize(a *ConnectionAnalysis) {
 		c.Lines = []Reach{}
 	}
 }
+
+func demandPayload(req DemandRequest, send, workDir string) map[string]any {
+	p := payload("demand_area", send)
+	p["polygon_geojson"] = req.Area
+	if req.Distribuidora != "" {
+		p["distribuidora"] = req.Distribuidora
+	}
+	if req.Year != nil {
+		p["ano"] = *req.Year
+	}
+	if req.SpecificYieldCeiling != nil {
+		p["specific_yield_ceiling_kwh_kwp"] = *req.SpecificYieldCeiling
+	}
+	if req.CellKM != nil {
+		p["cell_km"] = *req.CellKM
+	}
+	// Absent, the reading answers in figures and draws no layer.
+	if workDir != "" {
+		p["work_dir"] = workDir
+	}
+	return p
+}
+
+// AnalyzeDemand reads what an area already draws from the network, and what it
+// already generates behind the meter, from the BDGD register in the store.
+//
+// A sibling of AnalyzeConnection and not a part of it: that one reads what the
+// network could take from a plant here, this one what the place already takes
+// from the network. The two registers are published on different dates and at
+// different resolutions, so nothing here is subtracted from anything there.
+// workDir is where the sidecar writes the density layer, and overlayURL turns
+// that file's name into the URL the webview loads it from. Both may be empty,
+// and the reading then answers in figures alone.
+func AnalyzeDemand(ctx context.Context, r *sidecar.Runner, req DemandRequest, chosen, workDir string,
+	overlayURL func(file string) string, onProgress func(sidecar.Progress)) (*DemandAnalysis, error) {
+	if err := req.Area.Validate(); err != nil {
+		return nil, err
+	}
+	if req.SpecificYieldCeiling != nil && *req.SpecificYieldCeiling <= 0 {
+		return nil, fmt.Errorf("the yield ceiling must be greater than zero, got %g kWh/kWp/year",
+			*req.SpecificYieldCeiling)
+	}
+	if req.Year != nil && (*req.Year < 2000 || *req.Year > 2100) {
+		return nil, fmt.Errorf("the base year %d is not a year the register could carry", *req.Year)
+	}
+	if req.CellKM != nil && *req.CellKM <= 0 {
+		return nil, fmt.Errorf("the layer's cell must be greater than zero, got %g km", *req.CellKM)
+	}
+	send, _, _ := Resolve(chosen)
+	raw, err := r.Run(ctx, demandPayload(req, send, workDir), onProgress)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Analysis *DemandAnalysis `json:"demand_area"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode the demand reading: %w", err)
+	}
+	if wrapped.Analysis == nil {
+		return nil, errors.New("the sidecar returned no demand reading")
+	}
+	normalizeDemand(wrapped.Analysis)
+	if d := wrapped.Analysis.Density; d != nil {
+		// Only a file inside this run's directory is served; anything else
+		// would be a path the results route has no business exposing.
+		if workDir == "" || filepath.Dir(filepath.Clean(d.OverlayPNG)) != filepath.Clean(workDir) {
+			return nil, fmt.Errorf("the sidecar wrote the demand layer outside the run directory: %s", d.OverlayPNG)
+		}
+		d.OverlayURL = overlayURL(filepath.Base(d.OverlayPNG))
+		d.OverlayPNG = ""
+	}
+	return wrapped.Analysis, nil
+}
+
+// normalizeDemand turns absent lists and maps into empty ones, so the
+// interface reads a length rather than guarding against null at every list.
+func normalizeDemand(a *DemandAnalysis) {
+	if a.Consumption == nil {
+		a.Consumption = map[string]*DemandConsumption{}
+	}
+	if a.Generation == nil {
+		a.Generation = map[string]*DemandGeneration{}
+	}
+	if a.ByClass == nil {
+		a.ByClass = []DemandByGroup{}
+	}
+	if a.ByTown == nil {
+		a.ByTown = []DemandByGroup{}
+	}
+	if a.Register.Holdings == nil {
+		a.Register.Holdings = []DemandHolding{}
+	}
+}

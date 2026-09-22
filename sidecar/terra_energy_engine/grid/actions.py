@@ -208,3 +208,32 @@ def grid_coverage(req: Request) -> None:
                                    'every choice.')},
         }
     })
+
+
+def demand_area(req: Request) -> None:
+    """
+    What the area consumes, and what it already generates behind the meter.
+
+    A sibling of grid_congestion and not a half of it: that one reads what the
+    network could take from a plant here, this one reads what the place already
+    draws from it. They are reported apart because they come from different
+    registers, on different dates, at different resolutions.
+    """
+    from terra_energy_engine.grid import demand, store
+
+    from pathlib import Path
+
+    # Before the store: a request without an area is refused by the request,
+    # not by the database.
+    aoi = _aoi(req)
+    # Where the layer is written. Absent, the reading answers in figures alone,
+    # which is what a caller without a results directory gets.
+    work_dir = req.get('work_dir')
+    work_dir = Path(work_dir) if work_dir else None
+    protocol.emit_progress(10, 'opening the grid store')
+    with store.connect(req) as conn:
+        protocol.emit_progress(40, 'consumer units in the area')
+        context = demand.demand_context(conn, aoi, req, work_dir)
+
+    protocol.emit_progress(100, 'done')
+    _reply({'demand_area': context})

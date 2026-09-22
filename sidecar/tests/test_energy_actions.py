@@ -115,7 +115,7 @@ def test_the_parameter_defaults_are_the_ones_the_actions_apply(capsys):
     be the constants the actions read, not a copy that can drift from them.
     """
     from terra_energy_engine.energy import pv, wind
-    from terra_energy_engine.grid import actions as grid_actions
+    from terra_energy_engine.grid import actions as grid_actions, demand
 
     actions.parameter_defaults({})
     reply = json.loads(capsys.readouterr().out)
@@ -140,6 +140,10 @@ def test_the_parameter_defaults_are_the_ones_the_actions_apply(capsys):
         },
         'connection': {
             'search_radius_km': grid_actions.SEARCH_RADIUS_KM,
+        },
+        'demand': {
+            'yield_ceiling_kwh_kwp': demand.DEFAULT_CEILING_KWH_KWP,
+            'cell_km': demand.CELL_KM,
         },
     }
 

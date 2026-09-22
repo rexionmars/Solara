@@ -6,6 +6,10 @@ export function AnalyzeGridConnection(arg1) {
   return window['go']['main']['App']['AnalyzeGridConnection'](arg1);
 }
 
+export function AnalyzeGridDemand(arg1) {
+  return window['go']['main']['App']['AnalyzeGridDemand'](arg1);
+}
+
 export function AnalyzeSolarResource(arg1) {
   return window['go']['main']['App']['AnalyzeSolarResource'](arg1);
 }
