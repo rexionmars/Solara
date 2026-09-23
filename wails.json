@@ -14,6 +14,15 @@
     "productName": "Solara",
     "productVersion": "0.1.0",
     "copyright": "Solara contributors",
-    "comments": "Desktop energy mapping"
+    "comments": "Desktop energy mapping",
+    "fileAssociations": [
+      {
+        "ext": "terra",
+        "name": "Solara Project",
+        "description": "Solara project",
+        "iconName": "projecticon",
+        "role": "Editor"
+      }
+    ]
   }
 }
