@@ -161,3 +161,65 @@ def test_the_generator_sample_is_bounded_and_the_same_every_time(loaded):
         drew = drew or bool(rows)
     if not drew:
         pytest.skip('no generator stands inside this area')
+
+
+def test_an_area_the_register_does_not_reach_is_refused(loaded):
+    """
+    A ground outside the concession is not answered with the nothing the
+    register holds there. The area below is in Acre; every register loaded on
+    this machine is in the Northeast.
+    """
+    held = demand.holdings(loaded)
+    acre = {'type': 'Polygon', 'coordinates': [[
+        [-70.0, -9.5], [-69.5, -9.5], [-69.5, -9.0], [-70.0, -9.0], [-70.0, -9.5],
+    ]]}
+    req = {'distribuidora': held[0]['distribuidora'], 'ano': held[0]['ano']}
+    with pytest.raises(protocol.Unavailable) as e:
+        demand.demand_context(loaded, acre, req)
+    assert 'not the distributor of this area' in str(e.value)
+
+
+def test_the_reading_says_how_much_of_the_area_its_register_covers(loaded):
+    held = demand.holdings(loaded)
+    req = {'distribuidora': held[0]['distribuidora'], 'ano': held[0]['ano']}
+    out = demand.demand_context(loaded, natal(), req)
+    reach = out['cobertura']
+    if reach is None:
+        pytest.skip('this load carries no tariff sets')
+    assert reach['dentro_km2'] <= reach['area_km2']
+    assert 0 < reach['cobertura_pct'] <= 100
+
+
+def test_the_registry_routes_the_concessions_layer():
+    assert registry.resolve('grid_concessions') is actions.grid_concessions
+
+
+def test_a_store_without_the_tariff_sets_says_so_rather_than_drawing_nothing(monkeypatch):
+    # A load that did not bring bdgd.conj has no reach to draw. The layer has
+    # to say WHICH register it cannot draw, or the map reads as "you are
+    # outside every concession" -- the opposite of the truth.
+    held = [{'distribuidora': 'A', 'ano': 2024, 'unidades': 7, 'sem_ponto': 0}]
+    monkeypatch.setattr(demand, 'holdings', lambda conn: held)
+    monkeypatch.setattr(demand, 'table_exists', lambda conn, table: False)
+    out = demand.concessions(object())
+    assert out['concessoes'] == []
+    assert out['holdings'] == held
+    assert 'bdgd.conj' in out['nota']
+
+
+def test_the_concession_layer_draws_every_holding_the_store_has(loaded):
+    out = demand.concessions(loaded)
+    held = demand.holdings(loaded)
+    assert len(out['concessoes']) == len(held)
+    # It is the reach of the LOAD, not a legal concession, and the note is
+    # where a reader is told the difference.
+    assert 'legal concession' in out['nota']
+    for c in out['concessoes']:
+        assert c['distribuidora'] and c['ano']
+        # A holding whose sets are missing is reported without a reach rather
+        # than dropped, so the caller can name the register it cannot draw.
+        if c['geometry'] is None:
+            continue
+        assert c['geometry']['type'] in ('Polygon', 'MultiPolygon')
+        assert c['area_km2'] > 0
+    assert json.dumps(out)  # the shell receives this as JSON

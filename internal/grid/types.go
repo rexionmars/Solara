@@ -247,6 +247,9 @@ type DemandAnalysis struct {
 	Consumption map[string]*DemandConsumption `json:"consumo"`
 	Generation  map[string]*DemandGeneration  `json:"geracao"`
 	Totals      DemandTotals                  `json:"totais"`
+	// How much of the asked-for area this register is the register of.
+	// Absent where the load carried no tariff sets to measure it from.
+	Coverage *DemandCoverage `json:"cobertura"`
 	// What the figures say, as quantities the reading states in words.
 	Findings DemandFindings `json:"analise"`
 	// Where inside the area the consumption fell, as a layer for the map.
@@ -255,6 +258,17 @@ type DemandAnalysis struct {
 	ByClass     []DemandByGroup   `json:"por_classe"`
 	ByTown      []DemandByGroup   `json:"por_municipio"`
 	Assumptions DemandAssumptions `json:"assumptions"`
+}
+
+// DemandCoverage is the share of the area this distributor's concession
+// covers. A reading over ground the distributor does not serve is about the
+// part it does, and this is the number that says how much that was.
+type DemandCoverage struct {
+	AreaKM2       float64  `json:"area_km2"`
+	ConcessionKM2 float64  `json:"concessao_km2"`
+	InsideKM2     float64  `json:"dentro_km2"`
+	CoveredPct    *float64 `json:"cobertura_pct"`
+	Note          string   `json:"nota"`
 }
 
 // DemandFindings is what is derived from the registers rather than read off
@@ -415,4 +429,71 @@ type DemandCeiling struct {
 	ValueKWhKWp float64 `json:"valor_kwh_kwp_ano"`
 	Source      string  `json:"origem"`
 	Note        string  `json:"nota"`
+}
+
+// ---- Consumption by municipality, as a layer ----------------------------------------
+
+// TownDemandLayer is what each municipality of the loaded register consumes.
+// A layer, not a reading: it takes no area and no window, and it is read once
+// so the map says where consumption is before any ground is chosen.
+type TownDemandLayer struct {
+	// Every register drawn, latest base year each. A layer is read before any
+	// ground is chosen, so it cannot be about one of them.
+	Registers []TownRegister `json:"registros"`
+	// The states the registers reach, as IBGE's two-digit codes. The meshes
+	// are published one state at a time, so the caller has to know which.
+	UFs      []string          `json:"ufs"`
+	Towns    []TownConsumption `json:"municipios"`
+	Unit     string            `json:"unit"`
+	Note     string            `json:"nota"`
+	Holdings []DemandHolding   `json:"holdings"`
+}
+
+// TownRegister names one register the layer drew.
+type TownRegister struct {
+	Distribuidora string `json:"distribuidora"`
+	Year          int    `json:"ano"`
+}
+
+// TownConsumption is one municipality's figures, keyed on the IBGE code the
+// register carries and IBGE's own meshes are keyed on. It carries the register
+// it came from, because the layer draws several.
+type TownConsumption struct {
+	Town          string `json:"mun"`
+	Distribuidora string `json:"distribuidora"`
+	Year          int    `json:"ano"`
+	Units       int     `json:"unidades"`
+	EnergyMWh   float64 `json:"energia_ano_mwh"`
+	Generators  int     `json:"geradores"`
+	InjectedMWh float64 `json:"injetada_ano_mwh"`
+	PowerKW     float64 `json:"potencia_kw"`
+}
+
+// ---- Where each register reaches, as a layer ----------------------------------------
+
+// ConcessionLayer is what the grid_concessions action returns: where every
+// register the store holds actually has data. A layer and not a reading -- it
+// takes no area, because its whole purpose is to be on screen BEFORE a ground
+// is chosen.
+type ConcessionLayer struct {
+	// Every holding, including one whose reach could not be drawn.
+	Holdings []DemandHolding `json:"holdings"`
+	Reaches  []Concession    `json:"concessoes"`
+	Note     string          `json:"nota"`
+}
+
+// Concession is one holding and the ground it covers. Geometry is nil where
+// the load did not bring the tariff sets; the holding is still listed, so the
+// interface can name the register it cannot draw rather than leaving the map
+// to imply that ground is outside every concession.
+type Concession struct {
+	Distribuidora string `json:"distribuidora"`
+	Year          int    `json:"ano"`
+	Units         int    `json:"unidades"`
+	Unplaced      int    `json:"sem_ponto"`
+	// GeoJSON geometry, simplified to about 200 m, in SIRGAS 2000 (4674) --
+	// under a metre from WGS 84 in Brazil, far inside that simplification.
+	Geometry json.RawMessage `json:"geometry"`
+	AreaKM2  *float64        `json:"area_km2"`
+	Vertices int             `json:"vertices"`
 }

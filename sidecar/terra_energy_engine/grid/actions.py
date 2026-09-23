@@ -237,3 +237,93 @@ def demand_area(req: Request) -> None:
 
     protocol.emit_progress(100, 'done')
     _reply({'demand_area': context})
+
+
+def grid_concessions(req: Request) -> None:
+    """
+    Where each register the store holds reaches, as a layer.
+
+    Takes no area and no window, like demand_towns: it is read once, so the
+    map can say where a demand reading is answerable before any ground is
+    chosen.
+    """
+    from terra_energy_engine.grid import demand, store
+
+    protocol.emit_progress(20, 'opening the grid store')
+    with store.connect(req) as conn:
+        demand._require_schema(conn)
+        protocol.emit_progress(55, 'where each register reaches')
+        layer = demand.concessions(conn)
+
+    protocol.emit_progress(100, 'done')
+    _reply({'grid_concessions': layer})
+
+
+def demand_towns(req: Request) -> None:
+    """
+    What each municipality of the store consumes, as a layer.
+
+    A layer and not a reading: it takes no area and no window, and it is read
+    once so the map says where consumption is before anything is chosen.
+
+    EVERY REGISTER, NOT ONE. A reading is about a ground the reader chose, so
+    it may refuse to guess which register that ground belongs to. A layer is
+    the opposite: it is drawn BEFORE any ground is chosen, so the question
+    "which one is this about" has no answer yet and asking it refuses the
+    whole layer -- which is what a store with two distributors loaded used to
+    get. Each municipality carries the register it came from instead.
+
+    The latest year per distributor, because two base years of one register
+    are the same municipalities twice.
+    """
+    from terra_energy_engine.grid import demand, store
+
+    protocol.emit_progress(20, 'opening the grid store')
+    with store.connect(req) as conn:
+        demand._require_schema(conn)
+        held = demand.holdings(conn)
+        if not held:
+            raise protocol.Unavailable(
+                'bdgd.unidade_ponto is empty; load a distributor with '
+                'bdgd_para_postgis.py before asking where consumption is.')
+
+        # A request may still name one, which is how a caller asks for less.
+        want_dist = req.get('distribuidora')
+        want_year = req.get('ano')
+        wanted = [h for h in held
+                  if (not want_dist or h['distribuidora'] == want_dist)
+                  and (not want_year or h['ano'] == int(want_year))]
+        if not wanted:
+            names = ', '.join(f"{h['distribuidora']} {h['ano']}" for h in held)
+            raise protocol.Unavailable(
+                f'the store holds no {want_dist or "any"} for '
+                f'{want_year or "any year"}. It holds: {names}.')
+        latest: dict[str, int] = {}
+        for h in wanted:
+            latest[h['distribuidora']] = max(latest.get(h['distribuidora'], 0), h['ano'])
+
+        protocol.emit_progress(55, 'consumption by municipality')
+        registros = []
+        municipios = []
+        ufs: set[str] = set()
+        unit = 'MWh/ano'
+        nota = ''
+        for dist, ano in sorted(latest.items()):
+            one = demand.towns(conn, dist, ano)
+            registros.append({'distribuidora': dist, 'ano': ano})
+            ufs.update(one['ufs'])
+            unit = one['unit']
+            nota = one['nota']
+            for row in one['municipios']:
+                municipios.append({**row, 'distribuidora': dist, 'ano': ano})
+
+    municipios.sort(key=lambda r: -r['energia_ano_mwh'])
+    protocol.emit_progress(100, 'done')
+    _reply({'demand_towns': {
+        'registros': registros,
+        'ufs': sorted(ufs),
+        'municipios': municipios,
+        'unit': unit,
+        'nota': nota,
+        'holdings': held,
+    }})

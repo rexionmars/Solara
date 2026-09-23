@@ -84,6 +84,16 @@ def table_exists(conn, table: str) -> bool:
         return bool(cur.fetchone()[0])
 
 
+def columns(conn, table: str) -> set[str]:
+    """The columns one register carries; they are not the same in every one."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            select column_name from information_schema.columns
+             where table_schema = 'bdgd' and table_name = %s
+        """, (table,))
+        return {r[0] for r in cur.fetchall()}
+
+
 def _require_schema(conn) -> None:
     """
     Refuse rather than answer over an empty schema.
@@ -532,6 +542,200 @@ def findings(consumo: dict, geracao: dict, density, por_classe: list) -> dict:
     return out
 
 
+def towns(conn, dist: str, ano: int) -> dict:
+    """
+    What every municipality of this register consumes, as a layer.
+
+    A LAYER IS NOT A READING, and this is the difference: a reading answers
+    about a ground the reader chose, and until they have chosen one the map
+    says nothing about where consumption is. This answers before any choice, so
+    choosing is done over something visible -- the same argument the plant
+    register's layer is written on.
+
+    Keyed on the IBGE municipality code the register carries, which is the code
+    IBGE's own meshes are keyed on, so the shape is joined to the figure
+    without a name match. The UFs are returned with it because the meshes are
+    published one state at a time, and the caller has to know which to ask for.
+
+    Consumption and generation are counted apart and never netted, the way
+    every other figure of this product is.
+    """
+    out: dict[str, dict] = {}
+    for table, especie in (('ucbt', 'consumo'), ('ucmt', 'consumo'), ('ucat', 'consumo'),
+                           ('ugbt', 'geracao'), ('ugmt', 'geracao'), ('ugat', 'geracao')):
+        if not table_exists(conn, table):
+            continue
+        have = columns(conn, table)
+        if 'mun' not in have:
+            continue
+        e = energy_prefixes(conn, table)
+        power = f', sum({NORMALISED_KWP})' if 'pot_inst' in have else ', 0'
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                select u.mun, count(*), sum({_sum(e)}) / 1000.0 {power}
+                  from bdgd.{table} u
+                 where u.distribuidora = %(dist)s and u.ano = %(ano)s and u.mun is not null
+                 group by 1
+            """, {'dist': dist, 'ano': ano})
+            for mun, n, mwh, kw in cur.fetchall():
+                row = out.setdefault(str(mun), {
+                    'mun': str(mun), 'unidades': 0, 'energia_ano_mwh': 0.0,
+                    'geradores': 0, 'injetada_ano_mwh': 0.0, 'potencia_kw': 0.0,
+                })
+                if especie == 'consumo':
+                    row['unidades'] += int(n)
+                    row['energia_ano_mwh'] += float(mwh or 0)
+                else:
+                    row['geradores'] += int(n)
+                    row['injetada_ano_mwh'] += float(mwh or 0)
+                    row['potencia_kw'] += float(kw or 0)
+
+    rows = sorted(out.values(), key=lambda r: -r['energia_ano_mwh'])
+    for r in rows:
+        for k in ('energia_ano_mwh', 'injetada_ano_mwh', 'potencia_kw'):
+            r[k] = round(r[k], 1)
+    return {
+        'distribuidora': dist,
+        'ano': ano,
+        # The two first digits of an IBGE municipality code are its state's.
+        'ufs': sorted({r['mun'][:2] for r in rows if len(r['mun']) >= 2}),
+        'municipios': rows,
+        'unit': 'MWh/ano',
+        'nota': (
+            'Consumption of the units the register places in each municipality. '
+            'A unit is counted where its connection point is, and generation is '
+            'reported beside consumption, never subtracted from it.'
+        ),
+    }
+
+
+def coverage(conn, aoi_geojson, dist: str, ano: int) -> dict | None:
+    """
+    How much of the asked-for area this register can answer about.
+
+    THE REGISTER ENDS AT THE CONCESSION AND THE AREA DOES NOT KNOW THAT. A
+    ground drawn across two states is answered with the units of whichever
+    distributor is loaded, and every figure -- the totals, the year, the
+    concentration -- is then about the part it reached, under a heading that
+    names only which register was read. Over a hand-drawn area of central
+    Ceara with Cosern loaded, that was 7.4 percent of the ground.
+
+    The concession is the union of the tariff sets (CONJ), 59 polygons here
+    whose union is 53,501 km2 against the 52,811 km2 of Rio Grande do Norte.
+    Areas are measured on the geography, so they are square kilometres and not
+    square degrees.
+
+    Returns None where the register carries no tariff set, which is a fact the
+    reading is missing rather than a coverage of zero.
+    """
+    if not table_exists(conn, 'conj'):
+        return None
+    with conn.cursor() as cur:
+        cur.execute("""
+            with aoi as (select st_setsrid(st_geomfromgeojson(%(aoi)s), 4674) g),
+                 conc as (select st_union(geom) g from bdgd.conj
+                           where distribuidora = %(dist)s and ano = %(ano)s)
+            select st_area(aoi.g::geography) / 1e6,
+                   st_area(conc.g::geography) / 1e6,
+                   st_area(st_intersection(aoi.g, conc.g)::geography) / 1e6
+              from aoi, conc
+        """, {'aoi': json.dumps(aoi_geojson), 'dist': dist, 'ano': ano})
+        row = cur.fetchone()
+    if not row or row[1] is None:
+        return None
+    area_km2, concession_km2, both_km2 = (float(v or 0) for v in row)
+    return {
+        'area_km2': round(area_km2, 1),
+        'concessao_km2': round(concession_km2, 1),
+        'dentro_km2': round(both_km2, 1),
+        'cobertura_pct': round(100.0 * both_km2 / area_km2, 1) if area_km2 else None,
+        'nota': (
+            'The share of the asked-for area this distributor is the register '
+            'of. What lies outside it is served by another distributor, whose '
+            'register is not loaded, and is missing from every figure here.'
+        ),
+    }
+
+
+def concessions(conn) -> dict:
+    """
+    Where each register the store holds actually reaches, as a layer.
+
+    THE QUESTION THIS ANSWERS IS "CAN I ASK HERE AT ALL". A demand reading is
+    always about one distributor, and the register exists only where that
+    distributor is the distributor. Asking about Piaui with a Rio Grande do
+    Norte register returns almost nothing, and until this is on the map there
+    is no way to know that before spending the query. Like the municipal
+    layer, it takes no area and no window: it answers BEFORE any ground is
+    chosen, which is the only moment the answer is useful.
+
+    WHAT THE SHAPE IS, EXACTLY. The union of the `conj` of one holding -- the
+    tariff sets the register carries. That is where this LOAD has data, which
+    is not the same thing as the distributor's legal concession, and the
+    layer's label has to say the first and not the second. A set the load did
+    not bring is ground this layer calls outside when the concession includes
+    it.
+
+    Simplified to about 200 m. The shape is used to decide which state or
+    municipality to ask about, and a boundary good to a kilometre answers that;
+    the full mesh would be megabytes for a question nobody asks at that
+    resolution. `coverage()` measures against the UNSIMPLIFIED geometry, so the
+    percentage a reading reports is never the one this layer would give.
+
+    The geometry is SIRGAS 2000 (4674), which the map reads as WGS 84. They
+    differ by under a metre in Brazil, which is far inside the simplification
+    above.
+    """
+    held = holdings(conn)
+    if not table_exists(conn, 'conj'):
+        return {
+            'holdings': held,
+            'concessoes': [],
+            'nota': (
+                'This store has no bdgd.conj, the tariff sets the reach is '
+                'drawn from, so where each register reaches cannot be shown. '
+                'Load it with bdgd_para_postgis.py.'),
+        }
+
+    out = []
+    for h in held:
+        with conn.cursor() as cur:
+            cur.execute("""
+                with u as (
+                    select st_union(geom) g from bdgd.conj
+                     where distribuidora = %(dist)s and ano = %(ano)s
+                )
+                select st_asgeojson(
+                           st_simplifypreservetopology(g, %(tol)s), 6, 0),
+                       st_area(g::geography) / 1e6,
+                       st_npoints(g)
+                  from u
+            """, {'dist': h['distribuidora'], 'ano': h['ano'], 'tol': 0.002})
+            row = cur.fetchone()
+        # A holding whose sets did not come with the load is reported as a
+        # holding without a reach, not skipped: the caller has to be able to
+        # say WHICH register it cannot draw.
+        if not row or not row[0]:
+            out.append({**h, 'geometry': None, 'area_km2': None})
+            continue
+        out.append({
+            **h,
+            'geometry': json.loads(row[0]),
+            'area_km2': round(float(row[1] or 0), 1),
+            'vertices': int(row[2] or 0),
+        })
+
+    return {
+        'holdings': held,
+        'concessoes': out,
+        'nota': (
+            'Where each register loaded in the store has data, as the union of '
+            'its tariff sets. It is not the distributor legal concession: a set '
+            'the load did not bring is ground shown as outside. A reading over '
+            'ground outside every shape here comes back empty.'),
+    }
+
+
 def demand_context(conn, aoi_geojson, req, work_dir=None) -> dict:
     """What the area consumes and generates, from the register the store holds."""
     _require_schema(conn)
@@ -539,6 +743,15 @@ def demand_context(conn, aoi_geojson, req, work_dir=None) -> dict:
     dist, ano = _chosen(held, req.get('distribuidora'), req.get('ano'),
                         overlapping=inside(conn, aoi_geojson))
     params = {'dist': dist, 'ano': ano, 'aoi': json.dumps(aoi_geojson)}
+
+    # Before counting anything: an area this register does not reach at all is
+    # refused, rather than answered with the nothing it happens to hold there.
+    reach = coverage(conn, aoi_geojson, dist, ano)
+    if reach and reach['dentro_km2'] <= 0:
+        raise protocol.Unavailable(
+            f'{dist} is not the distributor of this area: its concession and '
+            f'the area do not meet. The store holds ' +
+            ', '.join(f"{h['distribuidora']} {h['ano']}" for h in held) + '.')
 
     ceiling = req.get('specific_yield_ceiling_kwh_kwp')
     ceiling_source = 'request'
@@ -573,6 +786,7 @@ def demand_context(conn, aoi_geojson, req, work_dir=None) -> dict:
             'injetada_sobre_consumida_pct': (
                 round(100.0 * injected / total, 2) if total else None),
         },
+        'cobertura': reach,
         'density': density,
         'analise': findings(consumo, geracao, density, por_classe),
         'por_classe': por_classe,

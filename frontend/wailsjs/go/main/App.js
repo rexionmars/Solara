@@ -46,12 +46,20 @@ export function GetBootLogs() {
   return window['go']['main']['App']['GetBootLogs']();
 }
 
+export function GridConcessions() {
+  return window['go']['main']['App']['GridConcessions']();
+}
+
 export function GridNetwork() {
   return window['go']['main']['App']['GridNetwork']();
 }
 
 export function GridPlants() {
   return window['go']['main']['App']['GridPlants']();
+}
+
+export function GridTownDemand() {
+  return window['go']['main']['App']['GridTownDemand']();
 }
 
 export function InspectGridStore() {

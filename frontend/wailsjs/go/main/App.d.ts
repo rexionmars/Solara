@@ -28,9 +28,13 @@ export function GetAppVersion():Promise<string>;
 
 export function GetBootLogs():Promise<Array<string>>;
 
+export function GridConcessions():Promise<grid.ConcessionLayer>;
+
 export function GridNetwork():Promise<grid.NetworkLayer>;
 
 export function GridPlants():Promise<grid.PlantsLayer>;
+
+export function GridTownDemand():Promise<grid.TownDemandLayer>;
 
 export function InspectGridStore():Promise<grid.StoreReport>;
 

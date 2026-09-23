@@ -145,3 +145,27 @@ func (a *App) AnalyzeGridDemand(req grid.DemandRequest) (*grid.DemandAnalysis, e
 	}
 	return res, nil
 }
+
+// GridTownDemand reads consumption by municipality as a map layer.
+func (a *App) GridTownDemand() (*grid.TownDemandLayer, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
+	defer cancel()
+	return grid.TownDemand(ctx, r, a.chosenGridDSN())
+}
+
+// GridConcessions reads where each register in the store has data, as a map
+// layer. Read once and before any area is chosen: it is what says whether a
+// demand reading is answerable over a given ground at all.
+func (a *App) GridConcessions() (*grid.ConcessionLayer, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
+	defer cancel()
+	return grid.Concessions(ctx, r, a.chosenGridDSN())
+}

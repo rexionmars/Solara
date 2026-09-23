@@ -332,3 +332,57 @@ func normalizeDemand(a *DemandAnalysis) {
 		a.Register.Holdings = []DemandHolding{}
 	}
 }
+
+// TownDemand reads what each municipality of the loaded register consumes. A
+// register read rather than an analysis: it runs outside the one-at-a-time
+// rule, so the map keeps its layers while a reading is in flight.
+func TownDemand(ctx context.Context, r *sidecar.Runner, chosen string) (*TownDemandLayer, error) {
+	send, _, _ := Resolve(chosen)
+	raw, err := r.Read(ctx, payload("demand_towns", send))
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Layer *TownDemandLayer `json:"demand_towns"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode the municipal demand layer: %w", err)
+	}
+	if wrapped.Layer == nil {
+		return nil, errors.New("the sidecar returned no municipal demand layer")
+	}
+	if wrapped.Layer.Towns == nil {
+		wrapped.Layer.Towns = []TownConsumption{}
+	}
+	if wrapped.Layer.Registers == nil {
+		wrapped.Layer.Registers = []TownRegister{}
+	}
+	return wrapped.Layer, nil
+}
+
+// Concessions reads where every register in the store has data, as a layer.
+// Like TownDemand it takes no area: it answers before any ground is chosen,
+// which is the only moment the answer is useful.
+func Concessions(ctx context.Context, r *sidecar.Runner, chosen string) (*ConcessionLayer, error) {
+	send, _, _ := Resolve(chosen)
+	raw, err := r.Read(ctx, payload("grid_concessions", send))
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Layer *ConcessionLayer `json:"grid_concessions"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode the concession layer: %w", err)
+	}
+	if wrapped.Layer == nil {
+		return nil, errors.New("the sidecar returned no concession layer")
+	}
+	if wrapped.Layer.Holdings == nil {
+		wrapped.Layer.Holdings = []DemandHolding{}
+	}
+	if wrapped.Layer.Reaches == nil {
+		wrapped.Layer.Reaches = []Concession{}
+	}
+	return wrapped.Layer, nil
+}
