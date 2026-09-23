@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TERRA Energy Engine</title>
+  <title>Solara</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- TERRA's three faces: Inter with its optical size axis for the interface,
-       JetBrains Mono for telemetry, Space Grotesk for the wordmark. Offline, the
-       system faces in the stacks in index.css take over. -->
+  <!-- Three fetched faces: Inter with its optical size axis for the interface,
+       JetBrains Mono for telemetry, Space Grotesk for display headings. Offline,
+       the system faces in the stacks in index.css take over. The brand face,
+       RoundSans, is not among them: it is served from public/fonts, because the
+       wordmark must draw the same with no network. -->
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=JetBrains+Mono:wght@400..500&family=Space+Grotesk:wght@500..700&family=Archivo:wdth,wght@125,800&family=IBM+Plex+Mono:wght@400&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=JetBrains+Mono:wght@400..500&family=Space+Grotesk:wght@500..700&display=swap"
     rel="stylesheet"
   />
   <script>
@@ -68,8 +70,7 @@
       color: rgb(229, 229, 229);
     }
     #splash.is-done { opacity: 0; }
-    #splash img { width: 56px; height: 56px; object-fit: contain; filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.55)); }
-    #splash .brand { margin: 0; font-weight: 600; font-size: 1.05rem; letter-spacing: 0.18em; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65); }
+    #splash img { width: 186px; height: auto; filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.55)); }
     #splash .eyebrow { margin: 0; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(229, 229, 229, 0.8); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
     #splash .release { margin: 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.58rem; letter-spacing: 0.08em; color: rgba(229, 229, 229, 0.7); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
     #splash .log { position: absolute; left: 1rem; right: 1rem; bottom: 1rem; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.62rem; letter-spacing: 0.04em; color: rgba(229, 229, 229, 0.85); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75); }
@@ -83,8 +84,7 @@
 </head>
 <body>
   <div id="splash" aria-hidden="true">
-    <img src="/terra-logo.png" alt="" width="56" height="56" />
-    <p class="brand">TERRA</p>
+    <img src="/solara-lockup.png" alt="Solara" width="634" height="90" />
     <p class="eyebrow">__BRAND_TAGLINE__</p>
     <p class="release">__RELEASE_NAME__</p>
     <p class="log">booting…</p>

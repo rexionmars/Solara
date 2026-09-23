@@ -76,7 +76,7 @@ export function watchProjectState(): () => void {
   let last = ""
   const sync = () => {
     const p = project.get()
-    const title = `${p.dirty ? "* " : ""}${p.data.name} - TERRA Energy Engine`
+    const title = `${p.dirty ? "* " : ""}${p.data.name} - Solara`
     if (title === last) return
     const dirtyChanged = last === "" || last.startsWith("* ") !== p.dirty
     last = title
@@ -150,7 +150,7 @@ function joinPath(dir: string, file: string): string {
 
 function parse(content: string, runDirs: Record<string, string>): ProjectData {
   const doc = JSON.parse(content) as Partial<ProjectDocument>
-  if (doc.format !== FORMAT) throw new Error("not a TERRA Energy Engine project")
+  if (doc.format !== FORMAT) throw new Error("not a Solara project")
   if (typeof doc.version !== "number" || doc.version > VERSION) {
     throw new Error(`made by a newer version (format ${doc.version})`)
   }

@@ -38,7 +38,7 @@ export function AppSidebar({
   searchHint = "⌘K",
   collapsed = false,
   onToggleCollapsed,
-  brand = "TERRA",
+  brand = "solara",
   brandSub,
   onBrand,
   renderBrand,
@@ -74,10 +74,13 @@ export function AppSidebar({
         {(() => {
           const inner = (
             <>
-              <img src="/terra-logo.png" alt="" className="size-[22px] shrink-0 object-contain" />
+              {/* Beside two lines the mark aligns with the name, not with the
+                  pair; 24px is the 1.472em the lockup asks for at this size,
+                  and the pixel up is where RoundSans puts its ink. */}
+              <img src="/solara-mark.svg" alt="" className={`w-[24px] shrink-0 ${collapsed ? "" : "-mt-px self-start"}`} />
               {!collapsed && (
                 <span className="min-w-0 text-left">
-                  <span className="block truncate text-[13px] font-medium text-foreground">{brand}</span>
+                  <span className="brand-word block truncate text-[16px]">{brand}</span>
                   {brandSub && <span className="block truncate text-[10px] text-muted-foreground">{brandSub}</span>}
                 </span>
               )}

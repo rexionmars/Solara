@@ -47,7 +47,7 @@ export function StudioSidebar() {
       collapsed={collapsed}
       onToggleCollapsed={toggleSidebar}
       onSearch={() => void runOperator("SEARCH")}
-      brand="TERRA"
+      brand="solara"
       brandSub={p.data.name + (p.dirty ? " · unsaved" : "")}
       // The application menu is what the wordmark opens, which is where a
       // desktop application's menu has always been.

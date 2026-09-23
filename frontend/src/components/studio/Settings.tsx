@@ -233,16 +233,16 @@ function AboutSection() {
   }, [])
   return (
     <>
-      <div className="flex items-center gap-3 px-2.5 py-4">
-        <img src="/terra-logo.png" alt="" className="size-10 object-contain" />
-        <div>
-          <p className="font-display text-heading font-semibold tracking-[0.14em]">TERRA</p>
-          <p className="eyebrow">{BRAND_TAGLINE}</p>
-          <p className="telemetry mt-0.5 text-meta text-muted-foreground">
-            {RELEASE_NAME}
-            {version && ` · ${version}`}
-          </p>
-        </div>
+      <div className="px-2.5 py-4">
+        <p className="brand-lockup text-[22px]">
+          <img src="/solara-mark.svg" alt="" />
+          <span className="brand-word">solara</span>
+        </p>
+        <p className="eyebrow mt-1.5">{BRAND_TAGLINE}</p>
+        <p className="telemetry mt-0.5 text-meta text-muted-foreground">
+          {RELEASE_NAME}
+          {version && ` · ${version}`}
+        </p>
       </div>
       <PanelSection title="Data sources">
         <Figure label="Irradiation, wind" value="NASA POWER, MERRA-2" />
@@ -266,7 +266,7 @@ export function Settings() {
   const close = () => preferences.set(null)
   return (
     <ModalShell label="Settings" onDismiss={close} className="h-[min(36rem,85vh)] w-[min(46rem,calc(100vw-2rem))]">
-      <DialogHead eyebrow="TERRA Energy Engine" title="Settings" onDismiss={close} />
+      <DialogHead eyebrow="Solara" title="Settings" onDismiss={close} />
       <div className="flex min-h-0 flex-1">
         <nav className="flex w-40 shrink-0 flex-col gap-0.5 border-r p-2" style={{ borderColor: "var(--hairline)" }} aria-label="Settings sections">
           {SECTIONS.map((s) => {

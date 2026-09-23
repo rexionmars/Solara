@@ -189,7 +189,7 @@ function App() {
         onSearch={() => {}}
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed(!collapsed)}
-        brand="TERRA"
+        brand="solara"
         brandSub="Natal · unsaved"
         account={{ name: "fox", detail: "opensource.leonardi@gmail.com" }}
       />

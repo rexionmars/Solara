@@ -1,4 +1,4 @@
-# TERRA Energy Engine
+# Solara
 
 <p align="center">
   <img src="docs/img/terra-energy-engine.jpg" alt="The studio: the wind field over South America with the plant register and the transmission network, a metered plant captioned where it was clicked, and the run graph of a solar terrain run below" width="900" />
@@ -6,7 +6,7 @@
 
 <p align="center"><em>The wind now over South America, with the plant register and the transmission network from the grid store, a metered plant captioned where it was clicked, and the run graph of a solar terrain run below</em></p>
 
-TERRA Energy Engine reads what a place is worth for solar and wind generation,
+Solara reads what a place is worth for solar and wind generation,
 and what the electrical system would do to a plant there. At a site it reads
 the solar resource and the photovoltaic yield, and screens the wind resource
 at hub height. Over an area it maps the plane-of-array irradiation across the

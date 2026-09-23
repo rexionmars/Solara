@@ -814,7 +814,7 @@ export const OPERATORS: Operator[] = [
   {
     name: "ABOUT",
     aliases: ["VERSION"],
-    label: "About TERRA Energy Engine",
+    label: "About Solara",
     description: "Version and data sources",
     icon: InfoIcon,
     menu: "Studio",
