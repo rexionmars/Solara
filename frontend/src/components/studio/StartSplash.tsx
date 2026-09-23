@@ -150,7 +150,11 @@ export function StartSplash() {
           <section className="min-w-0">
             <p className="mb-1 px-1.5 text-body text-muted-foreground">Start</p>
             {opRow("TOOL_SITE", "Place a site", "The solar resource and the wind screening are read at a site")}
-            {opRow("TOOL_AREA", "Draw an area", "The terrain product is read over an area")}
+            {opRow(
+              "AREA_PLACE",
+              "Area from a place…",
+              "A state or a municipality, from the boundaries IBGE publishes"
+            )}
             <Row
               icon={Crosshair}
               label="Site at coordinates…"

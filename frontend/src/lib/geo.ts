@@ -60,3 +60,44 @@ export function bounds(points: number[][]): [number, number, number, number] | n
   }
   return [w, s, e, n]
 }
+
+/**
+ * Whether a point falls inside a polygon's outer ring, by ray casting.
+ *
+ * The outer ring only: the shapes this is asked about are administrative
+ * boundaries taken as one ring, and a hole in one would be a lake, which is
+ * still inside the municipality that surrounds it.
+ *
+ * Longitudes are compared as given. Brazil is far from the antimeridian, so
+ * no ring here crosses it and the naive comparison holds.
+ */
+export function pointInPolygon(lon: number, lat: number, p: { coordinates: number[][][] }): boolean {
+  const ring = p.coordinates[0]
+  if (!ring || ring.length < 3) return false
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+/** The middle of a feature's coordinates, whatever its geometry: enough to ask which region holds it. */
+export function centroidOf(geometry: { type: string; coordinates: unknown }): { lon: number; lat: number } | null {
+  let sx = 0
+  let sy = 0
+  let n = 0
+  const walk = (c: unknown): void => {
+    if (!Array.isArray(c)) return
+    if (typeof c[0] === "number" && typeof c[1] === "number") {
+      sx += c[0] as number
+      sy += c[1] as number
+      n++
+      return
+    }
+    for (const part of c) walk(part)
+  }
+  walk(geometry.coordinates)
+  return n ? { lon: sx / n, lat: sy / n } : null
+}

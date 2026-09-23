@@ -121,3 +121,6 @@ export const lastOperationOpen = createStore<boolean>(false)
 
 /** The Add › Site at Coordinates dialog. */
 export const coordinatePrompt = createStore<boolean>(false)
+
+/** Whether the place search is open: an area taken from a published boundary. */
+export const placePrompt = createStore<boolean>(false)

@@ -19,7 +19,7 @@ import { RunGraphEditor } from "../editors/RunGraphEditor"
 import { TableEditor } from "../editors/TableEditor"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
 import { AreaTree } from "./AreaTree"
-import { ConfirmDialog, CoordinatesDialog, OperatorSearch } from "./Dialogs"
+import { ConfirmDialog, CoordinatesDialog, OperatorSearch, PlaceDialog } from "./Dialogs"
 import { ContextMenuHost, StudioSurface } from "./Popover"
 import { Settings } from "./Settings"
 import { StartSplash } from "./StartSplash"
@@ -151,6 +151,7 @@ export function Studio() {
       </StudioSurface.Provider>
       <OperatorSearch />
       <CoordinatesDialog />
+      <PlaceDialog />
       <Settings />
       <ConfirmDialog />
       <Toasts />

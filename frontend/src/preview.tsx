@@ -67,6 +67,8 @@ const demand = {
       amostra: sample(340, 0.62),
     },
   },
+  // A drawn area the concession only clips, which is the case the band is for.
+  cobertura: { area_km2: 49_987.2, concessao_km2: 53_501.0, dentro_km2: 1_449.6, cobertura_pct: 2.9, nota: "" },
   totais: { energia_consumida_ano_mwh: 2_172_500, energia_injetada_ano_mwh: 410_000, injetada_sobre_consumida_pct: 18.9 },
   analise: {
     sazonalidade: { mes_pico: 12, mes_vale: 8, pico_mwh: 121900, vale_mwh: 97100, amplitude_pct: 22.9 },

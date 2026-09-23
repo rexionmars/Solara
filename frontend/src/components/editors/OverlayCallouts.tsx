@@ -132,6 +132,33 @@ function pickedCaption(p: PickedGrid): Caption {
       },
     }
   }
+  if (p.kind === "reach") {
+    const f = p.props
+    const rows: { label: string; value: string }[] = [
+      { label: "Base year", value: String(f.ano) },
+      { label: "Connection points", value: f.units.toLocaleString() },
+    ]
+    if (f.areaKm2 != null) rows.push({ label: "Ground covered", value: `${Math.round(f.areaKm2).toLocaleString()} km²` })
+    return {
+      subject: "Register in the grid store",
+      area: f.distribuidora,
+      onClose,
+      body: {
+        kind: "stats",
+        rows,
+        /*
+          THIS IS THE ONE SENTENCE THE SHAPE EXISTS FOR. Without it the outline
+          is a border with no consequence; with it the reader knows the shape
+          is the edge of what can be asked, and why an area outside it answers
+          nothing.
+        */
+        note:
+          "An area demand reading is about one distributor, and this is the ground this register covers. " +
+          "An area outside it holds none of these units, so the reading comes back empty; outside every register " +
+          "on the map, with more than one loaded, it is refused rather than guessed.",
+      },
+    }
+  }
   const f = p.props
   const rows: { label: string; value: string }[] = []
   if (f.kv) rows.push({ label: "Voltage", value: `${f.kv} kV` })
@@ -398,6 +425,8 @@ function CalloutBody({ id, caption }: { id: string; caption: Caption }) {
 
       <div
         ref={boxRef}
+        // Read by the map: everything in here is the box's, not the ground's.
+        data-callout=""
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

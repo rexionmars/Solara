@@ -1,32 +1,27 @@
 import type { Feature, FeatureCollection } from "geojson"
-import {
-  Map as MapLibreMap,
-  setWorkerUrl,
-  type ExpressionSpecification,
-  type GeoJSONSource,
-  type ImageSource,
-  type MapMouseEvent,
-} from "maplibre-gl"
+import { Map as MapLibreMap, setWorkerUrl, type ExpressionSpecification, type GeoJSONSource, type ImageSource, type MapMouseEvent } from "maplibre-gl"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
-import { TerraDraw, TerraDrawPolygonMode } from "terra-draw"
-import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter"
 import { BASEMAP_FIRST_LABEL, BASEMAP_STYLE } from "./basemap"
-import { ACTIVE, AREA, SITE, SITE_OUTLINE } from "./colors"
+import { ACTIVE, AREA, HAIRLINE, REACH, SITE, SITE_OUTLINE } from "./colors"
 import { bounds, distanceKm, ringCentre } from "./geo"
-import { addArea } from "./objects"
-import {
-  beginStep,
-  findItem,
-  isResult,
-  mutate,
-  project,
-  type AnyItem,
-  type DemandResult,
-  type TerrainResult,
-} from "./project"
+import { clipFeatures, mapGraph, resolveRegion } from "./mapGraph"
+import { beginStep, findItem, isResult, mutate, project, type AnyItem, type DemandResult, type Polygon, type TerrainResult } from "./project"
 import { runOperator } from "./operators"
 import { select, selection } from "./selection"
-import { UNNAMED_VOLTAGE, VOLTAGE_COLOUR, loadNetwork, loadPlants, networkRegister, plantRegister } from "./grid"
+import {
+  UNNAMED_VOLTAGE,
+  VOLTAGE_COLOUR,
+  loadNetwork,
+  loadPlants,
+  concessions,
+  loadConcessions,
+  loadTownDemand,
+  networkRegister,
+  plantRegister,
+  townDemand,
+  type ConcessionLayer,
+  type TownDemandLayer,
+} from "./grid"
 import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
 import {
   RADAR_MAXZOOM,
@@ -98,13 +93,34 @@ const TERRAIN_PREFIX = "terrain-"
 
 // The grid store's registers.
 const GRID_PLANTS = "grid-plants"
+const CONCESSIONS = "grid-concessions"
+const CONCESSION_FILL = "grid-concessions-fill"
+const CONCESSION_LINE = "grid-concessions-line"
+const CONCESSION_LABEL = "grid-concessions-label"
+const TOWN_DEMAND = "town-demand"
+const TOWN_FILL = "town-demand-fill"
+const TOWN_LINE = "town-demand-line"
 const GRID_LINES = "grid-lines"
 const GRID_BUSES = "grid-buses"
 const PLANT_OTHER = "grid-plants-other"
 const PLANT_METERED = "grid-plants-metered"
 const LINE_LAYER = "grid-lines"
 const BUS_LAYER = "grid-buses"
-const GRID_LAYERS = [LINE_LAYER, BUS_LAYER, PLANT_OTHER, PLANT_METERED]
+/*
+  Where the grid's ground layers are inserted.
+
+  UNDER THE BASEMAP'S OWN LABELS. A choropleth at 0.55 opacity drawn over a
+  city name is the layer deciding the reader may not have the name, which is
+  the opposite of what the basemap was written for. The lines, buses and
+  plants already went in here; the concession and municipal layers did not,
+  and landed on top of everything.
+
+  The concession LABEL is the exception, and stays above: it is a label, and
+  labels belong with labels.
+*/
+const GROUND_ANCHOR = "area-fill"
+
+const GRID_LAYERS = [LINE_LAYER, BUS_LAYER, PLANT_OTHER, PLANT_METERED, CONCESSION_FILL]
 
 /** The source and scene object a result's layer is drawn with. */
 const terrainLayerId = (r: OverlayResult) => TERRAIN_PREFIX + r.id
@@ -135,7 +151,13 @@ function create(container: HTMLDivElement): void {
 
   const onMove = () => {
     const c = m.getCenter()
-    mapView.set({ lng: c.lng, lat: c.lat, zoom: m.getZoom(), bearing: m.getBearing(), pitch: m.getPitch() })
+    mapView.set({
+      lng: c.lng,
+      lat: c.lat,
+      zoom: m.getZoom(),
+      bearing: m.getBearing(),
+      pitch: m.getPitch(),
+    })
   }
   m.on("move", onMove)
   onMove()
@@ -147,13 +169,20 @@ function create(container: HTMLDivElement): void {
   m.on("load", () => {
     addLayers(m)
     mapLoaded.set(true)
-    draw = startDraw(m)
     syncAll()
     project.subscribe(syncAll)
     selection.subscribe(syncAll)
     overlays.subscribe(syncAll)
     plantRegister.subscribe(syncGrid)
     networkRegister.subscribe(syncGrid)
+    // Both of these are read asynchronously after syncGrid has already run
+    // once, so without a subscription the layer only appears when something
+    // unrelated happens to re-sync the map.
+    concessions.subscribe(syncGrid)
+    townDemand.subscribe(syncGrid)
+    // The map graph is what says which layer is scoped to what; a change to it
+    // is a change to what is drawn.
+    mapGraph.subscribe(syncGrid)
     weather.subscribe(syncWeather)
     windField.subscribe(syncWind)
     measure.subscribe(syncMeasure)
@@ -193,6 +222,115 @@ const voltageColour = (): ExpressionSpecification =>
  * drawn over it, because it is the one that can be asked about.
  */
 function addGridLayers(m: MapLibreMap): void {
+  /*
+    Consumption by municipality, under everything else the grid draws: it is
+    ground, not a feature. The ramp runs on the square root of the figure,
+    because consumption spans three orders of magnitude between a capital and
+    a village and a linear ramp would paint every municipality but one at the
+    same dark end -- the legend says which quantity it is of.
+  */
+  /*
+    Where each register reaches: the bottom of the grid stack, because it is
+    the ground every other grid layer sits inside.
+
+    An outline and a wash, not a filled shape. It has to be legible under the
+    municipal ramp and under an area the reader is drawing, and a solid fill
+    at this size would fight both. The wash is there so the ground OUTSIDE
+    every register still reads as outside on a dark basemap, which is the
+    whole point of the layer.
+  */
+  m.addSource(CONCESSIONS, { type: "geojson", data: empty() })
+  m.addLayer(
+    {
+      id: CONCESSION_FILL,
+      type: "fill",
+      source: CONCESSIONS,
+      layout: { visibility: "none" },
+      paint: { "fill-color": REACH, "fill-opacity": 0.1 },
+    },
+    GROUND_ANCHOR,
+  )
+  m.addLayer(
+    {
+      id: CONCESSION_LINE,
+      type: "line",
+      source: CONCESSIONS,
+      layout: { visibility: "none" },
+      paint: {
+        "line-color": REACH,
+        "line-width": 1.4,
+        "line-opacity": 0.9,
+        "line-dasharray": [3, 2],
+      },
+    },
+    GROUND_ANCHOR,
+  )
+
+  m.addLayer({
+    id: CONCESSION_LABEL,
+    type: "symbol",
+    source: CONCESSIONS,
+    layout: {
+      "text-field": ["get", "label"],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 11,
+      "text-line-height": 1.3,
+      // Wide enough that the second line is not wrapped again: the label is
+      // written as two lines and has to read as the two it was written as.
+      "text-max-width": 16,
+      // One label per shape, at its middle, and never two on top of each
+      // other: the shapes do not overlap, so a collision here means the
+      // reader is zoomed out past the point of reading either.
+      "symbol-placement": "point",
+      "text-allow-overlap": false,
+      visibility: "none",
+    },
+    paint: {
+      "text-color": REACH,
+      "text-halo-color": "#161616",
+      "text-halo-width": 1.4,
+    },
+  })
+
+  m.addSource(TOWN_DEMAND, { type: "geojson", data: empty() })
+  m.addLayer(
+    {
+      id: TOWN_FILL,
+      type: "fill",
+      source: TOWN_DEMAND,
+      layout: { visibility: "none" },
+      paint: {
+        "fill-color": [
+          "interpolate",
+          ["linear"],
+          ["sqrt", ["max", ["get", "energy"], 0]],
+          0,
+          "#1b1035",
+          1,
+          "#4a1079",
+          2,
+          "#a52c60",
+          3,
+          "#e8853a",
+          4,
+          "#fcffa4",
+        ],
+        "fill-opacity": 0.55,
+      },
+    },
+    GROUND_ANCHOR,
+  )
+  m.addLayer(
+    {
+      id: TOWN_LINE,
+      type: "line",
+      source: TOWN_DEMAND,
+      layout: { visibility: "none" },
+      paint: { "line-color": HAIRLINE, "line-width": 0.5, "line-opacity": 0.5 },
+    },
+    GROUND_ANCHOR,
+  )
+
   m.addSource(GRID_LINES, { type: "geojson", data: empty() })
   m.addSource(GRID_BUSES, { type: "geojson", data: empty() })
   m.addSource(GRID_PLANTS, { type: "geojson", data: empty() })
@@ -205,16 +343,20 @@ function addGridLayers(m: MapLibreMap): void {
       layout: hidden,
       paint: {
         "line-width": [
-          "interpolate", ["linear"], ["zoom"],
-          4, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 230], 230, 0.4, 800, 1.4],
-          10, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 230], 230, 1.1, 800, 3],
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          4,
+          ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 230], 230, 0.4, 800, 1.4],
+          10,
+          ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 230], 230, 1.1, 800, 3],
         ],
         "line-color": voltageColour(),
         // Out of service is kept, faint: a line being built is still where a connection could go.
         "line-opacity": ["case", ["get", "in_service"], 0.75, 0.28],
       },
     },
-    "area-fill"
+    "area-fill",
   )
   m.addLayer(
     {
@@ -224,9 +366,13 @@ function addGridLayers(m: MapLibreMap): void {
       layout: hidden,
       paint: {
         "circle-radius": [
-          "interpolate", ["linear"], ["zoom"],
-          4, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 69], 69, 0.8, 800, 2.4],
-          10, ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 69], 69, 2, 800, 5],
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          4,
+          ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 69], 69, 0.8, 800, 2.4],
+          10,
+          ["interpolate", ["linear"], ["coalesce", ["get", "kv"], 69], 69, 2, 800, 5],
         ],
         "circle-color": "#0F1620",
         "circle-stroke-width": 1,
@@ -234,7 +380,7 @@ function addGridLayers(m: MapLibreMap): void {
         "circle-opacity": 0.85,
       },
     },
-    "area-fill"
+    "area-fill",
   )
   m.addLayer(
     {
@@ -250,7 +396,7 @@ function addGridLayers(m: MapLibreMap): void {
         "circle-stroke-width": 0,
       },
     },
-    "area-fill"
+    "area-fill",
   )
   m.addLayer(
     {
@@ -262,10 +408,15 @@ function addGridLayers(m: MapLibreMap): void {
       paint: {
         // Area by capacity: a 400 MW complex and a 5 MW array should not be the same dot.
         "circle-radius": [
-          "interpolate", ["linear"], ["zoom"],
-          6, ["*", 0.55, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
-          11, ["*", 1.1, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
-          15, ["*", 1.9, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          6,
+          ["*", 0.55, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
+          11,
+          ["*", 1.1, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
+          15,
+          ["*", 1.9, ["sqrt", ["max", 1, ["coalesce", ["get", "mw"], 1]]]],
         ],
         "circle-color": "#ED8744",
         "circle-opacity": 0.55,
@@ -274,7 +425,7 @@ function addGridLayers(m: MapLibreMap): void {
         "circle-stroke-opacity": 0.9,
       },
     },
-    "area-fill"
+    "area-fill",
   )
 }
 
@@ -283,11 +434,73 @@ function addGridLayers(m: MapLibreMap): void {
  * time it is wanted. A register that failed stays empty; the Overlays popover
  * and Settings say why.
  */
+/**
+ * The ground the map graph scopes a layer to, or null for all of it.
+ *
+ * Read from the project rather than held here, so a region whose area was
+ * deleted becomes "everywhere" on the next sync instead of a dangling filter
+ * that quietly draws nothing.
+ */
+function scopeRegion(): Polygon | null {
+  return resolveRegion(mapGraph.get().region, project.get().data.areas)?.polygon ?? null
+}
+
+
+
 function syncGrid(): void {
   const m = map
   if (!m || !m.getLayer(LINE_LAYER)) return
   const o = overlays.get()
   const show = (id: string, on: boolean) => m.setLayoutProperty(id, "visibility", on ? "visible" : "none")
+  show(CONCESSION_FILL, o.gridConcessions)
+  show(CONCESSION_LINE, o.gridConcessions)
+  show(CONCESSION_LABEL, o.gridConcessions)
+  if (o.gridConcessions) loadConcessions()
+  const reach = concessions.get()
+  const reachSource = m.getSource<GeoJSONSource>(CONCESSIONS)
+  // The memo is over the data AND the region: changing the region has to redraw
+  // the same data through a different cut.
+  const region = scopeRegion()
+  if (reach.kind === "ready" && reachSource && (loadedReach !== reach.data || loadedReachRegion !== region)) {
+    reachSource.setData(clipFeatures(reach.data.geojson, region))
+    loadedReach = reach.data
+    loadedReachRegion = region
+  }
+
+  show(TOWN_FILL, o.gridDemand)
+  show(TOWN_LINE, o.gridDemand)
+  if (o.gridDemand) loadTownDemand()
+  const towns = townDemand.get()
+  const townSource = m.getSource<GeoJSONSource>(TOWN_DEMAND)
+  if (towns.kind === "ready" && townSource && (loadedTowns !== towns.data || loadedTownsRegion !== region)) {
+    townSource.setData(clipFeatures(towns.data.geojson, region))
+    // The ramp's top is the maximum of every register DRAWN, so a colour means
+    // the same thing across the whole layer. With two registers of very
+    // different size loaded, the smaller one sits at the dark end -- which is
+    // the truth about the two, not a fault of the ramp.
+    m.setPaintProperty(TOWN_FILL, "fill-color", [
+      "interpolate",
+      ["linear"],
+      ["sqrt", ["max", ["get", "energy"], 0]],
+      0,
+      "#1b1035",
+      Math.sqrt(towns.data.max) * 0.25,
+      "#4a1079",
+      Math.sqrt(towns.data.max) * 0.5,
+      "#a52c60",
+      Math.sqrt(towns.data.max) * 0.75,
+      "#e8853a",
+      Math.sqrt(towns.data.max),
+      "#fcffa4",
+    ])
+    loadedTowns = towns.data
+    loadedTownsRegion = region
+  }
+  if (towns.kind !== "ready" && loadedTowns) {
+    townSource?.setData(empty())
+    loadedTowns = null
+  }
+
   show(PLANT_METERED, o.gridMetered)
   show(PLANT_OTHER, o.gridRegistered)
   show(LINE_LAYER, o.gridLines)
@@ -342,7 +555,10 @@ const WEATHER_REFRESH_MS = 5 * 60_000
 let weatherTimer: number | undefined
 
 /** The frames that have been shown, per layer: they keep their layer, so going back is a redraw. */
-const visitedFrames: Record<string, Set<string>> = { [SAT_PREFIX]: new Set(), [RADAR_PREFIX]: new Set() }
+const visitedFrames: Record<string, Set<string>> = {
+  [SAT_PREFIX]: new Set(),
+  [RADAR_PREFIX]: new Set(),
+}
 
 /**
  * The satellite and radar frames, one raster layer each, only the shown one
@@ -444,10 +660,20 @@ function syncWeather(): void {
       const id = prefix + f.key
       const visible = shown?.key === f.key ? opacity : 0
       if (!m.getSource(id)) {
-        m.addSource(id, { type: "raster", tiles: [f.tiles], tileSize: 256, maxzoom })
+        m.addSource(id, {
+          type: "raster",
+          tiles: [f.tiles],
+          tileSize: 256,
+          maxzoom,
+        })
         m.addLayer(
-          { id, type: "raster", source: id, paint: { "raster-opacity": visible, "raster-fade-duration": 0 } },
-          before()
+          {
+            id,
+            type: "raster",
+            source: id,
+            paint: { "raster-opacity": visible, "raster-fade-duration": 0 },
+          },
+          before(),
         )
       } else {
         m.setPaintProperty(id, "raster-opacity", visible)
@@ -461,6 +687,10 @@ function syncWeather(): void {
   place(SAT_PREFIX, sat, frameAt(w.satellite, w.at), w.satelliteOpacity, SATELLITE[w.product].maxzoom, () => firstRadar() ?? LINE_LAYER)
 }
 
+let loadedReach: ConcessionLayer | null = null
+let loadedReachRegion: Polygon | null = null
+let loadedTownsRegion: Polygon | null = null
+let loadedTowns: TownDemandLayer | null = null
 let loadedPlants: object | null = null
 let loadedNetwork: object | null = null
 
@@ -476,18 +706,24 @@ function addLayers(m: MapLibreMap): void {
       id: "area-fill",
       type: "fill",
       source: AREAS,
-      paint: { "fill-color": selectedColour(AREA), "fill-opacity": ["case", ["get", "selected"], 0.16, 0.08] },
+      paint: {
+        "fill-color": selectedColour(AREA),
+        "fill-opacity": ["case", ["get", "selected"], 0.16, 0.08],
+      },
     },
-    BASEMAP_FIRST_LABEL
+    BASEMAP_FIRST_LABEL,
   )
   m.addLayer(
     {
       id: "area-line",
       type: "line",
       source: AREAS,
-      paint: { "line-color": selectedColour(AREA), "line-width": ["case", ["get", "selected"], 2.5, 1.5] },
+      paint: {
+        "line-color": selectedColour(AREA),
+        "line-width": ["case", ["get", "selected"], 2.5, 1.5],
+      },
     },
-    BASEMAP_FIRST_LABEL
+    BASEMAP_FIRST_LABEL,
   )
   // After the areas, because each grid layer is placed beneath them.
   addGridLayers(m)
@@ -497,7 +733,11 @@ function addLayers(m: MapLibreMap): void {
     id: "area-label",
     type: "symbol",
     source: AREA_LABELS,
-    layout: { "text-field": ["get", "name"], "text-font": ["Noto Sans Bold"], "text-size": 12 },
+    layout: {
+      "text-field": ["get", "name"],
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 12,
+    },
     paint: {
       "text-color": selectedColour("#e6e6e6"),
       "text-halo-color": "#161616",
@@ -527,29 +767,51 @@ function addLayers(m: MapLibreMap): void {
       "text-offset": [0.9, 0],
       "text-optional": true,
     },
-    paint: { "text-color": selectedColour("#e6e6e6"), "text-halo-color": "#161616", "text-halo-width": 1.4 },
+    paint: {
+      "text-color": selectedColour("#e6e6e6"),
+      "text-halo-color": "#161616",
+      "text-halo-width": 1.4,
+    },
   })
   m.addLayer({
     id: "measure-line",
     type: "line",
     source: MEASURE,
     filter: ["==", ["geometry-type"], "LineString"],
-    paint: { "line-color": "#ffffff", "line-width": 2, "line-dasharray": [2, 1.5] },
+    paint: {
+      "line-color": "#ffffff",
+      "line-width": 2,
+      "line-dasharray": [2, 1.5],
+    },
   })
   m.addLayer({
     id: "measure-point",
     type: "circle",
     source: MEASURE,
     filter: ["==", ["geometry-type"], "Point"],
-    paint: { "circle-radius": 4, "circle-color": "#ffffff", "circle-stroke-color": "#161616", "circle-stroke-width": 1.5 },
+    paint: {
+      "circle-radius": 4,
+      "circle-color": "#ffffff",
+      "circle-stroke-color": "#161616",
+      "circle-stroke-width": 1.5,
+    },
   })
   m.addLayer({
     id: "measure-label",
     type: "symbol",
     source: MEASURE,
     filter: ["==", ["geometry-type"], "LineString"],
-    layout: { "symbol-placement": "line-center", "text-field": ["get", "label"], "text-font": ["Noto Sans Bold"], "text-size": 12 },
-    paint: { "text-color": "#ffffff", "text-halo-color": "#161616", "text-halo-width": 1.6 },
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": ["get", "label"],
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 12,
+    },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "#161616",
+      "text-halo-width": 1.6,
+    },
   })
 }
 
@@ -575,9 +837,16 @@ function syncAll(): void {
     .map((s) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [s.lon, s.lat] },
-      properties: { id: s.id, name: o.siteLabels ? s.name : "", selected: s.id === hi },
+      properties: {
+        id: s.id,
+        name: o.siteLabels ? s.name : "",
+        selected: s.id === hi,
+      },
     }))
-  m.getSource<GeoJSONSource>(SITES)?.setData({ type: "FeatureCollection", features: sites })
+  m.getSource<GeoJSONSource>(SITES)?.setData({
+    type: "FeatureCollection",
+    features: sites,
+  })
 
   const visibleAreas = o.areas ? d.areas.filter((a) => !a.hidden) : []
   m.getSource<GeoJSONSource>(AREAS)?.setData({
@@ -619,7 +888,7 @@ function syncTerrain(m: MapLibreMap): void {
           !findItem(d, r.sourceId)?.hidden &&
           // A demand reading over ground the register does not reach drew
           // nothing, and has no layer to place.
-          !!overlayOf(r as OverlayResult)
+          !!overlayOf(r as OverlayResult),
       )
     : []
   const wantedIds = new Set(wanted.map(terrainLayerId))
@@ -649,10 +918,13 @@ function syncTerrain(m: MapLibreMap): void {
           source: id,
           // Nearest, so the 30 m cells read as cells: the layer is data, and
           // smoothing would draw structure the elevation model lacks.
-          paint: { "raster-opacity": r.opacity, "raster-resampling": "nearest" },
+          paint: {
+            "raster-opacity": r.opacity,
+            "raster-resampling": "nearest",
+          },
         },
         // Over the grid registers and under the areas: a result reads over the ground it was asked about.
-        "area-fill"
+        "area-fill",
       )
     } else {
       m.setPaintProperty(id, "raster-opacity", r.opacity)
@@ -683,7 +955,9 @@ function syncMeasure(): void {
           [end.lon, end.lat],
         ],
       },
-      properties: { label: km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(km < 10 ? 2 : 1)} km` },
+      properties: {
+        label: km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(km < 10 ? 2 : 1)} km`,
+      },
     })
   }
   src.setData({ type: "FeatureCollection", features })
@@ -691,52 +965,10 @@ function syncMeasure(): void {
 
 // ---- Tools --------------------------------------------------------------------
 
-let draw: TerraDraw | null = null
-
-/*
-  terra-draw is used for the gesture only. A finished polygon becomes an area
-  in the project and is cleared from terra-draw, and the area is drawn from the
-  project as an ordinary layer. TERRA kept the finished shape inside terra-draw
-  and synchronised the two in both directions, and most of its drawing defects
-  were that synchronisation reporting itself as an edit.
-*/
-function startDraw(m: MapLibreMap): TerraDraw {
-  const d = new TerraDraw({
-    adapter: new TerraDrawMapLibreGLAdapter({ map: m }),
-    modes: [
-      new TerraDrawPolygonMode({
-        styles: { fillColor: ACTIVE, fillOpacity: 0.12, outlineColor: ACTIVE, outlineWidth: 2 },
-      }),
-    ],
-  })
-  d.start()
-  d.on("finish", (id) => {
-    const feature = d.getSnapshot().find((f) => f.id === id)
-    if (feature?.geometry.type === "Polygon") {
-      addArea({ type: "Polygon", coordinates: feature.geometry.coordinates })
-      // Deferred: the finish is reported from inside terra-draw's own
-      // handler, and clearing its store there would change it under the caller.
-      queueMicrotask(() => d.clear())
-    }
-  })
-  return d
-}
-
 function syncTool(): void {
   const m = map
   if (!m) return
   const tool = activeTool.get()
-  if (draw) {
-    if (tool === "area") {
-      if (draw.getMode() !== "polygon") draw.setMode("polygon")
-    } else {
-      if (draw.getMode() !== "static") draw.setMode("static")
-      if (draw.getSnapshot().length) draw.clear()
-    }
-  }
-  // A double click closes a polygon; it must not also zoom.
-  if (tool === "area") m.doubleClickZoom.disable()
-  else m.doubleClickZoom.enable()
   if (tool !== "measure") measure.set([])
   m.getCanvas().style.cursor = tool === "select" ? "" : "crosshair"
 }
@@ -784,7 +1016,14 @@ function onMouseMove(e: MapMouseEvent): void {
   const wind = field ? windAt(field, e.lngLat.lng, e.lngLat.lat) : null
   if (field && wind) {
     const dir = windDirection(wind.u, wind.v)
-    windProbe.set({ x: e.point.x, y: e.point.y, speed: Math.hypot(wind.u, wind.v), from: dir.from, towardsDeg: dir.towardsDeg, height: field.height_m })
+    windProbe.set({
+      x: e.point.x,
+      y: e.point.y,
+      speed: Math.hypot(wind.u, wind.v),
+      from: dir.from,
+      towardsDeg: dir.towardsDeg,
+      height: field.height_m,
+    })
   } else if (windProbe.get()) {
     windProbe.set(null)
   }
@@ -819,18 +1058,35 @@ function pickGrid(m: MapLibreMap, point: { x: number; y: number }, at: [number, 
   const layers = GRID_LAYERS.filter((l) => m.getLayer(l) && m.getLayoutProperty(l, "visibility") === "visible")
   if (!layers.length) return null
   const hits = m.queryRenderedFeatures(box, { layers })
-  const order = [PLANT_METERED, PLANT_OTHER, BUS_LAYER, LINE_LAYER]
+  // The reach is last: it covers whole states, so anything drawn on top of
+  // it is the more specific answer to what the reader clicked.
+  const order = [PLANT_METERED, PLANT_OTHER, BUS_LAYER, LINE_LAYER, CONCESSION_FILL]
   hits.sort((a, b) => order.indexOf(a.layer.id) - order.indexOf(b.layer.id))
   const hit = hits[0]
   if (!hit) return null
-  const pointAt = (): [number, number] =>
-    hit.geometry.type === "Point" ? (hit.geometry.coordinates as [number, number]) : at
+  const pointAt = (): [number, number] => (hit.geometry.type === "Point" ? (hit.geometry.coordinates as [number, number]) : at)
+  if (hit.layer.id === CONCESSION_FILL) return { kind: "reach", at, props: hit.properties as never }
   if (hit.layer.id === LINE_LAYER) return { kind: "line", at, props: hit.properties as never }
   if (hit.layer.id === BUS_LAYER) return { kind: "bus", at: pointAt(), props: hit.properties as never }
   return { kind: "plant", at: pointAt(), props: hit.properties as never }
 }
 
+/**
+ * Whether a DOM event started inside a callout box.
+ *
+ * MapLibre's markers are children of the canvas container, so a click on a
+ * control INSIDE a box reaches the map's own listener before React's handler
+ * for that control ever runs -- and the map would dismiss the box its control
+ * was trying to operate. React's stopPropagation cannot help, because React
+ * listens at the application root, above the map. So the map asks instead.
+ */
+function insideCallout(e: { originalEvent?: Event }): boolean {
+  const target = e.originalEvent?.target
+  return target instanceof Element && !!target.closest("[data-callout]")
+}
+
 function onClick(e: MapMouseEvent): void {
+  if (insideCallout(e)) return
   if (swallowClick) {
     swallowClick = false
     return
@@ -850,13 +1106,11 @@ function onClick(e: MapMouseEvent): void {
     case "measure":
       measure.set((pts) => (pts.length >= 2 ? [at] : [...pts, at]))
       return
-    case "area":
-      // terra-draw handles the click.
-      return
   }
 }
 
 function onContextMenu(e: MapMouseEvent): void {
+  if (insideCallout(e)) return
   e.preventDefault()
   const item = pick(e.target, e.point)
   const at = { lon: e.lngLat.lng, lat: e.lngLat.lat }
@@ -890,7 +1144,7 @@ function onContextMenu(e: MapMouseEvent): void {
         label: "Add Site Here",
         run: () => void runOperator("SITE_ADD", [at.lat.toFixed(6), at.lon.toFixed(6)]),
       },
-      { type: "op", op: "TOOL_AREA", label: "Draw Area" },
+      { type: "op", op: "AREA_PLACE", label: "Area From A Place…" },
       { type: "sep" },
       {
         type: "action",
@@ -944,6 +1198,11 @@ export function frameAll(): boolean {
 }
 
 /** Frame one object, or the source of a result. */
+/** Frame a ring the project does not own: a region taken from the catalogue. */
+export function framePolygon(polygon: Polygon): boolean {
+  return frame(polygon.coordinates[0])
+}
+
 export function frameItem(item: AnyItem): boolean {
   const d = project.get().data
   const target = isResult(item) ? findItem(d, item.sourceId) : item

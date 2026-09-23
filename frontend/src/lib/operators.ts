@@ -1,4 +1,4 @@
-import { ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, Mountains, PencilSimple, Play, PlugsConnected, Polygon as PolygonIcon, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "@phosphor-icons/react"
+import { ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "@phosphor-icons/react"
 import { Quit, WindowIsFullscreen, WindowFullscreen, WindowUnfullscreen } from "../../wailsjs/runtime/runtime"
 import { account, logout } from "./account"
 import { cancelRun, runConnection, runDemand, runSolar, runTerrain, runWind, running } from "./analysis"
@@ -40,7 +40,7 @@ import { SetProjectDirty } from "../../wailsjs/go/main/App"
 import { checkSidecar, sidecar } from "./sidecarStatus"
 import { createStore, useStore } from "./store"
 import { activeTool, mapRegions, setTool } from "./tools"
-import { lastOperation, lastOperationOpen, operatorSearch, preferences, renaming, splashOpen } from "./ui"
+import { lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen } from "./ui"
 
 /**
  * Every action the application performs, in one registry, as Blender's
@@ -503,17 +503,19 @@ export const OPERATORS: Operator[] = [
     run: () => setTool("site"),
   },
   {
-    name: "TOOL_AREA",
-    aliases: ["AREA", "AR"],
-    label: "Draw area",
-    description: "Draw an analysis area on the map",
-    icon: PolygonIcon,
-    menu: "Map › Tools",
-    keys: ["D"],
+    name: "AREA_PLACE",
+    aliases: ["PLACE", "CITY", "MUNICIPIO"],
+    label: "Area from a place",
+    description:
+      "Take an area from a published boundary -- a state or a municipality, from IBGE -- instead of drawing one",
+    icon: MapTrifold,
+    menu: "Map › Add",
+    keys: ["Shift+D"],
     scope: "map",
-    quiet: true,
-    poll: needMap,
-    run: () => setTool("area"),
+    poll: notRunning,
+    run: async () => {
+      placePrompt.set(true)
+    },
   },
   {
     name: "TOOL_MEASURE",

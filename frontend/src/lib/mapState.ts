@@ -1,4 +1,4 @@
-import type { BusProps, LineProps, PlantProps } from "./grid"
+import type { BusProps, LineProps, PlantProps, ReachProps } from "./grid"
 import { createStore } from "./store"
 
 /**
@@ -56,5 +56,6 @@ export type PickedGrid =
   | { kind: "plant"; at: [number, number]; props: PlantProps }
   | { kind: "line"; at: [number, number]; props: LineProps }
   | { kind: "bus"; at: [number, number]; props: BusProps }
+  | { kind: "reach"; at: [number, number]; props: ReachProps }
 
 export const pickedGrid = createStore<PickedGrid | null>(null)
