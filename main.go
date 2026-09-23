@@ -1,5 +1,5 @@
 /*
-Command TerraEnergyEngine is the desktop shell of TERRA Energy Engine.
+Command Solara is the desktop shell of Solara.
 
 The shell opens the window, embeds the built frontend and exposes the methods
 the interface calls. Computation happens in a Python sidecar started once per
@@ -24,7 +24,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title: "TERRA Energy Engine",
+		Title: "Solara",
 		// Splash-sized. RevealMainWindow raises the limits and maximises the
 		// window once boot:ready has been handled.
 		Width:            420,

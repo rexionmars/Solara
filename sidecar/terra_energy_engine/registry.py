@@ -27,6 +27,11 @@ ACTIONS: dict[str, str] = {
     'grid_plants': 'terra_energy_engine.grid.actions:grid_plants',
     'grid_network': 'terra_energy_engine.grid.actions:grid_network',
     'grid_congestion': 'terra_energy_engine.grid.actions:grid_congestion',
+    # What the area already draws from the network, from the BDGD register.
+    'demand_area': 'terra_energy_engine.grid.actions:demand_area',
+    # Consumption by municipality, as a layer read before any area is chosen.
+    'demand_towns': 'terra_energy_engine.grid.actions:demand_towns',
+    'grid_concessions': 'terra_energy_engine.grid.actions:grid_concessions',
     # The weather now, where only the sidecar can read the format.
     'wind_field': 'terra_energy_engine.weather.actions:wind_field',
 }

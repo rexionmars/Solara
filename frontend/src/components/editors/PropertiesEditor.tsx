@@ -50,6 +50,7 @@ const SUBJECT: Record<AnyItem["kind"], string> = {
   wind: "Wind screening",
   terrain: "Solar terrain",
   connection: "Grid connection",
+  demand: "Area demand",
 }
 
 /** The subject, its name and where it is, as TERRA heads a reading. */
@@ -152,6 +153,8 @@ const WHAT: Record<Product, string> = {
   wind: "MERRA-2 at the site's cell, extrapolated to hub height. Gross and unvalidated: a screening.",
   terrain: "Plane-of-array irradiation over the area's 30 m terrain, with horizon shading. Draws a layer.",
   connection: "Where the area could join the transmission network, and what the plants already joined there lost. Read from the grid store.",
+  demand:
+    "What the area already draws from the network and already generates behind the meter, from the BDGD register in the grid store.",
 }
 
 /** A product's card: what it reads, its settings, the run, and what it last produced. */
@@ -205,8 +208,19 @@ function ProductCard({ product, source }: { product: Product; source: SiteObject
   )
 }
 
-function TerrainLayer({ result }: { result: Extract<ResultObject, { kind: "terrain" }> }) {
+/**
+ * The layer a result drew, whichever product drew it: shown or not, its
+ * legend, its opacity and the ramp it was drawn on.
+ */
+function ResultLayer({ result }: { result: Extract<ResultObject, { kind: "terrain" | "demand" }> }) {
   const legends = useStore(legendsShown)
+  const layer =
+    result.kind === "terrain"
+      ? { scale: result.data.scale, unit: result.data.unit, title: seasonLabel(result.data.season) }
+      : result.data.density
+        ? { scale: result.data.density.scale, unit: result.data.density.unit, title: `Cells of ${result.data.density.cell_km} km` }
+        : null
+  if (!layer) return null
   return (
     <PanelSection title="Layer">
       <Checkbox checked={!result.hidden} onChange={(v) => setHidden(result.id, !v)} label="Drawn on the map" />
@@ -228,7 +242,7 @@ function TerrainLayer({ result }: { result: Extract<ResultObject, { kind: "terra
           onChange={(v) => v !== undefined && setResultOpacity(result.id, v / 100)}
         />
       </FieldRow>
-      <Legend scale={result.data.scale} unit={result.data.unit} title={seasonLabel(result.data.season)} />
+      <Legend scale={layer.scale} unit={layer.unit} title={layer.title} />
     </PanelSection>
   )
 }
@@ -298,7 +312,7 @@ function AreaBody({ area }: { area: AreaObject }) {
       </PanelSection>
       <NowSection lat={c.lat} lon={c.lon} sourceId={area.id} />
       <ProductCard product="terrain" source={area} />
-      {latest?.kind === "terrain" && <TerrainLayer result={latest} />}
+      {(latest?.kind === "terrain" || latest?.kind === "demand") && <ResultLayer result={latest} />}
       <ProductCard product="connection" source={area} />
     </>
   )
@@ -328,7 +342,7 @@ function ResultBody({ result }: { result: ResultObject }) {
           </button>
         )}
       </PanelSection>
-      {result.kind === "terrain" && <TerrainLayer result={result} />}
+      {(result.kind === "terrain" || result.kind === "demand") && <ResultLayer result={result} />}
       <PanelSection title="Export">
         <div className="flex flex-wrap gap-1">
           <OperatorButton name="EXPORT_CSV" label="CSV" />

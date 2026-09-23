@@ -44,8 +44,10 @@ export function TitleBar() {
       }}
     >
       <div className="flex items-center gap-2">
-        <img src="/terra-logo.png" alt="" className="h-7 w-7 object-contain" />
-        <span className="font-display text-sm font-semibold tracking-[0.14em]">TERRA</span>
+        <span className="brand-lockup text-[18px]">
+          <img src="/solara-mark.svg" alt="" />
+          <span className="brand-word">solara</span>
+        </span>
         <span className="eyebrow hidden sm:inline">{BRAND_TAGLINE}</span>
       </div>
 

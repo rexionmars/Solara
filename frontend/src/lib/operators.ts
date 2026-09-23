@@ -1,49 +1,7 @@
-import {
-  ArrowClockwise,
-  ArrowCounterClockwise,
-  ArrowsOut,
-  Compass,
-  CornersOut,
-  Cursor,
-  Database,
-  Download,
-  Eye,
-  EyeSlash,
-  FileArrowDown,
-  FilePlus,
-  FloppyDisk,
-  FolderOpen,
-  Gear,
-  Heartbeat,
-  House,
-  Info as InfoIcon,
-  Keyboard,
-  MagnifyingGlass,
-  MagnifyingGlassMinus,
-  MagnifyingGlassPlus,
-  MapPin,
-  Mountains,
-  PencilSimple,
-  Play,
-  PlugsConnected,
-  Polygon as PolygonIcon,
-  Question,
-  Ruler,
-  SidebarSimple,
-  SignOut,
-  SlidersHorizontal,
-  StopCircle,
-  Sun,
-  Swatches,
-  Trash,
-  UserCircle,
-  Wind,
-  X,
-  type Icon,
-} from "@phosphor-icons/react"
+import { ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "@phosphor-icons/react"
 import { Quit, WindowIsFullscreen, WindowFullscreen, WindowUnfullscreen } from "../../wailsjs/runtime/runtime"
 import { account, logout } from "./account"
-import { cancelRun, runConnection, runSolar, runTerrain, runWind, running } from "./analysis"
+import { cancelRun, runConnection, runDemand, runSolar, runTerrain, runWind, running } from "./analysis"
 import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
@@ -57,6 +15,9 @@ import {
   deleteItem,
   isAreaProduct,
   isAreaResult,
+  type AreaObject,
+  type AreaResult,
+  type SiteObject,
   isResult,
   project,
   redo,
@@ -79,7 +40,7 @@ import { SetProjectDirty } from "../../wailsjs/go/main/App"
 import { checkSidecar, sidecar } from "./sidecarStatus"
 import { createStore, useStore } from "./store"
 import { activeTool, mapRegions, setTool } from "./tools"
-import { lastOperation, lastOperationOpen, operatorSearch, preferences, renaming, splashOpen } from "./ui"
+import { lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen } from "./ui"
 
 /**
  * Every action the application performs, in one registry, as Blender's
@@ -154,29 +115,39 @@ const needTerrainResult = () => (activeItem()?.kind === "terrain" ? true : "Sele
 // ---- Run helpers ---------------------------------------------------------------
 
 /** The operator that runs each product. */
-export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION" }
+export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION", demand: "DEMAND" }
 
 const needGridStore = (): true | string =>
   storeReachable() ? true : "The grid store is not reachable (Studio › Settings › Grid store says why)"
+
+/**
+ * Which function runs each product. A total record rather than a chain of
+ * conditions: a product added without one does not compile, where a chain
+ * would quietly send it to whichever branch came last.
+ */
+const RUN_AREA: Record<AreaResult["kind"], (a: AreaObject) => Promise<string | null>> = {
+  terrain: runTerrain,
+  connection: runConnection,
+  demand: runDemand,
+}
+const RUN_SITE: Record<Exclude<Product, AreaResult["kind"]>, (s: SiteObject) => Promise<string | null>> = {
+  solar: runSolar,
+  wind: runWind,
+}
 
 async function runProduct(product: Product): Promise<void> {
   if (isAreaProduct(product)) {
     const area = activeArea()
     if (!area) return
-    const id = await (product === "terrain" ? runTerrain(area) : runConnection(area))
+    const id = await RUN_AREA[product](area)
     if (id) lastOperation.set({ operator: RUN_OPERATOR[product], label: PRODUCT_NAMES[product], kind: "run", target: id })
     return
   }
   const site = activeSite()
   if (!site) return
-  const id = await (product === "solar" ? runSolar(site) : runWind(site))
+  const id = await RUN_SITE[product](site)
   if (id) {
-    lastOperation.set({
-      operator: product === "solar" ? "SOLAR" : "WIND",
-      label: PRODUCT_NAMES[product],
-      kind: "run",
-      target: id,
-    })
+    lastOperation.set({ operator: RUN_OPERATOR[product], label: PRODUCT_NAMES[product], kind: "run", target: id })
   }
 }
 
@@ -532,17 +503,19 @@ export const OPERATORS: Operator[] = [
     run: () => setTool("site"),
   },
   {
-    name: "TOOL_AREA",
-    aliases: ["AREA", "AR"],
-    label: "Draw area",
-    description: "Draw an analysis area on the map",
-    icon: PolygonIcon,
-    menu: "Map › Tools",
-    keys: ["D"],
+    name: "AREA_PLACE",
+    aliases: ["PLACE", "CITY", "MUNICIPIO"],
+    label: "Area from a place",
+    description:
+      "Take an area from a published boundary -- a state or a municipality, from IBGE -- instead of drawing one",
+    icon: MapTrifold,
+    menu: "Map › Add",
+    keys: ["Shift+D"],
     scope: "map",
-    quiet: true,
-    poll: needMap,
-    run: () => setTool("area"),
+    poll: notRunning,
+    run: async () => {
+      placePrompt.set(true)
+    },
   },
   {
     name: "TOOL_MEASURE",
@@ -685,6 +658,16 @@ export const OPERATORS: Operator[] = [
     menu: "Analyze",
     poll: all(needArea, notRunning, engineUp, needGridStore),
     run: () => runProduct("connection"),
+  },
+  {
+    name: "DEMAND",
+    aliases: ["LOAD"],
+    label: "Area demand",
+    description: "What the active area already draws from the network, read from the BDGD register in the grid store",
+    icon: ChartBar,
+    menu: "Analyze",
+    poll: all(needArea, notRunning, engineUp, needGridStore),
+    run: () => runProduct("demand"),
   },
   {
     name: "GRID_STORE",
@@ -831,7 +814,7 @@ export const OPERATORS: Operator[] = [
   {
     name: "ABOUT",
     aliases: ["VERSION"],
-    label: "About TERRA Energy Engine",
+    label: "About Solara",
     description: "Version and data sources",
     icon: InfoIcon,
     menu: "Studio",

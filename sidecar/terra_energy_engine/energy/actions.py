@@ -610,7 +610,7 @@ def solar_terrain(req: protocol.Request) -> None:
 # is why the shell runs it outside the one-request rule.
 def parameter_defaults(req: protocol.Request) -> None:
     from terra_energy_engine.energy import pv as pv_mod, seasons as seasons_mod, wind as wind_mod
-    from terra_energy_engine.grid import actions as grid_actions
+    from terra_energy_engine.grid import actions as grid_actions, demand as demand_mod
 
     lo, hi = wind_mod.ROUGHNESS_BAND_M
     protocol.reply({
@@ -637,5 +637,9 @@ def parameter_defaults(req: protocol.Request) -> None:
         },
         'connection': {
             'search_radius_km': grid_actions.SEARCH_RADIUS_KM,
+        },
+        'demand': {
+            'yield_ceiling_kwh_kwp': demand_mod.DEFAULT_CEILING_KWH_KWP,
+            'cell_km': demand_mod.CELL_KM,
         },
     })

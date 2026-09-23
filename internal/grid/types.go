@@ -222,3 +222,278 @@ type Window struct {
 	Record    []string  `json:"record"`
 	Used      []string  `json:"used"`
 }
+
+// ---- The demand reading -------------------------------------------------------------
+
+// DemandRequest asks what an area already draws from the network.
+type DemandRequest struct {
+	Area energy.Polygon `json:"area"`
+	// Which register to read. A store holding one distributor needs neither;
+	// holding several, the reading refuses to guess.
+	Distribuidora string `json:"distribuidora,omitempty"`
+	Year          *int   `json:"ano,omitempty"`
+	// The specific yield the solar product read at this place, in
+	// kWh/kWp/year. A generator reporting more than this has a register error.
+	// Absent, the reading applies a convention and says so.
+	SpecificYieldCeiling *float64 `json:"specific_yield_ceiling_kwh_kwp,omitempty"`
+	// The density layer's cell, in kilometres. Default 1.
+	CellKM *float64 `json:"cell_km,omitempty"`
+}
+
+// DemandAnalysis is the demand_area reply.
+type DemandAnalysis struct {
+	Register DemandRegister `json:"register"`
+	// By voltage level: bt, mt, at. A level with no unit in the area is absent.
+	Consumption map[string]*DemandConsumption `json:"consumo"`
+	Generation  map[string]*DemandGeneration  `json:"geracao"`
+	Totals      DemandTotals                  `json:"totais"`
+	// How much of the asked-for area this register is the register of.
+	// Absent where the load carried no tariff sets to measure it from.
+	Coverage *DemandCoverage `json:"cobertura"`
+	// What the figures say, as quantities the reading states in words.
+	Findings DemandFindings `json:"analise"`
+	// Where inside the area the consumption fell, as a layer for the map.
+	// Absent where no unit of the register stands in the area.
+	Density     *DemandDensity    `json:"density"`
+	ByClass     []DemandByGroup   `json:"por_classe"`
+	ByTown      []DemandByGroup   `json:"por_municipio"`
+	Assumptions DemandAssumptions `json:"assumptions"`
+}
+
+// DemandCoverage is the share of the area this distributor's concession
+// covers. A reading over ground the distributor does not serve is about the
+// part it does, and this is the number that says how much that was.
+type DemandCoverage struct {
+	AreaKM2       float64  `json:"area_km2"`
+	ConcessionKM2 float64  `json:"concessao_km2"`
+	InsideKM2     float64  `json:"dentro_km2"`
+	CoveredPct    *float64 `json:"cobertura_pct"`
+	Note          string   `json:"nota"`
+}
+
+// DemandFindings is what is derived from the registers rather than read off
+// them: how the year swings, how gathered the load is, what the rooftops
+// already cover and how far the register can be trusted. Each part is absent
+// where the area holds nothing to derive it from.
+type DemandFindings struct {
+	Seasonality   *DemandSeasonality   `json:"sazonalidade"`
+	Mix           *DemandMix           `json:"mix"`
+	Trust         *DemandTrust         `json:"confianca_do_registro"`
+	Concentration *DemandConcentration `json:"concentracao"`
+	CentreOfLoad  *DemandCentre        `json:"centro_de_carga"`
+}
+
+// DemandSeasonality is the year's swing, in the register's own months.
+type DemandSeasonality struct {
+	PeakMonth    int      `json:"mes_pico"`
+	TroughMonth  int      `json:"mes_vale"`
+	PeakMWh      float64  `json:"pico_mwh"`
+	TroughMWh    float64  `json:"vale_mwh"`
+	AmplitudePct *float64 `json:"amplitude_pct"`
+}
+
+// DemandMix is the class that leads the area, by energy and by unit count.
+type DemandMix struct {
+	Class     string  `json:"classe"`
+	EnergyPct float64 `json:"pct_da_energia"`
+	UnitsPct  float64 `json:"pct_das_unidades"`
+}
+
+// DemandTrust counts the generators whose declaration cannot be true, and what
+// share of the declared power they hold.
+type DemandTrust struct {
+	Impossible    int     `json:"geradores_impossiveis"`
+	Generators    int     `json:"geradores"`
+	GeneratorsPct float64 `json:"pct_dos_geradores"`
+	PowerPct      float64 `json:"pct_da_potencia"`
+}
+
+// DemandConcentration is how little ground holds how much of the consumption.
+type DemandConcentration struct {
+	CellsForHalf int     `json:"celulas_com_metade"`
+	KM2ForHalf   float64 `json:"km2_com_metade"`
+	CellsPct     float64 `json:"pct_das_celulas_ocupadas"`
+	TopDecilePct float64 `json:"decil_superior_pct"`
+}
+
+// DemandCentre is the consumption-weighted middle of the area, and how far it
+// stands from the area's own middle.
+type DemandCentre struct {
+	Lon      float64 `json:"lon"`
+	Lat      float64 `json:"lat"`
+	OffsetKM float64 `json:"desloc_km"`
+	Bearing  string  `json:"rumo"`
+}
+
+// DemandDensity is the consumption per cell, drawn over the area.
+//
+// The cell holds the units whose connection point falls in it, so it maps the
+// network's load at the network's own resolution, not consumption per hectare
+// of ground. An empty cell is transparent, never zero.
+type DemandDensity struct {
+	// Where the webview loads the rendered layer from, and the path the
+	// sidecar wrote it at, which is cleared once the URL is built.
+	OverlayURL string             `json:"overlay_url"`
+	OverlayPNG string             `json:"overlay_png,omitempty"`
+	Extent     energy.Bounds      `json:"extent"`
+	Scale      energy.RenderScale `json:"scale"`
+	CellKM     float64            `json:"cell_km"`
+	// Cells that hold at least one unit, of the grid below.
+	Cells int        `json:"cells"`
+	Grid  DemandGrid `json:"grid"`
+	Unit  string     `json:"unit"`
+	Note  string     `json:"note"`
+}
+
+// DemandGrid is the layer's shape in cells.
+type DemandGrid struct {
+	NX int `json:"nx"`
+	NY int `json:"ny"`
+}
+
+// DemandRegister says which BDGD this reading counted.
+type DemandRegister struct {
+	Distribuidora string          `json:"distribuidora"`
+	Year          int             `json:"ano"`
+	Base          string          `json:"base"`
+	Holdings      []DemandHolding `json:"holdings"`
+}
+
+// DemandHolding is one register the store carries.
+type DemandHolding struct {
+	Distribuidora string `json:"distribuidora"`
+	Year          int    `json:"ano"`
+	Units         int    `json:"unidades"`
+	// Units the register could not place; they cannot fall inside any area.
+	Unplaced int `json:"sem_ponto"`
+}
+
+// DemandConsumption is one voltage level's consumer units inside the area.
+type DemandConsumption struct {
+	Units      int       `json:"unidades"`
+	EnergyMWh  float64   `json:"energia_ano_mwh"`
+	MonthlyMWh []float64 `json:"energia_mensal_mwh"`
+}
+
+// DemandGeneration is what the area generates behind the meter. The energy is
+// what reached the network, not what was generated: see Assumptions.
+type DemandGeneration struct {
+	Units int `json:"unidades"`
+	// What the register says, and what is left of it once the rows that
+	// cannot be true are set aside.
+	InstalledKW          float64     `json:"potencia_instalada_kw"`
+	PlausibleInstalledKW float64     `json:"potencia_instalada_plausivel_kw"`
+	InjectedMWh          float64     `json:"energia_injetada_ano_mwh"`
+	AboveCeiling         DemandAbove `json:"acima_do_teto"`
+	// Up to a few thousand rows as [installed kW, energy MWh], so the reading
+	// can draw the register against its ceiling rather than only count it.
+	// Ordered by a hash of the identifier: the same area draws the same cloud.
+	Sample [][]float64 `json:"amostra"`
+}
+
+// DemandAbove counts the generators that report more than their site can make.
+type DemandAbove struct {
+	CeilingKWhKWp float64 `json:"teto_kwh_kwp_ano"`
+	Units         int     `json:"unidades"`
+	PowerKW       float64 `json:"potencia_kw"`
+	Note          string  `json:"nota"`
+}
+
+// DemandTotals is the area's consumption and what its own generation put back.
+type DemandTotals struct {
+	ConsumedMWh float64  `json:"energia_consumida_ano_mwh"`
+	InjectedMWh float64  `json:"energia_injetada_ano_mwh"`
+	InjectedPct *float64 `json:"injetada_sobre_consumida_pct"`
+}
+
+// DemandByGroup is consumption cut by class or by town.
+type DemandByGroup struct {
+	Class     string  `json:"clas_sub,omitempty"`
+	Town      string  `json:"mun,omitempty"`
+	Units     int     `json:"unidades"`
+	EnergyMWh float64 `json:"energia_ano_mwh"`
+}
+
+// DemandAssumptions is what the reading had to assume to answer, in the words
+// it reports them: none of it is corrected silently.
+type DemandAssumptions struct {
+	GenerationEnergy string        `json:"energia_da_geracao"`
+	InstalledPower   string        `json:"potencia_instalada"`
+	Position         string        `json:"posicao"`
+	Ceiling          DemandCeiling `json:"teto_de_rendimento"`
+}
+
+// DemandCeiling is the yield a generator is audited against, and where it came
+// from: the solar product at this place, or the product's own convention.
+type DemandCeiling struct {
+	ValueKWhKWp float64 `json:"valor_kwh_kwp_ano"`
+	Source      string  `json:"origem"`
+	Note        string  `json:"nota"`
+}
+
+// ---- Consumption by municipality, as a layer ----------------------------------------
+
+// TownDemandLayer is what each municipality of the loaded register consumes.
+// A layer, not a reading: it takes no area and no window, and it is read once
+// so the map says where consumption is before any ground is chosen.
+type TownDemandLayer struct {
+	// Every register drawn, latest base year each. A layer is read before any
+	// ground is chosen, so it cannot be about one of them.
+	Registers []TownRegister `json:"registros"`
+	// The states the registers reach, as IBGE's two-digit codes. The meshes
+	// are published one state at a time, so the caller has to know which.
+	UFs      []string          `json:"ufs"`
+	Towns    []TownConsumption `json:"municipios"`
+	Unit     string            `json:"unit"`
+	Note     string            `json:"nota"`
+	Holdings []DemandHolding   `json:"holdings"`
+}
+
+// TownRegister names one register the layer drew.
+type TownRegister struct {
+	Distribuidora string `json:"distribuidora"`
+	Year          int    `json:"ano"`
+}
+
+// TownConsumption is one municipality's figures, keyed on the IBGE code the
+// register carries and IBGE's own meshes are keyed on. It carries the register
+// it came from, because the layer draws several.
+type TownConsumption struct {
+	Town          string `json:"mun"`
+	Distribuidora string `json:"distribuidora"`
+	Year          int    `json:"ano"`
+	Units       int     `json:"unidades"`
+	EnergyMWh   float64 `json:"energia_ano_mwh"`
+	Generators  int     `json:"geradores"`
+	InjectedMWh float64 `json:"injetada_ano_mwh"`
+	PowerKW     float64 `json:"potencia_kw"`
+}
+
+// ---- Where each register reaches, as a layer ----------------------------------------
+
+// ConcessionLayer is what the grid_concessions action returns: where every
+// register the store holds actually has data. A layer and not a reading -- it
+// takes no area, because its whole purpose is to be on screen BEFORE a ground
+// is chosen.
+type ConcessionLayer struct {
+	// Every holding, including one whose reach could not be drawn.
+	Holdings []DemandHolding `json:"holdings"`
+	Reaches  []Concession    `json:"concessoes"`
+	Note     string          `json:"nota"`
+}
+
+// Concession is one holding and the ground it covers. Geometry is nil where
+// the load did not bring the tariff sets; the holding is still listed, so the
+// interface can name the register it cannot draw rather than leaving the map
+// to imply that ground is outside every concession.
+type Concession struct {
+	Distribuidora string `json:"distribuidora"`
+	Year          int    `json:"ano"`
+	Units         int    `json:"unidades"`
+	Unplaced      int    `json:"sem_ponto"`
+	// GeoJSON geometry, simplified to about 200 m, in SIRGAS 2000 (4674) --
+	// under a metre from WGS 84 in Brazil, far inside that simplification.
+	Geometry json.RawMessage `json:"geometry"`
+	AreaKM2  *float64        `json:"area_km2"`
+	Vertices int             `json:"vertices"`
+}

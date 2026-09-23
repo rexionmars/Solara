@@ -51,7 +51,7 @@ const (
 )
 
 // projectFilter is the dialog filter for project files.
-var projectFilter = []wruntime.FileFilter{{DisplayName: "TERRA project (*.terra)", Pattern: "*.terra"}}
+var projectFilter = []wruntime.FileFilter{{DisplayName: "Solara project (*.terra)", Pattern: "*.terra"}}
 
 // OpenedProject is a project file read by OpenProject.
 type OpenedProject struct {

@@ -131,12 +131,9 @@ export function StartSplash() {
             style={{ background: "linear-gradient(160deg, rgb(0 0 0 / 0.45) 0%, rgb(0 0 0 / 0) 45%, rgb(0 0 0 / 0) 70%, rgb(0 0 0 / 0.4) 100%)" }}
             aria-hidden
           />
-          <div className="absolute left-5 top-5 flex items-center gap-2.5">
-            <img src="/terra-logo.png" alt="" className="splash-logo size-10 object-contain" draggable={false} />
-            <div className="flex flex-col">
-              <span className="splash-brand text-[26px] font-semibold leading-none tracking-[0.14em] text-foreground/90">TERRA</span>
-              <span className="splash-eyebrow mt-1 text-[10px] uppercase tracking-[0.12em] text-foreground/75">Energy engine</span>
-            </div>
+          <div className="absolute left-5 top-5 flex flex-col">
+            <img src="/solara-lockup.png" alt="Solara" className="splash-logo w-[168px]" draggable={false} />
+            <span className="splash-eyebrow mt-1.5 text-[10px] uppercase tracking-[0.12em] text-foreground/75">Energy engine</span>
           </div>
           <span className="splash-eyebrow telemetry absolute right-4 top-3.5 text-body text-foreground/80">
             {version ? `${version} ${RELEASE_NAME}` : RELEASE_NAME}
@@ -150,7 +147,11 @@ export function StartSplash() {
           <section className="min-w-0">
             <p className="mb-1 px-1.5 text-body text-muted-foreground">Start</p>
             {opRow("TOOL_SITE", "Place a site", "The solar resource and the wind screening are read at a site")}
-            {opRow("TOOL_AREA", "Draw an area", "The terrain product is read over an area")}
+            {opRow(
+              "AREA_PLACE",
+              "Area from a place…",
+              "A state or a municipality, from the boundaries IBGE publishes"
+            )}
             <Row
               icon={Crosshair}
               label="Site at coordinates…"

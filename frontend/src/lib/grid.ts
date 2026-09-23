@@ -1,7 +1,8 @@
-import type { FeatureCollection, LineString, Point } from "geojson"
-import { GridNetwork, GridPlants, InspectGridStore, SetGridStore } from "../../wailsjs/go/main/App"
+import type { Feature, FeatureCollection, LineString, Point } from "geojson"
+import { GridConcessions, GridNetwork, GridPlants, GridTownDemand, InspectGridStore, SetGridStore } from "../../wailsjs/go/main/App"
 import type { grid } from "../../wailsjs/go/models"
 import { errorMessage } from "./errors"
+import { stateMesh } from "./places"
 import { fail, info, note } from "./reports"
 import { createStore } from "./store"
 
@@ -139,6 +140,157 @@ export type NetworkRegister = {
 }
 
 export type LayerState<T> = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; data: T } | { kind: "failed"; message: string }
+
+/**
+ * Consumption by municipality, joined to IBGE's mesh of the states the
+ * register reaches.
+ *
+ * A LAYER, NOT A READING. Until this existed the map said nothing about where
+ * consumption is, so choosing a ground to read was choosing blind -- the same
+ * argument the plant register's layer is written on. The figures come from the
+ * BDGD in the store; the shapes come from IBGE, joined on the municipality
+ * code both of them carry.
+ */
+export const townDemand = createStore<LayerState<TownDemandLayer>>({ kind: "idle" })
+
+export type TownDemandLayer = {
+  geojson: FeatureCollection
+  /** The highest municipal consumption, which the ramp is drawn against. */
+  max: number
+  towns: number
+  /** Every register drawn; the layer is not about one of them. */
+  registers: { distribuidora: string; ano: number }[]
+  unit: string
+  note: string
+}
+
+/**
+ * Read the municipal figures and the meshes they are drawn on, once.
+ *
+ * The mesh is fetched per state because that is how IBGE publishes it, and
+ * only for the states the register actually reaches: a distributor of Rio
+ * Grande do Norte asks for one.
+ */
+export function loadTownDemand(): void {
+  const s = townDemand.get()
+  if (s.kind === "loading" || s.kind === "ready") return
+  townDemand.set({ kind: "loading" })
+  GridTownDemand()
+    .then(async (layer) => {
+      const byCode = new Map(layer.municipios.map((t) => [String(t.mun), t]))
+      const features: Feature[] = []
+      for (const uf of layer.ufs) {
+        const mesh = await stateMesh(uf)
+        for (const f of mesh.features) {
+          const code = String((f.properties as { codarea?: string } | null)?.codarea ?? "")
+          const town = byCode.get(code)
+          // A municipality the register does not reach is left out rather than
+          // drawn as zero: the two are different facts.
+          if (!town) continue
+          features.push({
+            ...f,
+            properties: {
+              code,
+              energy: town.energia_ano_mwh,
+              units: town.unidades,
+              injected: town.injetada_ano_mwh,
+              generators: town.geradores,
+              distribuidora: town.distribuidora,
+            },
+          })
+        }
+      }
+      townDemand.set({
+        kind: "ready",
+        data: {
+          geojson: { type: "FeatureCollection", features },
+          max: Math.max(1, ...features.map((f) => Number(f.properties?.energy ?? 0))),
+          towns: features.length,
+          registers: layer.registros,
+          unit: layer.unit,
+          note: layer.nota,
+        },
+      })
+    })
+    .catch((e) => townDemand.set({ kind: "failed", message: errorMessage(e) }))
+}
+
+/**
+ * Where each register the store holds actually reaches.
+ *
+ * THE LAYER THAT SAYS WHETHER A QUESTION CAN BE ASKED. A demand reading is
+ * always about one distributor, and the register exists only where that
+ * distributor is the distributor; ground outside every shape here comes back
+ * empty, and ground outside all of them with more than one holding loaded is
+ * REFUSED, because the reading will not guess which register it is about.
+ * Neither fact is knowable from the map without this.
+ *
+ * The shapes come from the store itself -- the union of each register's
+ * tariff sets -- so unlike the municipal layer it needs nothing from the
+ * network and costs tens of kilobytes.
+ */
+export const concessions = createStore<LayerState<ConcessionLayer>>({ kind: "idle" })
+
+/** What a clicked reach says about itself. */
+export type ReachProps = {
+  name: string
+  distribuidora: string
+  ano: number
+  units: number
+  areaKm2: number | null
+}
+
+export type ConcessionLayer = {
+  geojson: FeatureCollection
+  /** Every holding, including one whose reach the load did not bring. */
+  holdings: { distribuidora: string; ano: number; unidades: number }[]
+  /** Holdings that have no shape to draw; named so the map can say which. */
+  undrawn: string[]
+  note: string
+}
+
+export function loadConcessions(): void {
+  const s = concessions.get()
+  if (s.kind === "loading" || s.kind === "ready") return
+  concessions.set({ kind: "loading" })
+  GridConcessions()
+    .then((layer) => {
+      const features: Feature[] = []
+      const undrawn: string[] = []
+      for (const c of layer.concessoes) {
+        const name = `${c.distribuidora} · ${c.ano}`
+        if (!c.geometry) {
+          undrawn.push(name)
+          continue
+        }
+        features.push({
+          type: "Feature",
+          geometry: c.geometry as unknown as Feature["geometry"],
+          properties: {
+            name,
+            distribuidora: c.distribuidora,
+            ano: c.ano,
+            units: c.unidades,
+            areaKm2: c.area_km2 ?? null,
+            // Two lines drawn on the shape itself. A polygon nobody can name
+            // is decoration: the reader has to know WHOSE register this is
+            // without clicking it first.
+            label: `${c.distribuidora}\n${c.ano} register · ${c.unidades.toLocaleString()} units`,
+          } satisfies ReachProps & { label: string },
+        })
+      }
+      concessions.set({
+        kind: "ready",
+        data: {
+          geojson: { type: "FeatureCollection", features },
+          holdings: layer.holdings,
+          undrawn,
+          note: layer.nota,
+        },
+      })
+    })
+    .catch((e) => concessions.set({ kind: "failed", message: errorMessage(e) }))
+}
 
 export const plantRegister = createStore<LayerState<PlantRegister>>({ kind: "idle" })
 export const networkRegister = createStore<LayerState<NetworkRegister>>({ kind: "idle" })

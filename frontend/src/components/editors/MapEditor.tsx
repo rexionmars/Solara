@@ -5,7 +5,7 @@ import { runConnection, runSolar, runTerrain, runWind } from "../../lib/analysis
 import { BASEMAP_NAME } from "../../lib/basemap"
 import { formatLat, formatLng } from "../../lib/format"
 import { distanceKm } from "../../lib/geo"
-import { networkRegister, plantRegister } from "../../lib/grid"
+import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
 import { mountMap, setBearing } from "../../lib/mapEngine"
 import { mapView, measure } from "../../lib/mapState"
 import { setSiteCoordinate } from "../../lib/objects"
@@ -53,7 +53,7 @@ const selectMenu = (): MenuItem[] => [op("TOOL_SELECT", "Select tool"), op("SELE
 const addMenu = (): MenuItem[] => [
   op("TOOL_SITE", "Site, picked on the map"),
   { type: "action", label: "Site at coordinates…", run: () => coordinatePrompt.set(true) },
-  op("TOOL_AREA", "Area, drawn on the map"),
+  op("AREA_PLACE", "Area, from a published boundary…"),
 ]
 const objectMenu = (): MenuItem[] => [
   op("RENAME"),
@@ -83,6 +83,8 @@ const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
 ]
 
 const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
+  { key: "gridConcessions", label: "Where each register has data" },
+  { key: "gridDemand", label: "Consumption by municipality" },
   { key: "gridMetered", label: "Plants in the record" },
   { key: "gridRegistered", label: "Registered only" },
   { key: "gridLines", label: "Transmission lines" },
@@ -93,6 +95,32 @@ const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
 function gridLabel(key: keyof Overlays, label: string): string {
   const plants = plantRegister.get()
   const network = networkRegister.get()
+  // Named before the shared branch below, because its state is neither of the
+  // two registers that one reads.
+  if (key === "gridConcessions") {
+    const reach = concessions.get()
+    if (reach.kind === "loading") return `${label} (reading…)`
+    if (reach.kind === "failed") return `${label} (unavailable)`
+    if (reach.kind !== "ready") return label
+    const drawn = reach.data.geojson.features.length
+    // A holding the load did not bring the sets for is named here rather than
+    // left to look like ground outside every register.
+    const missing = reach.data.undrawn.length ? `, ${reach.data.undrawn.length} not drawn` : ""
+    return `${label} · ${drawn}${missing}`
+  }
+  /*
+    Named before the shared branch too, and for the same reason the reach is:
+    its state is the municipal layer's, not the network register's. Read from
+    the wrong store it could never say "(unavailable)", so a layer that failed
+    every time looked like a layer that simply did nothing when toggled.
+  */
+  if (key === "gridDemand") {
+    const towns = townDemand.get()
+    if (towns.kind === "loading") return `${label} (reading…)`
+    if (towns.kind === "failed") return `${label} (unavailable)`
+    if (towns.kind !== "ready") return label
+    return `${label} · ${towns.data.towns.toLocaleString()}`
+  }
   const state = key === "gridMetered" || key === "gridRegistered" ? plants : network
   if (state.kind === "loading") return `${label} (reading…)`
   if (state.kind === "failed") return `${label} (unavailable)`
@@ -163,7 +191,7 @@ function Toolbar() {
             aria-pressed={on}
             onClick={() => void runOperator(t.operator)}
             title={`${t.label}${key ? ` (${formatKeys(key)})` : ""}\n${t.description}`}
-            className={`flex size-6 items-center justify-center rounded-sm transition-colors ${
+            className={`flex size-7 items-center justify-center transition-colors ${
               on ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
             }`}
           >
@@ -680,7 +708,8 @@ export function MapEditor() {
           <div className="absolute right-2 top-2">
             <Navigation />
           </div>
-          <div className="absolute left-2 top-2 flex flex-col items-start gap-2">
+          {/* Clear of the floating tool plate, which now sits at this corner. */}
+          <div className="absolute left-12 top-2 flex flex-col items-start gap-2">
             <MeasurePlate />
           </div>
           <div className="absolute bottom-7 right-2">

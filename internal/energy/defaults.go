@@ -51,12 +51,21 @@ type ConnectionDefaults struct {
 	SearchRadiusKM float64 `json:"search_radius_km"`
 }
 
+// DemandDefaults are the values demand_area applies to an omitted field. The
+// ceiling is the product's own convention, applied when the request carries no
+// yield read at the place itself.
+type DemandDefaults struct {
+	YieldCeilingKWhKWp float64 `json:"yield_ceiling_kwh_kwp"`
+	CellKM             float64 `json:"cell_km"`
+}
+
 // ParameterDefaults is the parameter_defaults reply.
 type ParameterDefaults struct {
 	Solar      SolarDefaults      `json:"solar"`
 	Wind       WindDefaults       `json:"wind"`
 	Terrain    TerrainDefaults    `json:"terrain"`
 	Connection ConnectionDefaults `json:"connection"`
+	Demand     DemandDefaults     `json:"demand"`
 }
 
 // FetchParameterDefaults runs the parameter_defaults action. It goes through

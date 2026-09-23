@@ -8,6 +8,8 @@ import {weather} from '../models';
 
 export function AnalyzeGridConnection(arg1:grid.ConnectionRequest):Promise<grid.ConnectionAnalysis>;
 
+export function AnalyzeGridDemand(arg1:grid.DemandRequest):Promise<grid.DemandAnalysis>;
+
 export function AnalyzeSolarResource(arg1:energy.SolarRequest):Promise<energy.SolarAnalysis>;
 
 export function AnalyzeSolarTerrain(arg1:energy.SolarTerrainRequest):Promise<energy.SolarTerrainAnalysis>;
@@ -26,9 +28,13 @@ export function GetAppVersion():Promise<string>;
 
 export function GetBootLogs():Promise<Array<string>>;
 
+export function GridConcessions():Promise<grid.ConcessionLayer>;
+
 export function GridNetwork():Promise<grid.NetworkLayer>;
 
 export function GridPlants():Promise<grid.PlantsLayer>;
+
+export function GridTownDemand():Promise<grid.TownDemandLayer>;
 
 export function InspectGridStore():Promise<grid.StoreReport>;
 

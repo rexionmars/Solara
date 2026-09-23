@@ -76,7 +76,7 @@ export function watchProjectState(): () => void {
   let last = ""
   const sync = () => {
     const p = project.get()
-    const title = `${p.dirty ? "* " : ""}${p.data.name} - TERRA Energy Engine`
+    const title = `${p.dirty ? "* " : ""}${p.data.name} - Solara`
     if (title === last) return
     const dirtyChanged = last === "" || last.startsWith("* ") !== p.dirty
     last = title
@@ -91,10 +91,10 @@ export function watchProjectState(): () => void {
 
 async function write(path: string): Promise<boolean> {
   const data = project.get().data
-  const runIds = data.results
-    .filter((r): r is Extract<ResultObject, { kind: "terrain" }> => r.kind === "terrain")
-    .map(runIdOf)
-    .filter((id): id is string => !!id)
+  // Every result that drew a layer, not only the terrain ones: the demand
+  // layer lives in a run directory too, and a project saved without it
+  // reopens with a raster nothing serves.
+  const runIds = data.results.map(runIdOf).filter((id): id is string => !!id)
   const doc: ProjectDocument = { format: FORMAT, version: VERSION, savedAt: new Date().toISOString(), ...data }
   try {
     const saved = await SaveProject(path, JSON.stringify(doc, null, 2), runIds)
@@ -150,7 +150,7 @@ function joinPath(dir: string, file: string): string {
 
 function parse(content: string, runDirs: Record<string, string>): ProjectData {
   const doc = JSON.parse(content) as Partial<ProjectDocument>
-  if (doc.format !== FORMAT) throw new Error("not a TERRA Energy Engine project")
+  if (doc.format !== FORMAT) throw new Error("not a Solara project")
   if (typeof doc.version !== "number" || doc.version > VERSION) {
     throw new Error(`made by a newer version (format ${doc.version})`)
   }

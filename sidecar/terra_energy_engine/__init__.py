@@ -1,1 +1,1 @@
-"""Python sidecar of TERRA Energy Engine."""
+"""Python sidecar of Solara."""

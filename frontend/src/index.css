@@ -1,6 +1,20 @@
 @import "tailwindcss";
 
 /*
+  RoundSans is the face the Solara wordmark is drawn in, shipped with the
+  application because the mark must not depend on a network. It is a display
+  face and a narrow one: its capitals and figures are drawn unicase, so it is
+  spent on the wordmark alone (.brand-word) and never on interface text.
+*/
+@font-face {
+  font-family: "RoundSans";
+  src: url("/fonts/RoundSans.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
   The theme is TERRA's, token for token, so this application and TERRA read as
   one family: a neutral chassis with the hue left to the accent and to data.
   See geosense-infer/frontend/src/index.css, where each value is measured and
@@ -54,6 +68,19 @@
   --s-selected: rgb(255 255 255 / 0.13);
   --s-float: rgb(var(--p-surface-raised));
 
+  /*
+    THE BOARD. A reading is not a page in a panel: it is cards on a ground the
+    reader pans and zooms. So the board needs a ground DEEPER than the window's
+    own (13 against the chassis' 24), or a card floating on it reads as just
+    another region of the chrome. The card is opaque and one step above the
+    application's sunk surface, and it redefines --s-sunk locally so a chart
+    drawn inside it paints its gaps and rings in the card's colour.
+  */
+  --p-void: 13 13 13;
+  --p-card: 25 25 25;
+  --s-board: rgb(var(--p-void));
+  --s-card: rgb(var(--p-card));
+
   --background: var(--s-app);
   --foreground: rgb(var(--p-text));
   --muted-foreground: rgb(var(--p-muted));
@@ -77,6 +104,7 @@
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-brand: "RoundSans", var(--font-display);
 }
 
 /*
@@ -113,6 +141,8 @@
   --color-hover: var(--s-hover);
   --color-selected: var(--s-selected);
   --color-float: var(--s-float);
+  --color-board: var(--s-board);
+  --color-card: var(--s-card);
 
   --color-line: rgb(var(--p-line));
   --color-line-strong: rgb(var(--p-line-strong));
@@ -140,6 +170,7 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-telemetry);
   --font-display: var(--font-display);
+  --font-brand: var(--font-brand);
 }
 
 @layer base {
@@ -220,6 +251,68 @@
 }
 .app-no-drag {
   --wails-draggable: no-drag;
+}
+
+/*
+  THE WORDMARK, reproduced from the supplied lockup rather than restyled.
+  RoundSans has one weight and is drawn at the tracking it wants, so nothing
+  here asks for another of either: a font-weight utility on a .brand-word
+  would have the browser synthesise a bold, and a synthesised letterform is
+  not the mark.
+*/
+.brand-word {
+  font-family: var(--font-brand);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: lowercase;
+  color: var(--foreground);
+}
+
+/*
+  THE LOCKUP: the mark and the name, set together as the artwork sets them.
+  Only the type size is given and the rest follows it, because the artwork
+  fixes the rest. In the artwork the mark and the lettering occupy exactly the
+  same band -- same top, same bottom -- so every number here is that one fact,
+  measured off the file rather than taken from the font's own metrics, which
+  do not describe it:
+
+    the lettering's ink is 0.8667em tall, NOT the 0.93em ascent the metrics
+    report, so the mark is 0.8667 x 141/83 = 1.472em wide;
+
+    RoundSans sits its lowercase 0.061em ABOVE the baseline, and a line-box
+    edge is no closer, so neither baseline nor centre alignment lands the mark
+    on the lettering -- flex-start puts the mark's top on the line box and the
+    translate takes it the measured rest of the way up;
+
+    0.2em of gap renders as the artwork's, once the 's' has been given its
+    left side bearing.
+
+  Every one of these is checked by rendering the lockup beside the artwork and
+  comparing the two sets of proportions, which is the only way to tell.
+*/
+.brand-lockup {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.2em;
+  line-height: 1;
+}
+.brand-lockup > img {
+  width: 1.472em;
+  height: auto;
+  transform: translateY(-0.055em);
+}
+
+/* What the wordmark is qualified by: the open project beside the name. */
+.brand-sub {
+  padding-left: 0.5rem;
+  border-left: 1px solid rgb(var(--p-line) / 0.4);
+  font-family: var(--font-telemetry);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: rgb(var(--p-muted));
 }
 
 .eyebrow {
@@ -326,9 +419,6 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .splash-logo {
   filter: drop-shadow(0 2px 12px rgb(0 0 0 / 0.55));
-}
-.splash-brand {
-  text-shadow: 0 1px 8px rgb(0 0 0 / 0.65);
 }
 .splash-eyebrow {
   text-shadow: 0 1px 6px rgb(0 0 0 / 0.55);

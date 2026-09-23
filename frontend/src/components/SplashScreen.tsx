@@ -68,9 +68,8 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
       </div>
 
       <div className="relative z-10 flex flex-col items-center gap-3.5">
-        <img src="/terra-logo.png" alt="" className="splash-logo h-14 w-14 object-contain" />
+        <img src="/solara-lockup.png" alt="Solara" className="splash-logo w-[186px]" />
         <div className="flex flex-col items-center gap-1.5">
-          <p className="splash-brand text-lg font-semibold tracking-[0.18em]">TERRA</p>
           <p className="splash-eyebrow text-[10px] uppercase tracking-[0.12em] text-foreground/80">
             {BRAND_TAGLINE}
           </p>

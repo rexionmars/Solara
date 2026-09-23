@@ -12,3 +12,9 @@ export const AREA = "#dddddd" as const
 /** Sites that are not active. */
 export const SITE = "#dddddd" as const
 export const SITE_OUTLINE = "#181818" as const
+
+/** Where a register reaches: --p-kind-area, the hue an area already carries. */
+export const REACH = "#6da4d3" as const
+
+/** A hairline on the map: --p-line. */
+export const HAIRLINE = "#5b5b5b" as const

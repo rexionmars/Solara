@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react"
-import { ArrowsClockwise, CircleNotch, Eye, Fan, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { ArrowsClockwise, ChartBar, CircleNotch, CodeSimple, Eye, Fan, FlowArrow, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
 import { lastFailure, running } from "../../lib/analysis"
+import { errorMessage } from "../../lib/errors"
+import { frameItem, framePolygon } from "../../lib/mapEngine"
+import { addArea } from "../../lib/objects"
+import { catalogue, outline, search, type Boundary, type PlaceLevel } from "../../lib/places"
+import { note, reports } from "../../lib/reports"
 import { defaults } from "../../lib/defaults"
 import { formatLat, formatLng } from "../../lib/format"
 import { polygonAreaKm2 } from "../../lib/geo"
 import { RUN_OPERATOR, runOperator, useOperator } from "../../lib/operators"
 import {
   FALLBACK_SEASONS,
-  CONNECTION_FIELDS,
+  CONNECTION_FIELDS, DEMAND_FIELDS,
   SOLAR_FIELDS,
   TERRAIN_FIELDS,
   WIND_FIELDS,
@@ -18,26 +23,31 @@ import {
   type Group,
   type NumberField as FieldDef,
 } from "../../lib/params"
-import { checkGridStore, dsnSourceLabel, gridStore, storeReachable, storeReport } from "../../lib/grid"
-import { PRODUCT_NAMES, isAreaProduct, project, type Product } from "../../lib/project"
+import { checkGridStore, concessions, dsnSourceLabel, gridStore, storeReachable, storeReport, townDemand } from "../../lib/grid"
+import { PRODUCT_NAMES, isAreaProduct, project, type Polygon, type Product } from "../../lib/project"
 import {
   cardValues,
   currentInputs,
   defaultPlaces,
   lastRun,
   runGraph,
+  isMapNode,
   type Place,
   type RunNodeId,
 } from "../../lib/runGraph"
+import { MAP_LAYERS, REGION_AWARE, clipFeatures, layerMeta, mapGraph, resolveRegion, setMapGraph, type MapLayerKey } from "../../lib/mapGraph"
+import { overlays } from "../../lib/tools"
 import { reading, signature, subject, supplied, type RunValue } from "../../lib/runValue"
 import { areaStates, setAreaState, showResult } from "../../lib/screen"
 import { activeArea, activeSite, select, selection } from "../../lib/selection"
 import { useStore } from "../../lib/store"
-import { NodeCanvas, type CanvasEdge, type CanvasNode, type EdgeState } from "../studio/NodeCanvas"
+import { NodeCanvas, type CanvasBoard, type CanvasEdge, type CanvasNode, type CanvasSection, type CanvasTab, type EdgeState } from "../studio/NodeCanvas"
 import { StudioHeaderMenu } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
+import { fieldInput } from "../ui/buttons"
 import { btnGhostDense } from "../ui/buttons"
 import { NumberField, Select } from "../ui/Fields"
+import { ConsoleBody } from "./ConsoleBody"
 
 /**
  * The run graph, as TERRA's board: one product's request laid out as cards,
@@ -51,8 +61,15 @@ import { NumberField, Select } from "../ui/Fields"
  * screen read what its card holds now; see NodeCanvas for the five states.
  */
 
-const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan, connection: PlugsConnected }
-const PRODUCTS: Product[] = ["solar", "terrain", "wind", "connection"]
+const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan, connection: PlugsConnected, demand: ChartBar }
+/*
+  Every product the graph can lay out, which is every product: INPUTS in
+  runGraph.ts names the cards of each one, and a product missing from HERE is
+  a product whose request cannot be set up at all -- the Product select, the
+  View menu and the fallback on line 298 all read this list.
+*/
+const PRODUCTS: Product[] = ["solar", "terrain", "wind", "connection", "demand"]
+
 const OPERATOR = RUN_OPERATOR
 
 const EDGE_NOTE: Record<EdgeState, string> = {
@@ -118,9 +135,153 @@ const FIELDS: Record<Group, FieldDef<string>[]> = {
   wind: WIND_FIELDS,
   terrain: TERRAIN_FIELDS,
   connection: CONNECTION_FIELDS,
+  demand: DEMAND_FIELDS,
 }
 
 /** A project setting, in a card: the drag field Properties uses, with its name inside it. */
+/**
+ * The boundary catalogue: a state or a municipality, taken from what IBGE
+ * publishes, made the area a run is read over.
+ *
+ * THIS IS THE ONLY SOURCE OF AN AREA, since the drawing tool was removed. A
+ * hand-drawn polygon is ground nobody published: it crosses whatever boundary
+ * the register answering the question ends at, and the reading comes back
+ * about the part that register happened to reach -- over an area of central
+ * Ceara the demand register covered 7.4 percent of it and said only which
+ * register it had read.
+ *
+ * A STATE IS BOTH A CHOICE AND A FILTER, which is why there are two tabs and
+ * not three controls. Choosing a municipality without naming a state first is
+ * a list of 5,570; the state row narrows that list and is itself what is taken
+ * when the tab is State. Carried over from TERRA's CatalogueCard, which says
+ * the same.
+ */
+/**
+ * `onPick` replaces what taking a boundary DOES.
+ *
+ * Without it the card adds an area to the project, which is right for the run
+ * band: a product is run over an area and the project has to own it. With it,
+ * the caller decides -- the map band scopes a layer and leaves nothing behind.
+ */
+function CatalogueCard({ onPick }: { onPick?: (picked: { name: string; polygon: Polygon }) => void } = {}) {
+  const [level, setLevel] = useState<PlaceLevel>("estados")
+  const [all, setAll] = useState<Boundary[] | null>(null)
+  const [state, setState] = useState<Boundary | null>(null)
+  const [query, setQuery] = useState("")
+  const [taking, setTaking] = useState<number | null>(null)
+  const [failed, setFailed] = useState<string | null>(null)
+
+  useEffect(() => {
+    let live = true
+    catalogue().then(
+      (rows) => live && setAll(rows),
+      (e) => live && setFailed(errorMessage(e))
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const rows = !all
+    ? null
+    : level === "estados"
+      ? all.filter((p) => p.level === "estados")
+      : all.filter((p) => p.level === "municipios" && (!state || p.uf === state.uf))
+
+  const shown = !rows ? null : query.trim() ? search(rows, query, 40) : rows
+
+  const take = async (place: Boundary) => {
+    setTaking(place.id)
+    setFailed(null)
+    try {
+      const { polygon, parts } = await outline(place)
+      const name = place.level === "estados" ? place.name : `${place.name} (${place.uf})`
+      if (parts > 1) {
+        // One ring, so the islands and exclaves of this boundary are not in
+        // it. Said here rather than left for the reading to be quietly short.
+        note(`${place.name} is published in ${parts} parts; the largest is the ground taken, the rest are not in it.`)
+      }
+      if (place.level === "estados") setState(place)
+      if (onPick) {
+        onPick({ name, polygon })
+        framePolygon(polygon)
+      } else {
+        const id = addArea(polygon, name)
+        frameItem({ kind: "area", id, name: place.name, polygon, hidden: false })
+      }
+    } catch (e) {
+      setFailed(errorMessage(e))
+    } finally {
+      setTaking(null)
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+      <div className="flex gap-1">
+        {(
+          [
+            ["estados", "State"],
+            ["municipios", "Municipality"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setLevel(id)
+              setQuery("")
+            }}
+            className={`h-5 rounded-[3px] px-1.5 text-micro ${
+              level === id ? "bg-selected text-foreground" : "text-muted-foreground hover:bg-hover"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <input
+        className={`${fieldInput} !h-6 !text-meta`}
+        placeholder={
+          !all
+            ? "Reading the catalogue…"
+            : level === "estados"
+              ? "Search states"
+              : state
+                ? `Search in ${state.uf}`
+                : "Search municipalities"
+        }
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        disabled={!all}
+      />
+
+      <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
+        {shown?.map((p) => (
+          <button
+            key={`${p.level}-${p.id}`}
+            type="button"
+            disabled={taking !== null}
+            onClick={() => void take(p)}
+            className="flex w-full items-baseline justify-between gap-2 rounded-[3px] px-1 py-0.5 text-left hover:bg-hover disabled:opacity-40"
+          >
+            <span className="truncate text-meta text-foreground">{p.name}</span>
+            <span className="shrink-0 telemetry text-micro text-muted-foreground">
+              {taking === p.id ? "reading…" : p.uf}
+            </span>
+          </button>
+        ))}
+        {shown && !shown.length ? (
+          <p className="px-1 py-0.5 text-micro text-muted-foreground">Nothing by that name.</p>
+        ) : null}
+      </div>
+
+      {failed ? <p className="text-micro text-destructive-quiet">{failed}</p> : null}
+    </div>
+  )
+}
+
 function Param({ group, field, label }: { group: Group; field: string; label: string }) {
   const values = useStore(project).data.settings[group] as Record<string, number | undefined>
   const d = useStore(defaults)
@@ -160,11 +321,49 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const area = activeArea()
   const product: Product = stored && PRODUCTS.includes(stored) ? stored : area ? "terrain" : "solar"
   const source = isAreaProduct(product) ? area : site
+  const map = useStore(mapGraph)
+  const shown = useStore(overlays)
+  const reachLayer = useStore(concessions)
+  const townLayer = useStore(townDemand)
+
+  const regionArea = resolveRegion(map.region, d.areas)
+
+  /*
+    WHAT THE MAP REALLY DREW, counted through the same cut the map used.
+
+    The card used to say "Drawn, clipped to Piaui" whichever ground was
+    chosen. Piaui is served by neither register in the store, so the clip
+    returned nothing and the card reported a drawing of it. A caption that
+    cannot be wrong is the whole reason this counts instead of asserting.
+  */
+  const drawnNote = ((): string => {
+    if (!shown[map.layer]) return "Not drawn. The layer is configured but the map is not showing it."
+    if (!REGION_AWARE.includes(map.layer)) {
+      return regionArea
+        ? `Drawn everywhere. This layer does not read the region yet, so ${regionArea.name} is not applied to it.`
+        : "Drawn wherever its register has data."
+    }
+    const state = map.layer === "gridConcessions" ? reachLayer : townLayer
+    if (state.kind === "loading") return "Reading the register…"
+    if (state.kind === "failed") return `The register did not answer: ${state.message}`
+    if (state.kind !== "ready") return "Not read yet."
+    const all = state.data.geojson
+    const kept = clipFeatures(all, regionArea?.polygon ?? null).features.length
+    const what = map.layer === "gridConcessions" ? "register" : "municipality"
+    const plural = kept === 1 ? what : `${what.replace(/y$/, "ie")}s`
+    if (!regionArea) return `Drawn everywhere: ${all.features.length} ${all.features.length === 1 ? what : `${what.replace(/y$/, "ie")}s`}.`
+    if (kept === 0) {
+      return `Nothing to draw. No ${what} in the store falls inside ${regionArea.name}, so the map shows the region and no data over it.`
+    }
+    return `Drawn: ${kept} of ${all.features.length} ${plural}, clipped to ${regionArea.name}.`
+  })()
   const store = useStore(gridStore)
   const report = storeReport(store)
+  const logged = useStore(reports)
   // The store is asked about once, when a board first needs its card.
   useEffect(() => {
-    if (product === "connection" && gridStore.get().kind === "unknown") void checkGridStore()
+    // The map band reads the grid store on every board, so it is always asked.
+    if (gridStore.get().kind === "unknown") void checkGridStore()
   }, [product])
   const busy = !!run && run.product === product && run.sourceId === source?.id
   const { poll } = useOperator(OPERATOR[product])
@@ -177,7 +376,15 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
 
   const graph = runGraph(product)
   const fallback = defaultPlaces(graph, heights)
-  const values = cardValues(currentInputs(d, product, site, area, storeReachable(store)), engine)
+  const values = cardValues(
+    {
+      ...currentInputs(d, product, site, area, storeReachable(store)),
+      // The map band is on every board, so its cards are in every table.
+      region: regionArea ? { label: regionArea.name, at: JSON.stringify(regionArea.polygon.coordinates) } : null,
+      mapLayer: layerMeta(map.layer).label,
+    },
+    engine
+  )
   const last = lastRun(d, product, source, failure)
   const lastValues = last ? cardValues(last.inputs, engine) : null
   const pct = run?.progress === null || !run ? null : Math.round(Math.max(0, Math.min(100, run.progress)))
@@ -208,14 +415,20 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
         {chosen?.kind === "area" && (
           <span className="telemetry text-micro text-muted-foreground">{polygonAreaKm2(chosen.polygon).toFixed(2)} km²</span>
         )}
-        <button
-          type="button"
-          className={`${btnGhostDense} !h-6 self-start`}
-          onClick={() => void runOperator(kind === "site" ? "TOOL_SITE" : "TOOL_AREA")}
-          title={kind === "site" ? "Click the map to add a site (P)" : "Draw an area on the map (D)"}
-        >
-          {kind === "site" ? "Place a site" : "Draw an area"}
-        </button>
+        {kind === "site" ? (
+          <button
+            type="button"
+            className={`${btnGhostDense} !h-6 self-start`}
+            onClick={() => void runOperator("TOOL_SITE")}
+            title="Click the map to add a site (P)"
+          >
+            Place a site
+          </button>
+        ) : (
+          // No button: an area comes from the catalogue card wired into this
+          // one, which is the only ground a run is made over.
+          <span className="text-micro text-muted-foreground">From the catalogue card</span>
+        )}
       </>
     )
   }
@@ -224,8 +437,85 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const roughnessError = windSettingsError(d.settings.wind)
 
   const body: Record<RunNodeId, ReactNode> = {
+    catalogue: <CatalogueCard />,
     site: sourcePicker("site"),
     area: sourcePicker("area"),
+    /*
+      THE MAP'S THREE CARDS. The ground, what is read over it, and the screen.
+      They edit the same stores the Overlays popover does, so this is a second
+      way in and not a second copy -- the same rule the product cards follow.
+    */
+    /*
+      The map band's catalogue does NOT add an area. A region is a filter, and
+      a filter that leaves an object behind every time it is tried is how the
+      map ended up with three states outlined on it and nothing to manage them.
+    */
+    catalogue2: <CatalogueCard onPick={(p) => setMapGraph({ region: { kind: "place", name: p.name, polygon: p.polygon } })} />,
+    region: (
+      <>
+        <Select
+          value={map.region?.kind === "area" ? map.region.id : map.region ? "__place" : ""}
+          ariaLabel="Region"
+          onChange={(v) => {
+            // "__place" is the boundary the card already holds; choosing it again is a no-op.
+            if (v === "__place") return
+            setMapGraph({ region: v ? { kind: "area", id: v } : null })
+          }}
+          options={[
+            { value: "", label: "Everywhere the register reaches" },
+            ...(map.region?.kind === "place" ? [{ value: "__place", label: `${map.region.name} (from the catalogue)` }] : []),
+            ...d.areas.map((a) => ({ value: a.id, label: `${a.name} (area)` })),
+          ]}
+        />
+        {regionArea ? (
+          <div className="flex items-center gap-2">
+            <span className="telemetry text-micro text-muted-foreground">{polygonAreaKm2(regionArea.polygon).toFixed(0)} km²</span>
+            <button
+              type="button"
+              className={`${btnGhostDense} !h-5 ml-auto`}
+              onClick={() => setMapGraph({ region: null })}
+              title="Draw the layer everywhere again"
+            >
+              Clear
+            </button>
+          </div>
+        ) : (
+          <Muted>Unscoped: the layer is drawn wherever its register has data.</Muted>
+        )}
+        <Muted>
+          {map.region?.kind === "place"
+            ? "Taken from the catalogue and held by this graph only. It is not an area of the project and leaves nothing behind."
+            : "Pick a boundary in the Catalogue card, or scope to an area the project already has."}
+        </Muted>
+      </>
+    ),
+    layer: (
+      <>
+        <Select
+          value={map.layer}
+          ariaLabel="Layer"
+          onChange={(v) => setMapGraph({ layer: v as MapLayerKey })}
+          options={MAP_LAYERS.map((l) => ({ value: l.key, label: l.label }))}
+        />
+        <Muted>{layerMeta(map.layer).what}</Muted>
+      </>
+    ),
+    mapdraw: (
+      <>
+        <label className="flex items-center gap-1.5 text-micro text-foreground">
+          <input
+            type="checkbox"
+            checked={shown[map.layer]}
+            onChange={(e) => overlays.set((c) => ({ ...c, [map.layer]: e.target.checked }))}
+            className="size-3 accent-[var(--accent)]"
+          />
+          Drawn on the map
+        </label>
+        <Muted>{drawnNote}</Muted>
+      </>
+    ),
+    ceiling: <Param group="demand" field="yieldCeilingKWhKWp" label="Ceiling" />,
+    cell: <Param group="demand" field="cellKm" label="Cell" />,
     record:
       product === "wind" ? (
         <>
@@ -376,6 +666,14 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const state = (from: RunNodeId): EdgeState => {
     const value = values[from]
     if (!supplied(value)) return "missing"
+    /*
+      A MAP WIRE HAS NOTHING TO BE STALE AGAINST. The five states describe a
+      reading against the run that produced it; the map has no run -- what its
+      cards hold IS what is drawn, the moment they hold it. So a supplied card
+      reads "read", and the one state that still means something is "missing":
+      a layer with no register behind it.
+    */
+    if (isMapNode(from)) return "read"
     if (busy) return "reading"
     if (lastValues && signature(lastValues[from]) === signature(value)) return last!.ok ? "read" : "failed"
     return "pending"
@@ -383,12 +681,15 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
 
   const nodes: CanvasNode[] = graph.nodes.map((spec) => {
     const common = { id: spec.id, place: places[spec.id] ?? fallback[spec.id], h: heights[spec.id] ?? spec.h, children: body[spec.id] }
-    if (spec.id === "run") {
+    if (spec.id === "run" || spec.id === "mapdraw") {
       return {
         ...common,
         title: spec.label,
         head: "var(--node-head-run)",
-        inputs: graph.edges.map(([from]) => {
+        // Only the wires that end here: the catalogue's ends at the ground card.
+        inputs: graph.edges
+          .filter(([, to]) => to === spec.id)
+          .map(([from]) => {
           const st = state(from)
           return {
             id: from,
@@ -400,12 +701,24 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
         }),
       }
     }
+    // The area card receives the catalogue's wire, so it carries an input row
+    // for it to land on. Its own output goes on to the run card as before.
+    const incoming = graph.edges.filter(([, to]) => to === spec.id)
     const value = values[spec.id]
     return {
       ...common,
       title: spec.label,
       head: headOf(value),
       output: { id: "out", label: reading(value) || "none", colour: socketOf(value) },
+      inputs: incoming.length
+        ? incoming.map(([from]) => ({
+            id: from,
+            label: graph.nodes.find((n) => n.id === from)?.label ?? from,
+            colour: socketOf(values[from]),
+            note: supplied(value) ? "" : "empty",
+            noteColour: undefined,
+          }))
+        : undefined,
     }
   })
 
@@ -416,6 +729,144 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     colour: socketOf(values[from]),
     state: state(from),
   }))
+
+  const labelOf = (id: RunNodeId) => graph.nodes.find((n) => n.id === id)?.label ?? id
+
+  /*
+    THE LIST IS THE BOARD'S BANDS, named by what each one is about: the
+    product being set up, and the map. A card scrolled off the canvas is still
+    in the list, which is the only place the whole board is stated at once.
+  */
+  const sections: CanvasSection[] = [...new Set(graph.nodes.map((n) => n.band))]
+    .sort((a, b) => a - b)
+    .map((band) => ({
+      id: `band-${band}`,
+      label: band === 0 ? PRODUCT_NAMES[product] : "Map",
+      ids: graph.nodes.filter((n) => n.band === band).map((n) => n.id),
+    }))
+
+  const bandLabel = (band: number) => (band === 0 ? PRODUCT_NAMES[product] : "Map")
+
+  /*
+    WHY EACH WIRE IS THE COLOUR IT IS. The canvas says the state; this says
+    what it was decided from -- what the card holds now, beside what the
+    reading on screen was made with. A map wire has no run behind it, so the
+    column for it is not drawn at all rather than filled with dashes.
+
+    A ROW IS A WAY BACK TO ITS CARD: clicking takes the card on the board,
+    double-clicking frames it. A list that names a card you then have to hunt
+    for is a list that has sent you away from the board.
+  */
+  const tally: Record<EdgeState, number> = { missing: 0, pending: 0, reading: 0, read: 0, failed: 0 }
+  for (const e of edges) tally[e.state]++
+  const counted = (
+    [
+      ["missing", "not set"],
+      ["pending", "pending"],
+      ["reading", "reading"],
+      ["read", "read"],
+      ["failed", "in error"],
+    ] as const
+  )
+    .filter(([k]) => tally[k])
+    .map(([k, word]) => `${tally[k]} ${word}`)
+    .join(" · ")
+  const why = !last
+    ? `${PRODUCT_NAMES[product].toLowerCase()} has not been run ${source ? `${product === "terrain" ? "over" : "at"} ${source.name}` : "here"} yet`
+    : last.ok
+      ? null
+      : "the last attempt failed; Reports has the reason"
+
+  const showRead = !!last?.ok
+  const grid = showRead
+    ? "10px minmax(120px, 200px) minmax(90px, 240px) minmax(90px, 240px) 60px"
+    : "10px minmax(120px, 200px) minmax(90px, 280px) 60px"
+  const head = "truncate text-[9px] uppercase tracking-wide text-muted-foreground"
+
+  const wires = (board: CanvasBoard) => (
+    <div className="flex min-h-0 flex-col">
+      <div className="flex shrink-0 items-baseline gap-1.5 px-2.5 pb-1 pt-2">
+        <span className="text-meta text-foreground">{edges.length} wires</span>
+        <span className="truncate text-micro text-muted-foreground">
+          {counted}
+          {why ? ` · ${why}` : ""}
+        </span>
+      </div>
+      <div className="grid shrink-0 items-center gap-2 px-2.5 pb-1" style={{ gridTemplateColumns: grid }}>
+        <span />
+        <span className={head}>Wire</span>
+        <span className={head}>The card holds</span>
+        {showRead && <span className={head}>The reading read</span>}
+        <span className={`${head} text-right`}>State</span>
+      </div>
+      <div className="panel-scroll min-h-0 flex-1 overflow-y-auto pb-1.5">
+        {[...new Set(graph.nodes.map((n) => n.band))].sort((a, b) => a - b).map((band) => {
+          const here = graph.edges.filter(([from]) => graph.nodes.find((n) => n.id === from)?.band === band)
+          if (!here.length) return null
+          return (
+            <div key={band}>
+              <div className="px-2.5 pb-px pt-1.5">
+                <span className={head}>{bandLabel(band)}</span>
+              </div>
+              {here.map(([from, to]) => {
+                const st = state(from)
+                const on = board.picked.has(from)
+                const now = reading(values[from])
+                const read = isMapNode(from) || !lastValues ? "" : reading(lastValues[from])
+                return (
+                  <button
+                    key={`${from}-${to}`}
+                    type="button"
+                    onClick={() => board.select([from])}
+                    onDoubleClick={() => board.frame(new Set([from]))}
+                    title={`${labelOf(from)} — click to take the card, double-click to frame it`}
+                    className={`grid w-full items-center gap-2 px-2.5 py-[3px] text-left text-meta ${on ? "bg-selected" : "hover:bg-hover"}`}
+                    style={{ gridTemplateColumns: grid }}
+                  >
+                    <span
+                      aria-hidden
+                      className="size-2.5 rounded-full"
+                      style={
+                        st === "missing"
+                          ? { background: "transparent", boxShadow: `inset 0 0 0 1px ${socketOf(values[from])}` }
+                          : { background: socketOf(values[from]), opacity: st === "pending" ? 0.5 : 1 }
+                      }
+                    />
+                    <span className="truncate text-foreground">
+                      {labelOf(from)} <span className="text-muted-foreground">→ {labelOf(to)}</span>
+                    </span>
+                    <span className="telemetry truncate text-micro text-muted-foreground" title={now}>
+                      {now || "nothing"}
+                    </span>
+                    {showRead && (
+                      <span className="telemetry truncate text-micro text-muted-foreground" title={read}>
+                        {read || "—"}
+                      </span>
+                    )}
+                    <span className="truncate text-right text-micro" style={{ color: NOTE_COLOUR[st] ?? "var(--muted-foreground)" }}>
+                      {EDGE_NOTE[st]}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const tabs: CanvasTab[] = [
+    // What is in the way of a run, counted: a card nobody has filled in.
+    { id: "wires", label: "Wires", icon: FlowArrow, badge: tally.missing, hug: true, body: wires },
+    {
+      id: "console",
+      label: "Console",
+      icon: CodeSimple,
+      badge: logged.filter((l) => l.level === "warning" || l.level === "error").length,
+      body: <ConsoleBody />,
+    },
+  ]
 
   return (
     <>
@@ -443,7 +894,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
           </span>
         }
       />
-      <NodeCanvas nodes={nodes} edges={edges} onMove={move} onMeasure={onMeasure} />
+      <NodeCanvas nodes={nodes} edges={edges} onMove={move} onMeasure={onMeasure} sections={sections} tabs={tabs} />
     </>
   )
 }

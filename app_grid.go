@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"time"
 
@@ -120,4 +121,51 @@ func (a *App) AnalyzeGridConnection(req grid.ConnectionRequest) (*grid.Connectio
 		return nil, errors.New("the application has not started")
 	}
 	return grid.AnalyzeConnection(a.ctx, r, req, a.chosenGridDSN(), a.emitProgress)
+}
+
+// AnalyzeGridDemand reads what an area already draws from the network, from
+// the BDGD register in the store.
+func (a *App) AnalyzeGridDemand(req grid.DemandRequest) (*grid.DemandAnalysis, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	if a.ctx == nil {
+		return nil, errors.New("the application has not started")
+	}
+	dir, id, err := a.newRunDir()
+	if err != nil {
+		return nil, err
+	}
+	res, err := grid.AnalyzeDemand(a.ctx, r, req, a.chosenGridDSN(), dir,
+		func(file string) string { return resultURL(id, file) }, a.emitProgress)
+	if err != nil {
+		_ = os.RemoveAll(dir)
+		return nil, err
+	}
+	return res, nil
+}
+
+// GridTownDemand reads consumption by municipality as a map layer.
+func (a *App) GridTownDemand() (*grid.TownDemandLayer, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
+	defer cancel()
+	return grid.TownDemand(ctx, r, a.chosenGridDSN())
+}
+
+// GridConcessions reads where each register in the store has data, as a map
+// layer. Read once and before any area is chosen: it is what says whether a
+// demand reading is answerable over a given ground at all.
+func (a *App) GridConcessions() (*grid.ConcessionLayer, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
+	defer cancel()
+	return grid.Concessions(ctx, r, a.chosenGridDSN())
 }

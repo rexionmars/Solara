@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useState, type ReactElement } from "react"
 import { loadAccount } from "../../lib/account"
 import { listenForProgress } from "../../lib/analysis"
 import { loadDefaults } from "../../lib/defaults"
@@ -19,17 +19,24 @@ import { RunGraphEditor } from "../editors/RunGraphEditor"
 import { TableEditor } from "../editors/TableEditor"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
 import { AreaTree } from "./AreaTree"
-import { ConfirmDialog, CoordinatesDialog, OperatorSearch } from "./Dialogs"
+import { ConfirmDialog, CoordinatesDialog, OperatorSearch, PlaceDialog } from "./Dialogs"
 import { ContextMenuHost, StudioSurface } from "./Popover"
 import { Settings } from "./Settings"
 import { StartSplash } from "./StartSplash"
-import { StatusBar } from "./StatusBar"
 import { StudioArea } from "./StudioArea"
+import { WorkspaceTabs } from "../shell/WorkspaceTabs"
 import { TitleBar } from "./TitleBar"
 import { Toasts } from "./Toasts"
-import { WorkspaceBar } from "./WorkspaceBar"
 
-function Editor({ areaId, editor }: { areaId: string; editor: EditorId }) {
+/**
+ * Which component an area's editor is.
+ *
+ * The return type is stated rather than inferred, so an editor added to
+ * EditorId without a case here fails to compile. Inferred, the switch would
+ * simply fall through and the area would draw nothing -- which is what the
+ * demand reading did until this was written down.
+ */
+function Editor({ areaId, editor }: { areaId: string; editor: EditorId }): ReactElement {
   switch (editor) {
     case "map":
       return <MapEditor />
@@ -49,6 +56,7 @@ function Editor({ areaId, editor }: { areaId: string; editor: EditorId }) {
     case "wind":
     case "terrain":
     case "connection":
+    case "demand":
       return <ReadingEditor areaId={areaId} product={editor} />
   }
 }
@@ -126,7 +134,8 @@ export function Studio() {
     <div className="app-shell-enter flex h-full flex-col" style={{ background: "var(--s-app)" }}>
       <TitleBar />
       <StudioSurface.Provider value={surface}>
-        <WorkspaceBar />
+        {/* The arrangements, thin, between the window's band and the work. */}
+        <WorkspaceTabs />
         <div ref={setSurface} className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-app)" }}>
           {size.w > 0 &&
             (maximized
@@ -139,10 +148,10 @@ export function Studio() {
           <StartSplash />
           <ContextMenuHost />
         </div>
-        <StatusBar />
       </StudioSurface.Provider>
       <OperatorSearch />
       <CoordinatesDialog />
+      <PlaceDialog />
       <Settings />
       <ConfirmDialog />
       <Toasts />

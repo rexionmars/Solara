@@ -1,5 +1,6 @@
 import {
   AnalyzeGridConnection,
+  AnalyzeGridDemand,
   AnalyzeSolarResource,
   AnalyzeSolarTerrain,
   AnalyzeWindResource,
@@ -266,6 +267,48 @@ export function runConnection(area: AreaObject, replace?: string): Promise<strin
           : `nothing on the register within ${c.searched_km.toFixed(0)} km`
       const withheld = r.data.curtailment_at_connected_plants?.withheld_fraction
       return `Grid connection from ${area.name}: ${where}${withheld != null ? `; ${(withheld * 100).toFixed(1)}% withheld at the plants in it` : ""}.`
+    },
+    replace
+  )
+}
+
+/**
+ * What the area already draws from the network.
+ *
+ * The yield ceiling is sent only when the project carries one: absent, the
+ * sidecar applies its own convention and the reading says which it used, so
+ * the figure on screen is never audited against a number nobody chose.
+ */
+export function runDemand(area: AreaObject, replace?: string): Promise<string | null> {
+  const p = project.get().data.settings.demand
+  const polygon = area.polygon
+  return run(
+    "demand",
+    area,
+    `from ${area.name}`,
+    async () => ({
+      kind: "demand" as const,
+      polygon,
+      params: { ...p },
+      opacity: 0.85,
+      data: await AnalyzeGridDemand(
+        grid.DemandRequest.createFrom({
+          area: polygon,
+          specific_yield_ceiling_kwh_kwp: p.yieldCeilingKWhKWp,
+          cell_km: p.cellKm,
+        })
+      ),
+    }),
+    (r) => {
+      if (r.kind !== "demand") return ""
+      const t = r.data.totais
+      const units = Object.values(r.data.consumo).reduce((n, l) => n + (l?.unidades ?? 0), 0)
+      const back = t.injetada_sobre_consumida_pct
+      return (
+        `Area demand from ${area.name}: ${units.toLocaleString()} consumer units, ` +
+        `${Math.round(t.energia_consumida_ano_mwh).toLocaleString()} MWh in the year` +
+        `${back != null ? `, ${back.toFixed(1)}% of it put back by generation in the area` : ""}.`
+      )
     },
     replace
   )

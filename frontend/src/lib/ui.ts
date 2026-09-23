@@ -65,6 +65,34 @@ export type PreferencesSection = "account" | "engine" | "grid" | "keymap" | "abo
 
 export const preferences = createStore<PreferencesSection | null>(null)
 
+/**
+ * Whether the navigation rail is collapsed to its icons.
+ *
+ * Kept across launches, because it is a decision about the shape of the
+ * window rather than about the work: a reader who gave the rail back its
+ * pixels should not have to do it again tomorrow.
+ */
+const RAIL_KEY = "terra-energy.rail.v1"
+
+export const sidebarCollapsed = createStore<boolean>(
+  (() => {
+    try {
+      return localStorage.getItem(RAIL_KEY) === "1"
+    } catch {
+      return false
+    }
+  })()
+)
+
+export function toggleSidebar(): void {
+  sidebarCollapsed.set((v) => !v)
+  try {
+    localStorage.setItem(RAIL_KEY, sidebarCollapsed.get() ? "1" : "0")
+  } catch {
+    // A browser that refuses storage still gets a working rail, just a forgetful one.
+  }
+}
+
 /** The start screen (StartSplash): open at launch, as Blender's splash. */
 export const splashOpen = createStore<boolean>(true)
 
@@ -93,3 +121,6 @@ export const lastOperationOpen = createStore<boolean>(false)
 
 /** The Add › Site at Coordinates dialog. */
 export const coordinatePrompt = createStore<boolean>(false)
+
+/** Whether the place search is open: an area taken from a published boundary. */
+export const placePrompt = createStore<boolean>(false)

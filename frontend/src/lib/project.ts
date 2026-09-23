@@ -44,7 +44,19 @@ export type WindParams = {
 }
 export type TerrainParams = { hourlyYears?: number; season?: string }
 export type ConnectionParams = { searchRadiusKm?: number }
-export type Settings = { solar: SolarParams; wind: WindParams; terrain: TerrainParams; connection: ConnectionParams }
+/**
+ * The demand reading's settings. The yield ceiling is what a generator of the
+ * area is audited against; left empty, the sidecar applies its own convention
+ * and says so in the reading.
+ */
+export type DemandParams = { yieldCeilingKWhKWp?: number; cellKm?: number }
+export type Settings = {
+  solar: SolarParams
+  wind: WindParams
+  terrain: TerrainParams
+  connection: ConnectionParams
+  demand: DemandParams
+}
 
 type ResultBase = {
   id: string
@@ -70,7 +82,16 @@ export type ConnectionResult = ResultBase & {
   params: ConnectionParams
   data: grid.ConnectionAnalysis
 }
-export type ResultObject = SolarResult | WindResult | TerrainResult | ConnectionResult
+/** What the area already draws from the network, read from the BDGD register. */
+export type DemandResult = ResultBase & {
+  kind: "demand"
+  polygon: Polygon
+  params: DemandParams
+  data: grid.DemandAnalysis
+  /** Of its density layer on the map, as the terrain layer has one. */
+  opacity: number
+}
+export type ResultObject = SolarResult | WindResult | TerrainResult | ConnectionResult | DemandResult
 export type Product = ResultObject["kind"]
 
 export const PRODUCT_NAMES: Record<Product, string> = {
@@ -78,11 +99,13 @@ export const PRODUCT_NAMES: Record<Product, string> = {
   wind: "Wind screening",
   terrain: "Solar terrain",
   connection: "Grid connection",
+  demand: "Area demand",
 }
 
 /** The products read over an area rather than at a site. */
-export type AreaResult = TerrainResult | ConnectionResult
-export const isAreaProduct = (p: Product): p is AreaResult["kind"] => p === "terrain" || p === "connection"
+export type AreaResult = TerrainResult | ConnectionResult | DemandResult
+export const isAreaProduct = (p: Product): p is AreaResult["kind"] =>
+  p === "terrain" || p === "connection" || p === "demand"
 export const isAreaResult = (r: ResultObject): r is AreaResult => isAreaProduct(r.kind)
 
 export type ProjectData = {
@@ -117,7 +140,7 @@ export function emptyProject(): ProjectData {
     sites: [],
     areas: [],
     results: [],
-    settings: { solar: {}, wind: {}, terrain: {}, connection: {} },
+    settings: { solar: {}, wind: {}, terrain: {}, connection: {}, demand: {} },
   }
 }
 
@@ -238,16 +261,28 @@ export function findItem(d: ProjectData, id: string | null): AnyItem | null {
 }
 
 export function isResult(item: AnyItem | null): item is ResultObject {
-  return !!item && (item.kind === "solar" || item.kind === "wind" || item.kind === "terrain" || item.kind === "connection")
+  return (
+    !!item &&
+    (item.kind === "solar" ||
+      item.kind === "wind" ||
+      item.kind === "terrain" ||
+      item.kind === "connection" ||
+      item.kind === "demand")
+  )
 }
 
 export function resultsOf(d: ProjectData, sourceId: string): ResultObject[] {
   return d.results.filter((r) => r.sourceId === sourceId)
 }
 
-/** A terrain result's run id, from the URL its layer is served at. */
-export function runIdOf(r: TerrainResult): string | null {
-  const m = r.data.overlay_url.match(/^\/results\/([^/]+)\//)
+/**
+ * A result's run id, from the URL its layer is served at, or null where it
+ * drew no layer. What the run directory holds is saved beside the project, so
+ * a reopened project still finds its rasters.
+ */
+export function runIdOf(r: ResultObject): string | null {
+  const url = r.kind === "terrain" ? r.data.overlay_url : r.kind === "demand" ? r.data.density?.overlay_url : null
+  const m = url?.match(/^\/results\/([^/]+)\//)
   return m ? m[1] : null
 }
 
@@ -313,7 +348,7 @@ export function staleReason(d: ProjectData, r: ResultObject): string | null {
   if (isAreaResult(r)) {
     if (source.kind !== "area" || !samePolygon(source.polygon, r.polygon)) return "The area has been redrawn since this run"
     if (!sameParams(d.settings[r.kind], r.params)) {
-      return `The ${r.kind === "terrain" ? "terrain" : "connection"} settings have changed since this run`
+      return `The ${PRODUCT_NAMES[r.kind].toLowerCase()} settings have changed since this run`
     }
     return null
   }

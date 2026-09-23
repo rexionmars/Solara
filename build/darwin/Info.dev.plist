@@ -24,20 +24,64 @@
         <key>NSHumanReadableCopyright</key>
         <string>{{.Info.Copyright}}</string>
         {{if .Info.FileAssociations}}
+        <!--
+          Wails' own template declares only CFBundleTypeExtensions here, and on
+          a current macOS that is not enough to give a file an icon: Launch
+          Services resolves a file through its type, not its extension, and an
+          extension nothing claims is given a throwaway "dyn.*" type. So the
+          extension is claimed by exporting a type for it below, and the
+          document type points at that type through LSItemContentTypes. The
+          extensions are kept beside it for anything still reading them.
+        -->
         <key>CFBundleDocumentTypes</key>
         <array>
           {{range .Info.FileAssociations}}
           <dict>
-            <key>CFBundleTypeExtensions</key>
-            <array>
-              <string>{{.Ext}}</string>
-            </array>
             <key>CFBundleTypeName</key>
             <string>{{.Name}}</string>
             <key>CFBundleTypeRole</key>
             <string>{{.Role}}</string>
             <key>CFBundleTypeIconFile</key>
             <string>{{.IconName}}</string>
+            <key>LSItemContentTypes</key>
+            <array>
+              <string>com.wails.{{safeBundleID $.Name}}.{{.Ext}}</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+              <string>{{.Ext}}</string>
+            </array>
+          </dict>
+          {{end}}
+        </array>
+        <!--
+          Exported, not imported: this application is where the format is
+          defined. The identifier sits under the bundle identifier above, so
+          the two move together. Conforming to public.data says only that the
+          file is a file; a project is JSON, so public.json would be the
+          truthful parent if the format is ever declared as such.
+        -->
+        <key>UTExportedTypeDeclarations</key>
+        <array>
+          {{range .Info.FileAssociations}}
+          <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.wails.{{safeBundleID $.Name}}.{{.Ext}}</string>
+            <key>UTTypeDescription</key>
+            <string>{{.Name}}</string>
+            <key>UTTypeIconFile</key>
+            <string>{{.IconName}}</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+              <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+              <key>public.filename-extension</key>
+              <array>
+                <string>{{.Ext}}</string>
+              </array>
+            </dict>
           </dict>
           {{end}}
         </array>
