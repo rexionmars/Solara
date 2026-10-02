@@ -1,10 +1,15 @@
-# Solara
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/solara-logo-on-dark.png" />
+    <img src="docs/img/solara-logo-on-light.png" alt="Solara" width="317" />
+  </picture>
+</h1>
 
 <p align="center">
-  <img src="docs/img/terra-energy-engine.jpg" alt="The studio: the wind field over South America with the plant register and the transmission network, a metered plant captioned where it was clicked, and the run graph of a solar terrain run below" width="900" />
+  <img src="docs/img/solara.png" alt="The studio: Rio Grande do Norte outlined over the nighttime lights and the transmission network, the run graph of its area consumption with every input marked read, the reading below, and its figures in the properties" width="900" />
 </p>
 
-<p align="center"><em>The wind now over South America, with the plant register and the transmission network from the grid store, a metered plant captioned where it was clicked, and the run graph of a solar terrain run below</em></p>
+<p align="center"><em>Rio Grande do Norte over the nighttime lights and the transmission network, the run graph of its area consumption, and the reading below: what the state draws from the network and what it puts back</em></p>
 
 Solara reads what a place is worth for solar and wind generation,
 and what the electrical system would do to a plant there. At a site it reads
@@ -37,6 +42,7 @@ its database.
 | **Wind screening** | a site | the wind at hub height, how far it moves with the shear assumed, the operating regime | NASA POWER (MERRA-2) |
 | **Solar terrain** | an area | plane-of-array irradiation over the terrain at 30 m, with horizon shading, by season | Copernicus DEM GLO-30, NASA POWER |
 | **Grid connection** | an area | where plants of the area join the network, the headroom at that bus, what is within reach, and what the plants already joined there lost to curtailment | ONS and ANEEL registers, from the grid store |
+| **Area consumption** | an area | what the area draws from the network through the year, by voltage level, tariff class and municipality, what its distributed generators put back on it (injected, not generated), and where it falls on a 1 km grid | the distributor's BDGD register, from the grid store |
 
 Every result is kept in the project with the parameters and the place it was
 computed at. Moving a site, redrawing an area or changing a setting afterwards
@@ -55,22 +61,17 @@ by subject.
 | Board | Layout, Graph, Data, Scripting | the map, the run graph, the comparison table, the console |
 | Solar | Resource, Terrain | the solar readings beside the map |
 | Wind | Screening | the wind reading beside the map |
-| Grid | Connection | the connection reading beside the map of plants and lines |
+| Grid | Connection, Demand | the connection and the consumption readings beside the map of plants and lines |
 
 The editors are the **map**, the **outliner**, **properties**, the **run
 graph**, a **reading** per product, the **data table**, the **reports** and a
 **console**. Areas split, join, resize and maximise; the arrangement survives a
 restart.
 
-<p align="center">
-  <img src="docs/img/run-graph.jpg" alt="The run graph of a grid connection: the area, the product, the grid store and the search radius wired into the run node, each input marked read" width="900" />
-</p>
-
-<p align="center"><em>The run graph: a product's request as nodes wired into the run. Each input says whether the reading on screen read what its node holds now</em></p>
-
-The **run graph** lays a product's request out as nodes, in the grammar of
-Blender's node editor. The fields on a node are the project's settings, and
-each input of the run node says whether the reading on screen read it:
+The **run graph**, in the screenshot above, lays a product's request out as
+nodes, in the grammar of Blender's node editor. The fields on a node are the
+project's settings, and each input of the run node says whether the reading on
+screen read it:
 *pending* after a setting changes, *reading* while a run is in progress,
 *read* once it has, *error* when the last attempt failed.
 
@@ -87,10 +88,10 @@ transmission register, and the ONS record of what each photovoltaic plant was
 told not to generate. This application reads it and never writes to it.
 
 <p align="center">
-  <img src="docs/img/grid-connection.jpg" alt="A grid connection reading over an area in Bahia: joined at the Sol do Sertão 500 kV bus, the lines and substations within reach, and 33.7 percent withheld at the plants in the area" width="900" />
+  <img src="docs/img/solara-demand.png" alt="The Demand workspace over Rio Grande do Norte: the transmission lines and substations over the nighttime lights, a 500 kV circuit captioned where it was clicked, and the area consumption reading beside the map" width="900" />
 </p>
 
-<p align="center"><em>A connection reading over the Sol do Sertão complex: joined at the 500 kV bus, what else is within reach, and a third of the energy withheld at the plants already there</em></p>
+<p align="center"><em>The transmission network over Rio Grande do Norte, a 500 kV circuit captioned where it was clicked, and the area's consumption reading beside the map</em></p>
 
 From it come two things. Four map overlays: plants in the operational record,
 sized by capacity; plants that are registered only; transmission lines,
@@ -113,10 +114,10 @@ reading say the store is unreachable, and why.
 ## The weather now
 
 <p align="center">
-  <img src="docs/img/weather-satellite.jpg" alt="GOES-East clouds over South America with the weather plate's timeline, and the conditions now at a site in the properties" width="900" />
+  <img src="docs/img/solara-wind.png" alt="The GFS wind field over South America, coloured by speed with particles moving along it, and the speed and direction labelled at the project's area" width="900" />
 </p>
 
-<p align="center"><em>GOES-East clouds over South America, and the conditions now at a site</em></p>
+<p align="center"><em>The GFS wind field over South America, coloured by speed with particles along it, and the speed and direction at the project's area</em></p>
 
 Four readings of the weather, each saying whether it was **observed** or
 **modelled**, and how old it is:
@@ -137,10 +138,6 @@ Four readings of the weather, each saying whether it was **observed** or
 The clouds and the rain play back over the last two hours. All four need the
 internet; without it, each says so and the rest of the application is
 unaffected.
-
-<p align="center">
-  <img src="docs/img/wind-now.jpg" alt="The GFS wind field at 100 m over South America, coloured by speed with particles along it, and the speed and direction under the pointer" width="900" />
-</p>
 
 ## Data and attribution
 
