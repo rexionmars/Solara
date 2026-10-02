@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/rexionmars/TerraEnergyEngine/internal/energy"
 	"github.com/rexionmars/TerraEnergyEngine/internal/sidecar"
 )
 
@@ -358,6 +359,39 @@ func TownDemand(ctx context.Context, r *sidecar.Runner, chosen string) (*TownDem
 		wrapped.Layer.Registers = []TownRegister{}
 	}
 	return wrapped.Layer, nil
+}
+
+// Reach measures how much of one ground each loaded register covers, before
+// any reading is run over it. A probe rather than an analysis: it runs outside
+// the one-at-a-time rule and reports no progress, because it answers in a
+// fraction of a second and a progress bar for it would flash and vanish.
+func DemandReach(ctx context.Context, r *sidecar.Runner, area energy.Polygon, chosen string) (*ReachProbe, error) {
+	if err := area.Validate(); err != nil {
+		return nil, err
+	}
+	send, _, _ := Resolve(chosen)
+	p := payload("demand_reach", send)
+	p["polygon_geojson"] = area
+	raw, err := r.Read(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Probe *ReachProbe `json:"demand_reach"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode the reach probe: %w", err)
+	}
+	if wrapped.Probe == nil {
+		return nil, errors.New("the sidecar returned no reach probe")
+	}
+	if wrapped.Probe.Holdings == nil {
+		wrapped.Probe.Holdings = []DemandHolding{}
+	}
+	if wrapped.Probe.Coverage == nil {
+		wrapped.Probe.Coverage = []ReachCoverage{}
+	}
+	return wrapped.Probe, nil
 }
 
 // Concessions reads where every register in the store has data, as a layer.

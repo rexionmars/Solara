@@ -118,7 +118,7 @@ const NAV: NavGroup[] = [
     label: "Analysis",
     items: [
       { id: "map", label: "Map", icon: MapTrifold },
-      { id: "demand", label: "Area demand", icon: ChartBar, badge: "1" },
+      { id: "demand", label: "Area consumption", icon: ChartBar, badge: "1" },
       { id: "solar", label: "Solar resource", icon: Sun },
       { id: "wind", label: "Wind screening", icon: Fan },
       { id: "terrain", label: "Terrain", icon: Mountains, empty: true },
@@ -161,7 +161,7 @@ function SelectionRail() {
         <Stat label="Centre" value="5.800° S 35.225° W" />
       </Panel>
       <Panel title="Runs on this area">
-        <Stat label="Area demand" value="2 min ago" />
+        <Stat label="Area consumption" value="2 min ago" />
         <Stat label="Solar resource" value="—" />
         <Stat label="Wind screening" value="—" />
       </Panel>
@@ -195,7 +195,7 @@ function App() {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <PageHeader
-          title="Area demand"
+          title="Area consumption"
           crumbs={[{ label: "Natal" }, { label: "Grid" }]}
           badge={<Chip>18.9% injected back</Chip>}
           subtitle="BDGD Neoenergia_Cosern, ano-base 2024 · 616 km² · read 2 minutes ago"

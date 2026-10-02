@@ -661,9 +661,14 @@ export const OPERATORS: Operator[] = [
   },
   {
     name: "DEMAND",
-    aliases: ["LOAD"],
-    label: "Area demand",
-    description: "What the active area already draws from the network, read from the BDGD register in the grid store",
+    // LOAD and DEMAND are kept as names a reader may type. The operator is not
+    // renamed with its label: the name is what a keystroke and a saved macro
+    // refer to, and the register carries energy, not the load either word
+    // promises.
+    aliases: ["LOAD", "CONSUMPTION"],
+    label: "Area consumption",
+    description:
+      "What the active area already draws from the network and already puts back, read from the BDGD register in the grid store",
     icon: ChartBar,
     menu: "Analyze",
     poll: all(needArea, notRunning, engineUp, needGridStore),

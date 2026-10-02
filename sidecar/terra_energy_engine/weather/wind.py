@@ -91,11 +91,19 @@ def parse(content: bytes, height_m: int) -> dict:
         lon = np.asarray(f.variables['longitude'][:], dtype=float)
         u = np.asarray(f.variables[U][:], dtype=float).reshape(lat.size, lon.size)
         v = np.asarray(f.variables[V][:], dtype=float).reshape(lat.size, lon.size)
-        tv = f.variables['time']
+        # THE TIME AXIS IS READ OFF THE VARIABLE, NOT NAMED. THREDDS numbers the
+        # time axes of a Best dataset (time, time1, time2 ...) and which one the
+        # wind sits on moves as the collection does: `time` in every subset read
+        # to 24 September 2026, `time1` on 2 October. The run carries the same
+        # suffix.
+        axis = next((d for d in f.variables[U].dimensions if d.startswith('time')), None)
+        if axis is None:
+            raise ValueError(f'the subset has no time axis: {f.variables[U].dimensions!r}')
+        tv = f.variables[axis]
         valid = _hours_since(tv.units, float(np.ravel(tv[:])[0]))
         run = None
-        if 'reftime' in f.variables:
-            rv = f.variables['reftime']
+        rv = f.variables.get('reftime' + axis.removeprefix('time'))
+        if rv is not None:
             run = _hours_since(rv.units, float(np.ravel(rv[:])[0]))
 
     lon = np.where(lon > 180, lon - 360, lon)

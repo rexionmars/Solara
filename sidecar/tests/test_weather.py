@@ -16,19 +16,21 @@ from terra_energy_engine import protocol, registry
 from terra_energy_engine.weather import actions, wind
 
 
-def subset(lat, lon, u, v, valid_h=183.0, run_h=174.0) -> bytes:
-    """A NetCDF 3 file shaped as THREDDS writes one: time, height, lat, lon."""
+def subset(lat, lon, u, v, valid_h=183.0, run_h=174.0, axis='') -> bytes:
+    """
+    A NetCDF 3 file shaped as THREDDS writes one: time, height, lat, lon, with
+    the run on the time axis. `axis` is the number THREDDS gives that axis.
+    """
     from scipy.io import netcdf_file
 
     buf = io.BytesIO()
     f = netcdf_file(buf, 'w')
-    f.createDimension('time', 1)
-    f.createDimension('reftime', 1)
+    f.createDimension(f'time{axis}', 1)
     f.createDimension('height_above_ground2', 1)
     f.createDimension('latitude', len(lat))
     f.createDimension('longitude', len(lon))
-    for name, value in (('time', valid_h), ('reftime', run_h)):
-        var = f.createVariable(name, 'd', (name,))
+    for name, value in ((f'time{axis}', valid_h), (f'reftime{axis}', run_h)):
+        var = f.createVariable(name, 'd', (f'time{axis}',))
         var[:] = [value]
         var.units = b'Hour since 2026-09-10T00:00:00Z'
     la = f.createVariable('latitude', 'f', ('latitude',))
@@ -36,7 +38,7 @@ def subset(lat, lon, u, v, valid_h=183.0, run_h=174.0) -> bytes:
     lo = f.createVariable('longitude', 'f', ('longitude',))
     lo[:] = lon
     for name, data in ((wind.U, u), (wind.V, v)):
-        var = f.createVariable(name, 'f', ('time', 'height_above_ground2', 'latitude', 'longitude'))
+        var = f.createVariable(name, 'f', (f'time{axis}', 'height_above_ground2', 'latitude', 'longitude'))
         var[:] = np.asarray(data, dtype='f4').reshape(1, 1, len(lat), len(lon))
     f.flush()
     content = buf.getvalue()
@@ -58,6 +60,13 @@ def test_a_subset_becomes_a_grid_west_to_east_and_north_to_south():
     assert (field['lon0'], field['lat0'], field['dlon'], field['dlat']) == (-60.0, 10.0, 0.5, 0.5)
     assert (field['nx'], field['ny']) == (3, 2)
     assert field['u'] == [1, 2, 3, 4, 5, 6]
+    assert field['valid'] == '2026-09-17T15:00:00Z'
+    assert field['run'] == '2026-09-17T06:00:00Z'
+
+
+@pytest.mark.parametrize('axis', ['', '1', '2'])
+def test_the_hours_are_read_whichever_time_axis_thredds_numbers(axis):
+    field = wind.parse(subset([10.0, 9.5], [300.0, 300.5], [[1, 2], [3, 4]], [[0, 0], [0, 0]], axis=axis), 10)
     assert field['valid'] == '2026-09-17T15:00:00Z'
     assert field['run'] == '2026-09-17T06:00:00Z'
 

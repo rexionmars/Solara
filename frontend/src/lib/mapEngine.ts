@@ -1,12 +1,13 @@
 import type { Feature, FeatureCollection } from "geojson"
 import { Map as MapLibreMap, setWorkerUrl, type ExpressionSpecification, type GeoJSONSource, type ImageSource, type MapMouseEvent } from "maplibre-gl"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
-import { BASEMAP_FIRST_LABEL, BASEMAP_STYLE } from "./basemap"
+import { BASEMAP_FIRST_LABEL, BASEMAP_STYLE, applyGround } from "./basemap"
 import { ACTIVE, AREA, HAIRLINE, REACH, SITE, SITE_OUTLINE } from "./colors"
 import { bounds, distanceKm, ringCentre } from "./geo"
 import { clipFeatures, mapGraph, resolveRegion } from "./mapGraph"
 import { beginStep, findItem, isResult, mutate, project, type AnyItem, type DemandResult, type Polygon, type TerrainResult } from "./project"
 import { runOperator } from "./operators"
+import { note } from "./reports"
 import { select, selection } from "./selection"
 import {
   UNNAMED_VOLTAGE,
@@ -40,7 +41,8 @@ import {
   type Frame,
 } from "./weather"
 import { LABEL_SOURCE, WindParticles, drawLabels, drawSpeed, removeLabels, removeSpeed } from "./windLayer"
-import { activeTool, overlays, setTool } from "./tools"
+import { SERVICES, applyServices } from "./services"
+import { activeTool, basemap, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
 
 /**
@@ -173,6 +175,7 @@ function create(container: HTMLDivElement): void {
     project.subscribe(syncAll)
     selection.subscribe(syncAll)
     overlays.subscribe(syncAll)
+    basemap.subscribe(syncAll)
     plantRegister.subscribe(syncGrid)
     networkRegister.subscribe(syncGrid)
     // Both of these are read asynchronously after syncGrid has already run
@@ -195,6 +198,7 @@ function create(container: HTMLDivElement): void {
     const sourceId = (e as { sourceId?: string }).sourceId
     if (sourceId?.startsWith(RADAR_PREFIX)) noteTileFailure("radar")
     else if (sourceId?.startsWith(SAT_PREFIX)) noteTileFailure("satellite")
+    else if (sourceId) noteServiceFailure(sourceId)
   })
 
   m.on("click", onClick)
@@ -825,12 +829,45 @@ function highlighted(): string | null {
   return isResult(item) ? item.sourceId : item.id
 }
 
+/** Which ground the basemap draws, and whether the relief is drawn under it. */
+function syncBasemap(m: MapLibreMap): void {
+  applyGround(m, basemap.get(), overlays.get().hillshade)
+}
+
+/*
+  A service that refuses is said once a minute and on the console only: a
+  refused viewport fails a tile at a time, and a layer nobody is looking at
+  should not take over the screen to say so.
+*/
+const serviceSaidAt = new Map<string, number>()
+
+function noteServiceFailure(sourceId: string): void {
+  const service = SERVICES.find((s) => s.id === sourceId)
+  if (!service) return
+  const now = Date.now()
+  if (now - (serviceSaidAt.get(service.id) ?? 0) < 60_000) return
+  serviceSaidAt.set(service.id, now)
+  note(`${service.label}: the service is not answering for this view.`)
+}
+
+/** The layers drawn straight from somebody else's service. */
+function syncServices(m: MapLibreMap): void {
+  if (!m.getLayer(GROUND_ANCHOR)) return
+  const o = overlays.get()
+  // "ground" sits with the registers, under the areas a reader draws;
+  // "weather" goes further down, under the grid, where the observed layers are.
+  applyServices(m, (key) => o[key], (anchor) => (anchor === "ground" ? GROUND_ANCHOR : LINE_LAYER))
+}
+
 function syncAll(): void {
   const m = map
   if (!m || !m.getSource(SITES)) return
   const d = project.get().data
   const o = overlays.get()
   const hi = highlighted()
+
+  syncBasemap(m)
+  syncServices(m)
 
   const sites: Feature[] = d.sites
     .filter((s) => !s.hidden)

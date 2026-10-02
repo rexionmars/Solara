@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rexionmars/TerraEnergyEngine/internal/energy"
 	"github.com/rexionmars/TerraEnergyEngine/internal/grid"
 	"github.com/rexionmars/TerraEnergyEngine/internal/store"
 )
@@ -155,6 +156,19 @@ func (a *App) GridTownDemand() (*grid.TownDemandLayer, error) {
 	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
 	defer cancel()
 	return grid.TownDemand(ctx, r, a.chosenGridDSN())
+}
+
+// GridDemandReach measures how much of an area each loaded register covers,
+// before a demand reading is run over it. What the reading would report about
+// its own coverage, asked while the reader can still act on it.
+func (a *App) GridDemandReach(area energy.Polygon) (*grid.ReachProbe, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
+	defer cancel()
+	return grid.DemandReach(ctx, r, area, a.chosenGridDSN())
 }
 
 // GridConcessions reads where each register in the store has data, as a map

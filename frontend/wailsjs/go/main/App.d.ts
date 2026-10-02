@@ -30,6 +30,8 @@ export function GetBootLogs():Promise<Array<string>>;
 
 export function GridConcessions():Promise<grid.ConcessionLayer>;
 
+export function GridDemandReach(arg1:energy.Polygon):Promise<grid.ReachProbe>;
+
 export function GridNetwork():Promise<grid.NetworkLayer>;
 
 export function GridPlants():Promise<grid.PlantsLayer>;

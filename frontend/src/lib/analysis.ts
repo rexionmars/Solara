@@ -305,7 +305,7 @@ export function runDemand(area: AreaObject, replace?: string): Promise<string | 
       const units = Object.values(r.data.consumo).reduce((n, l) => n + (l?.unidades ?? 0), 0)
       const back = t.injetada_sobre_consumida_pct
       return (
-        `Area demand from ${area.name}: ${units.toLocaleString()} consumer units, ` +
+        `Area consumption from ${area.name}: ${units.toLocaleString()} consumer units, ` +
         `${Math.round(t.energia_consumida_ano_mwh).toLocaleString()} MWh in the year` +
         `${back != null ? `, ${back.toFixed(1)}% of it put back by generation in the area` : ""}.`
       )

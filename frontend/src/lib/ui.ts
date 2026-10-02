@@ -119,6 +119,9 @@ export const lastOperation = createStore<LastOperation | null>(null)
 /** Whether the Adjust Last Operation panel is expanded (F9). */
 export const lastOperationOpen = createStore<boolean>(false)
 
+/** Whether the map's Weather now plate is expanded, or retracted to its heading and the hours drawn. */
+export const weatherPlateOpen = createStore<boolean>(true)
+
 /** The Add › Site at Coordinates dialog. */
 export const coordinatePrompt = createStore<boolean>(false)
 

@@ -17,7 +17,7 @@
     "comments": "Desktop energy mapping",
     "fileAssociations": [
       {
-        "ext": "terra",
+        "ext": "solara",
         "name": "Solara Project",
         "description": "Solara project",
         "iconName": "projecticon",

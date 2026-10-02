@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { CaretDown, CaretRight, House, MagnifyingGlassMinus, MagnifyingGlassPlus, Pause, Play, Stack, Tag } from "@phosphor-icons/react"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { runConnection, runSolar, runTerrain, runWind } from "../../lib/analysis"
-import { BASEMAP_NAME } from "../../lib/basemap"
+import { BASEMAPS, type BasemapId } from "../../lib/basemap"
 import { formatLat, formatLng } from "../../lib/format"
 import { distanceKm } from "../../lib/geo"
 import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
@@ -11,8 +11,10 @@ import { mapView, measure } from "../../lib/mapState"
 import { setSiteCoordinate } from "../../lib/objects"
 import { findOperator, formatKeys, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, findItem, isResult, project, renameItem } from "../../lib/project"
+import { openRunGraph } from "../../lib/screen"
 import { useStore } from "../../lib/store"
-import { TOOLS, activeTool, overlays, type Overlays } from "../../lib/tools"
+import { SERVICE_CREDITS, SERVICES } from "../../lib/services"
+import { TOOLS, activeTool, basemap, overlays, type Overlays } from "../../lib/tools"
 import {
   SATELLITE,
   ageLabel,
@@ -37,7 +39,7 @@ import {
   windField,
   windProbe,
 } from "../../lib/weather"
-import { coordinatePrompt, lastOperation, lastOperationOpen, type MenuItem } from "../../lib/ui"
+import { coordinatePrompt, lastOperation, lastOperationOpen, weatherPlateOpen, type MenuItem } from "../../lib/ui"
 import { StudioHeaderMenu, StudioHeaderPopover, StudioHeaderRule, StudioHeaderToggle } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
 import { btnPrimary } from "../ui/buttons"
@@ -62,9 +64,18 @@ const objectMenu = (): MenuItem[] => [
   op("LEGEND"),
   op("DELETE"),
   { type: "heading", label: "Analyze" },
-  op("SOLAR"),
-  op("WIND"),
-  op("TERRAIN"),
+  /*
+    ONE ITEM, NOT ONE PER PRODUCT. This menu used to run three of the five
+    products straight from the map, which spent a run with none of its inputs
+    on screen -- and left the other two unreachable, so right-clicking an area
+    read as "this area cannot be asked that". Both are the same defect: a
+    request is five or six settings, and the board is where they are all
+    visible at once.
+
+    RERUN stays because it is not a request. It repeats one the project
+    already holds, with the settings that run recorded.
+  */
+  { type: "action", label: "Set up a run…", run: () => openRunGraph() },
   op("RERUN"),
 ]
 
@@ -80,6 +91,24 @@ const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "weatherSatellite", label: "Clouds, GOES-East satellite" },
   { key: "weatherRadar", label: "Rain, radar" },
   { key: "weatherWind", label: "Wind, GFS model" },
+]
+
+/*
+  The registers that publish themselves. They are kept apart from the grid
+  store's own layers because they fail differently: the store is a database
+  this machine either reaches or does not, and these are four services on the
+  internet that can each refuse a single view.
+*/
+const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
+  { key: "nightLights", label: "Nighttime lights, VIIRS" },
+  { key: "sigel", label: "Turbines and declared strips, SIGEL" },
+  { key: "indigenousLand", label: "Indigenous land, FUNAI" },
+  { key: "protectedAreas", label: "Protected areas, ICMBio" },
+]
+
+const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [
+  { id: "dark", label: "Streets, dark" },
+  { id: "satellite", label: "Imagery, Sentinel-2 cloudless" },
 ]
 
 const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
@@ -135,6 +164,7 @@ function gridLabel(key: keyof Overlays, label: string): string {
 
 const overlaysMenu = (): MenuItem[] => {
   const o = overlays.get()
+  const base = basemap.get()
   return [
     { type: "heading", label: "Overlays" },
     ...OVERLAY_ITEMS.map(
@@ -145,6 +175,21 @@ const overlaysMenu = (): MenuItem[] => {
         run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
       })
     ),
+    { type: "heading", label: "Ground" },
+    ...BASEMAP_ITEMS.map(
+      (it): MenuItem => ({
+        type: "action",
+        label: it.label,
+        checked: base === it.id,
+        run: () => basemap.set(it.id),
+      }),
+    ),
+    {
+      type: "action",
+      label: "Hillshade",
+      checked: o.hillshade,
+      run: () => overlays.set((cur) => ({ ...cur, hillshade: !cur.hillshade })),
+    },
     { type: "heading", label: "Weather now (internet)" },
     ...WEATHER_ITEMS.map(
       (it): MenuItem => ({
@@ -153,6 +198,15 @@ const overlaysMenu = (): MenuItem[] => {
         checked: o[it.key],
         run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
       })
+    ),
+    { type: "heading", label: "Published registers (internet)" },
+    ...REFERENCE_ITEMS.map(
+      (it): MenuItem => ({
+        type: "action",
+        label: it.label,
+        checked: o[it.key],
+        run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
+      }),
     ),
     { type: "heading", label: "Grid store" },
     ...GRID_ITEMS.map(
@@ -365,10 +419,16 @@ function WindReadout() {
  * THE AGE IS WRITTEN, NOT IMPLIED. The satellite is published about forty
  * minutes late and the radar about ten, so "now" on this map is two different
  * moments, and each layer says its own.
+ *
+ * RETRACTED, IT STILL SAYS THE HOUR. The plate folds to its heading to give the
+ * map back, and the layers stay drawn, so the heading keeps each layer's hour
+ * beside it: what is on the map is never left without its time.
  */
 function WeatherPlate() {
   const o = useStore(overlays)
   const w = useStore(weather)
+  const wind = fieldOf(useStore(windField).state)
+  const open = useStore(weatherPlateOpen)
   const [, tick] = useState(0)
   const times = timelineTimes(w, o.weatherSatellite, o.weatherRadar)
   const index = w.at === null ? times.length - 1 : Math.max(0, times.findIndex((t) => t >= w.at!))
@@ -414,121 +474,142 @@ function WeatherPlate() {
     </div>
   )
 
+  const hours = [
+    o.weatherSatellite && `Clouds ${sat ? clockLabel(sat.time) : "–"}`,
+    o.weatherRadar && `Rain ${radar ? clockLabel(radar.time) : "–"}`,
+    o.weatherWind && `Wind ${wind ? clockLabel(Date.parse(wind.valid)) : "–"}`,
+  ].filter(Boolean)
+
   return (
-    <div className={`${PLATE} w-72 px-2.5 py-2`} style={plateStyle}>
-      <div className="flex items-center gap-1.5">
-        <p className="eyebrow !text-[9px] min-w-0 flex-1 truncate">Weather now</p>
-        {observed && (
-          <span className="telemetry text-[9px] text-muted-foreground" title="Measured by satellite and radar, not modelled">
-            observed
-          </span>
-        )}
-      </div>
-      {observed && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setPlaying(!w.playing)}
-            disabled={times.length < 2}
-            aria-label={w.playing ? "Pause" : "Play the last two hours"}
-            title={w.playing ? "Pause" : "Play the last two hours"}
-            className="grid size-6 shrink-0 place-items-center rounded-sm bg-selected text-foreground hover:bg-hover disabled:opacity-40"
-          >
-            {w.playing ? <Pause className="size-3" weight="fill" /> : <Play className="size-3" weight="fill" />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0, times.length - 1)}
-            value={Math.max(0, index)}
-            disabled={times.length < 2}
-            aria-label="Moment shown"
-            onKeyDown={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const i = Number(e.target.value)
-              setPlaying(false)
-              setMoment(i >= times.length - 1 ? null : times[i])
-            }}
-            className="min-w-0 flex-1 accent-[rgb(var(--p-accent))]"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setPlaying(false)
-              setMoment(null)
-            }}
-            disabled={w.at === null}
-            className="shrink-0 text-micro text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            Latest
-          </button>
+    <div className={`${PLATE} w-72 overflow-hidden`} style={plateStyle}>
+      <button
+        type="button"
+        onClick={() => weatherPlateOpen.set(!open)}
+        aria-expanded={open}
+        title={open ? "Retract" : "Expand"}
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-hover"
+      >
+        {open ? <CaretDown className="size-2.5 shrink-0 text-muted-foreground" /> : <CaretRight className="size-2.5 shrink-0 text-muted-foreground" />}
+        <span className={`eyebrow !text-[9px] ${open ? "min-w-0 flex-1 truncate" : "shrink-0"}`}>Weather now</span>
+        {open
+          ? observed && (
+              <span className="telemetry text-[9px] text-muted-foreground" title="Measured by satellite and radar, not modelled">
+                observed
+              </span>
+            )
+          : (
+              <span className="telemetry min-w-0 flex-1 truncate text-right text-[9px] text-muted-foreground">{hours.join(" · ")}</span>
+            )}
+      </button>
+      {open && (
+        <div className="px-2.5 pb-2">
+          {observed && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPlaying(!w.playing)}
+                disabled={times.length < 2}
+                aria-label={w.playing ? "Pause" : "Play the last two hours"}
+                title={w.playing ? "Pause" : "Play the last two hours"}
+                className="grid size-6 shrink-0 place-items-center rounded-sm bg-selected text-foreground hover:bg-hover disabled:opacity-40"
+              >
+                {w.playing ? <Pause className="size-3" weight="fill" /> : <Play className="size-3" weight="fill" />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, times.length - 1)}
+                value={Math.max(0, index)}
+                disabled={times.length < 2}
+                aria-label="Moment shown"
+                onKeyDown={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  const i = Number(e.target.value)
+                  setPlaying(false)
+                  setMoment(i >= times.length - 1 ? null : times[i])
+                }}
+                className="min-w-0 flex-1 accent-[rgb(var(--p-accent))]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaying(false)
+                  setMoment(null)
+                }}
+                disabled={w.at === null}
+                className="shrink-0 text-micro text-muted-foreground hover:text-foreground disabled:opacity-40"
+              >
+                Latest
+              </button>
+            </div>
+          )}
+          <div className={observed ? "mt-1.5 flex flex-col gap-0.5" : "hidden"}>
+            {o.weatherSatellite && layerLine("Clouds", w.satellite, sat, () => void refreshSatellite())}
+            {o.weatherRadar && layerLine("Rain", w.radar, radar, () => void refreshRadar())}
+          </div>
+          {o.weatherSatellite && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {(Object.keys(SATELLITE) as SatelliteProduct[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setSatelliteProduct(p)}
+                  aria-pressed={w.product === p}
+                  title={p === "geocolor" ? "True colour by day, infrared by night" : "Infrared day and night: clouds read the same at any hour"}
+                  className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
+                    w.product === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
+                  }`}
+                >
+                  {SATELLITE[p].label}
+                </button>
+              ))}
+              <input
+                type="range"
+                min={0.2}
+                max={1}
+                step={0.05}
+                value={w.satelliteOpacity}
+                aria-label="Cloud layer opacity"
+                title="Cloud layer opacity"
+                onKeyDown={(e) => e.stopPropagation()}
+                onChange={(e) => setOpacity("satellite", Number(e.target.value))}
+                className="ml-auto w-16 accent-[rgb(var(--p-accent))]"
+              />
+            </div>
+          )}
+          {(["satellite", "radar"] as const).some((l) => (l === "satellite" ? o.weatherSatellite : o.weatherRadar) && tilesFailing(w, l)) && (
+            <p className="mt-1.5 text-micro leading-snug" style={{ color: "var(--warning)" }}>
+              {o.weatherRadar && tilesFailing(w, "radar")
+                ? "Radar tiles are being refused. RainViewer limits requests from one address; the radar comes back once the limit resets, usually within a minute."
+                : "Satellite tiles are not loading. The connection or NASA GIBS may be down; the map keeps what it has."}
+            </p>
+          )}
+          {o.weatherRadar && (
+            <p className="mt-1.5 text-micro leading-snug text-muted-foreground">
+              Radar reaches where Brazil's radars do: dense in the South and Southeast, sparse inland in the Northeast. No colour where there is no
+              radar is not no rain.
+            </p>
+          )}
+          {o.weatherWind && <WindSection divided={observed} />}
+          <p className="mt-1.5 flex flex-wrap gap-x-1.5 text-[9px] text-muted-foreground">
+            {o.weatherSatellite && (
+              <button type="button" onClick={() => BrowserOpenURL("https://earthdata.nasa.gov/gibs")} className="hover:text-foreground hover:underline">
+                NASA GIBS · NOAA GOES-East
+              </button>
+            )}
+            {o.weatherRadar && (
+              <button type="button" onClick={() => BrowserOpenURL("https://www.rainviewer.com")} className="hover:text-foreground hover:underline">
+                RainViewer
+              </button>
+            )}
+            {o.weatherWind && (
+              <button type="button" onClick={() => BrowserOpenURL("https://www.unidata.ucar.edu/software/tds/")} className="hover:text-foreground hover:underline">
+                NOAA GFS · UCAR THREDDS
+              </button>
+            )}
+          </p>
         </div>
       )}
-      <div className={observed ? "mt-1.5 flex flex-col gap-0.5" : "hidden"}>
-        {o.weatherSatellite && layerLine("Clouds", w.satellite, sat, () => void refreshSatellite())}
-        {o.weatherRadar && layerLine("Rain", w.radar, radar, () => void refreshRadar())}
-      </div>
-      {o.weatherSatellite && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          {(Object.keys(SATELLITE) as SatelliteProduct[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setSatelliteProduct(p)}
-              aria-pressed={w.product === p}
-              title={p === "geocolor" ? "True colour by day, infrared by night" : "Infrared day and night: clouds read the same at any hour"}
-              className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
-                w.product === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
-              }`}
-            >
-              {SATELLITE[p].label}
-            </button>
-          ))}
-          <input
-            type="range"
-            min={0.2}
-            max={1}
-            step={0.05}
-            value={w.satelliteOpacity}
-            aria-label="Cloud layer opacity"
-            title="Cloud layer opacity"
-            onKeyDown={(e) => e.stopPropagation()}
-            onChange={(e) => setOpacity("satellite", Number(e.target.value))}
-            className="ml-auto w-16 accent-[rgb(var(--p-accent))]"
-          />
-        </div>
-      )}
-      {(["satellite", "radar"] as const).some((l) => (l === "satellite" ? o.weatherSatellite : o.weatherRadar) && tilesFailing(w, l)) && (
-        <p className="mt-1.5 text-micro leading-snug" style={{ color: "var(--warning)" }}>
-          {o.weatherRadar && tilesFailing(w, "radar")
-            ? "Radar tiles are being refused. RainViewer limits requests from one address; the radar comes back once the limit resets, usually within a minute."
-            : "Satellite tiles are not loading. The connection or NASA GIBS may be down; the map keeps what it has."}
-        </p>
-      )}
-      {o.weatherRadar && (
-        <p className="mt-1.5 text-micro leading-snug text-muted-foreground">
-          Radar reaches where Brazil's radars do: dense in the South and Southeast, sparse inland in the Northeast. No colour where there is no
-          radar is not no rain.
-        </p>
-      )}
-      {o.weatherWind && <WindSection divided={observed} />}
-      <p className="mt-1.5 flex flex-wrap gap-x-1.5 text-[9px] text-muted-foreground">
-        {o.weatherSatellite && (
-          <button type="button" onClick={() => BrowserOpenURL("https://earthdata.nasa.gov/gibs")} className="hover:text-foreground hover:underline">
-            NASA GIBS · NOAA GOES-East
-          </button>
-        )}
-        {o.weatherRadar && (
-          <button type="button" onClick={() => BrowserOpenURL("https://www.rainviewer.com")} className="hover:text-foreground hover:underline">
-            RainViewer
-          </button>
-        )}
-        {o.weatherWind && (
-          <button type="button" onClick={() => BrowserOpenURL("https://www.unidata.ucar.edu/software/tds/")} className="hover:text-foreground hover:underline">
-            NOAA GFS · UCAR THREDDS
-          </button>
-        )}
-      </p>
     </div>
   )
 }
@@ -624,22 +705,29 @@ function RedoPlate() {
   )
 }
 
-const CREDITS = [
-  { label: "MapLibre", href: "https://maplibre.org" },
-  { label: "OpenFreeMap", href: "https://openfreemap.org" },
-  { label: "© OpenMapTiles", href: "https://www.openmaptiles.org/" },
-  { label: "© OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
-]
+const ENGINE_CREDIT = { label: "MapLibre", href: "https://maplibre.org" }
 
-/** The zoom and the credit at the map's foot, as TERRA writes them under the globe. */
+/**
+ * The zoom and the credit at the map's foot, as TERRA writes them under the
+ * globe. The credit follows what is actually drawn: the ground in use, and
+ * every published register switched on. A licence is owed by whoever is
+ * being shown, not by whoever could be.
+ */
 function Foot() {
   const { zoom } = useStore(mapView)
   const o = useStore(overlays)
+  const base = useStore(basemap)
   if (!o.statistics) return null
+  const ground = BASEMAPS[base]
+  const credits = [
+    ENGINE_CREDIT,
+    ...ground.credits,
+    ...SERVICES.filter((s) => o[s.key]).map((s) => SERVICE_CREDITS[s.key]),
+  ]
   return (
     <p className="telemetry pointer-events-auto absolute bottom-1.5 left-2 flex flex-wrap items-center gap-x-1.5 text-[9px] text-foreground/80 [text-shadow:0_1px_2px_rgb(0_0_0/0.9)]">
       <span>z{zoom.toFixed(1)}</span>
-      {CREDITS.map((c, i) => (
+      {credits.map((c, i) => (
         <span key={c.label} className="flex items-center gap-1.5">
           {i === 1 ? "|" : ""}
           {/* A button calling BrowserOpenURL: an anchor with a blank target opens nothing in this webview. */}
@@ -648,7 +736,9 @@ function Foot() {
           </button>
         </span>
       ))}
-      <span className="text-muted-foreground">· {BASEMAP_NAME}</span>
+      <span className="text-muted-foreground">· {ground.label}</span>
+      {/* Past the last zoom the tiles carry, the map is drawing the same pixels larger. Say so rather than let it read as detail. */}
+      {zoom > ground.maxZoom && <span className="text-muted-foreground">· stretched past z{ground.maxZoom}</span>}
     </p>
   )
 }
