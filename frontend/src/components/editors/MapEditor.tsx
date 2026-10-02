@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { CaretDown, CaretRight, House, MagnifyingGlassMinus, MagnifyingGlassPlus, Pause, Play, Stack, Tag } from "@phosphor-icons/react"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { runConnection, runSolar, runTerrain, runWind } from "../../lib/analysis"
-import { BASEMAP_NAME } from "../../lib/basemap"
+import { BASEMAPS, type BasemapId } from "../../lib/basemap"
 import { formatLat, formatLng } from "../../lib/format"
 import { distanceKm } from "../../lib/geo"
 import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
@@ -12,7 +12,8 @@ import { setSiteCoordinate } from "../../lib/objects"
 import { findOperator, formatKeys, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, findItem, isResult, project, renameItem } from "../../lib/project"
 import { useStore } from "../../lib/store"
-import { TOOLS, activeTool, overlays, type Overlays } from "../../lib/tools"
+import { SERVICE_CREDITS, SERVICES } from "../../lib/services"
+import { TOOLS, activeTool, basemap, overlays, type Overlays } from "../../lib/tools"
 import {
   SATELLITE,
   ageLabel,
@@ -82,6 +83,24 @@ const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "weatherWind", label: "Wind, GFS model" },
 ]
 
+/*
+  The registers that publish themselves. They are kept apart from the grid
+  store's own layers because they fail differently: the store is a database
+  this machine either reaches or does not, and these are four services on the
+  internet that can each refuse a single view.
+*/
+const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
+  { key: "nightLights", label: "Nighttime lights, VIIRS" },
+  { key: "sigel", label: "Turbines and declared strips, SIGEL" },
+  { key: "indigenousLand", label: "Indigenous land, FUNAI" },
+  { key: "protectedAreas", label: "Protected areas, ICMBio" },
+]
+
+const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [
+  { id: "dark", label: "Streets, dark" },
+  { id: "satellite", label: "Imagery, Sentinel-2 cloudless" },
+]
+
 const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "gridConcessions", label: "Where each register has data" },
   { key: "gridDemand", label: "Consumption by municipality" },
@@ -135,6 +154,7 @@ function gridLabel(key: keyof Overlays, label: string): string {
 
 const overlaysMenu = (): MenuItem[] => {
   const o = overlays.get()
+  const base = basemap.get()
   return [
     { type: "heading", label: "Overlays" },
     ...OVERLAY_ITEMS.map(
@@ -145,6 +165,21 @@ const overlaysMenu = (): MenuItem[] => {
         run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
       })
     ),
+    { type: "heading", label: "Ground" },
+    ...BASEMAP_ITEMS.map(
+      (it): MenuItem => ({
+        type: "action",
+        label: it.label,
+        checked: base === it.id,
+        run: () => basemap.set(it.id),
+      }),
+    ),
+    {
+      type: "action",
+      label: "Hillshade",
+      checked: o.hillshade,
+      run: () => overlays.set((cur) => ({ ...cur, hillshade: !cur.hillshade })),
+    },
     { type: "heading", label: "Weather now (internet)" },
     ...WEATHER_ITEMS.map(
       (it): MenuItem => ({
@@ -153,6 +188,15 @@ const overlaysMenu = (): MenuItem[] => {
         checked: o[it.key],
         run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
       })
+    ),
+    { type: "heading", label: "Published registers (internet)" },
+    ...REFERENCE_ITEMS.map(
+      (it): MenuItem => ({
+        type: "action",
+        label: it.label,
+        checked: o[it.key],
+        run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
+      }),
     ),
     { type: "heading", label: "Grid store" },
     ...GRID_ITEMS.map(
@@ -624,22 +668,29 @@ function RedoPlate() {
   )
 }
 
-const CREDITS = [
-  { label: "MapLibre", href: "https://maplibre.org" },
-  { label: "OpenFreeMap", href: "https://openfreemap.org" },
-  { label: "© OpenMapTiles", href: "https://www.openmaptiles.org/" },
-  { label: "© OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
-]
+const ENGINE_CREDIT = { label: "MapLibre", href: "https://maplibre.org" }
 
-/** The zoom and the credit at the map's foot, as TERRA writes them under the globe. */
+/**
+ * The zoom and the credit at the map's foot, as TERRA writes them under the
+ * globe. The credit follows what is actually drawn: the ground in use, and
+ * every published register switched on. A licence is owed by whoever is
+ * being shown, not by whoever could be.
+ */
 function Foot() {
   const { zoom } = useStore(mapView)
   const o = useStore(overlays)
+  const base = useStore(basemap)
   if (!o.statistics) return null
+  const ground = BASEMAPS[base]
+  const credits = [
+    ENGINE_CREDIT,
+    ...ground.credits,
+    ...SERVICES.filter((s) => o[s.key]).map((s) => SERVICE_CREDITS[s.key]),
+  ]
   return (
     <p className="telemetry pointer-events-auto absolute bottom-1.5 left-2 flex flex-wrap items-center gap-x-1.5 text-[9px] text-foreground/80 [text-shadow:0_1px_2px_rgb(0_0_0/0.9)]">
       <span>z{zoom.toFixed(1)}</span>
-      {CREDITS.map((c, i) => (
+      {credits.map((c, i) => (
         <span key={c.label} className="flex items-center gap-1.5">
           {i === 1 ? "|" : ""}
           {/* A button calling BrowserOpenURL: an anchor with a blank target opens nothing in this webview. */}
@@ -648,7 +699,9 @@ function Foot() {
           </button>
         </span>
       ))}
-      <span className="text-muted-foreground">· {BASEMAP_NAME}</span>
+      <span className="text-muted-foreground">· {ground.label}</span>
+      {/* Past the last zoom the tiles carry, the map is drawing the same pixels larger. Say so rather than let it read as detail. */}
+      {zoom > ground.maxZoom && <span className="text-muted-foreground">· stretched past z{ground.maxZoom}</span>}
     </p>
   )
 }

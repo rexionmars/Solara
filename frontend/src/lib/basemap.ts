@@ -1,4 +1,4 @@
-import type { ExpressionSpecification, LayerSpecification, StyleSpecification } from "maplibre-gl"
+import type { ExpressionSpecification, LayerSpecification, Map as MapLibreMap, StyleSpecification } from "maplibre-gl"
 
 /*
   A dark street map drawn from OpenFreeMap's vector tiles (the OpenMapTiles
@@ -412,4 +412,36 @@ export const BASEMAP_STYLE: StyleSpecification = {
       paint: { "text-color": LABEL, ...HALO },
     },
   ],
+}
+
+/**
+ * Draw the ground the reader asked for.
+ *
+ * It lives here, beside the style it is about, rather than in the map module:
+ * everything it needs to know -- which layers are ground, which are labels,
+ * what each is coloured on each ground -- is written above, and a second copy
+ * of that knowledge somewhere else is the way the two drift apart.
+ */
+export function applyGround(m: MapLibreMap, ground: BasemapId, hillshade: boolean): void {
+  if (!m.getLayer(IMAGERY_LAYER)) return
+  const onImagery = ground === "satellite"
+  const show = (id: string, on: boolean) => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", on ? "visible" : "none")
+  }
+
+  show(IMAGERY_LAYER, onImagery)
+  show(HILLSHADE_LAYER, hillshade)
+  // The vector fills draw their own ground, and would sit on top of the
+  // photograph of the same ground.
+  for (const id of GROUND_LAYERS) show(id, !onImagery)
+
+  // The ink follows the ground, not the layer: see LABEL_THEME.
+  for (const [id, theme] of Object.entries(LABEL_THEME)) {
+    if (!m.getLayer(id)) continue
+    m.setPaintProperty(id, "text-color", onImagery ? IMAGERY_LABEL.color : theme.color)
+    m.setPaintProperty(id, "text-halo-color", onImagery ? IMAGERY_LABEL.halo : theme.halo)
+  }
+  for (const [id, colour] of Object.entries(ROAD_THEME)) {
+    if (m.getLayer(id)) m.setPaintProperty(id, "line-color", onImagery ? IMAGERY_ROAD : colour)
+  }
 }
