@@ -39,7 +39,7 @@ import {
   windField,
   windProbe,
 } from "../../lib/weather"
-import { coordinatePrompt, lastOperation, lastOperationOpen, type MenuItem } from "../../lib/ui"
+import { coordinatePrompt, lastOperation, lastOperationOpen, weatherPlateOpen, type MenuItem } from "../../lib/ui"
 import { StudioHeaderMenu, StudioHeaderPopover, StudioHeaderRule, StudioHeaderToggle } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
 import { btnPrimary } from "../ui/buttons"
@@ -419,10 +419,16 @@ function WindReadout() {
  * THE AGE IS WRITTEN, NOT IMPLIED. The satellite is published about forty
  * minutes late and the radar about ten, so "now" on this map is two different
  * moments, and each layer says its own.
+ *
+ * RETRACTED, IT STILL SAYS THE HOUR. The plate folds to its heading to give the
+ * map back, and the layers stay drawn, so the heading keeps each layer's hour
+ * beside it: what is on the map is never left without its time.
  */
 function WeatherPlate() {
   const o = useStore(overlays)
   const w = useStore(weather)
+  const wind = fieldOf(useStore(windField).state)
+  const open = useStore(weatherPlateOpen)
   const [, tick] = useState(0)
   const times = timelineTimes(w, o.weatherSatellite, o.weatherRadar)
   const index = w.at === null ? times.length - 1 : Math.max(0, times.findIndex((t) => t >= w.at!))
@@ -468,121 +474,142 @@ function WeatherPlate() {
     </div>
   )
 
+  const hours = [
+    o.weatherSatellite && `Clouds ${sat ? clockLabel(sat.time) : "–"}`,
+    o.weatherRadar && `Rain ${radar ? clockLabel(radar.time) : "–"}`,
+    o.weatherWind && `Wind ${wind ? clockLabel(Date.parse(wind.valid)) : "–"}`,
+  ].filter(Boolean)
+
   return (
-    <div className={`${PLATE} w-72 px-2.5 py-2`} style={plateStyle}>
-      <div className="flex items-center gap-1.5">
-        <p className="eyebrow !text-[9px] min-w-0 flex-1 truncate">Weather now</p>
-        {observed && (
-          <span className="telemetry text-[9px] text-muted-foreground" title="Measured by satellite and radar, not modelled">
-            observed
-          </span>
-        )}
-      </div>
-      {observed && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setPlaying(!w.playing)}
-            disabled={times.length < 2}
-            aria-label={w.playing ? "Pause" : "Play the last two hours"}
-            title={w.playing ? "Pause" : "Play the last two hours"}
-            className="grid size-6 shrink-0 place-items-center rounded-sm bg-selected text-foreground hover:bg-hover disabled:opacity-40"
-          >
-            {w.playing ? <Pause className="size-3" weight="fill" /> : <Play className="size-3" weight="fill" />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0, times.length - 1)}
-            value={Math.max(0, index)}
-            disabled={times.length < 2}
-            aria-label="Moment shown"
-            onKeyDown={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const i = Number(e.target.value)
-              setPlaying(false)
-              setMoment(i >= times.length - 1 ? null : times[i])
-            }}
-            className="min-w-0 flex-1 accent-[rgb(var(--p-accent))]"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setPlaying(false)
-              setMoment(null)
-            }}
-            disabled={w.at === null}
-            className="shrink-0 text-micro text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            Latest
-          </button>
+    <div className={`${PLATE} w-72 overflow-hidden`} style={plateStyle}>
+      <button
+        type="button"
+        onClick={() => weatherPlateOpen.set(!open)}
+        aria-expanded={open}
+        title={open ? "Retract" : "Expand"}
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-hover"
+      >
+        {open ? <CaretDown className="size-2.5 shrink-0 text-muted-foreground" /> : <CaretRight className="size-2.5 shrink-0 text-muted-foreground" />}
+        <span className={`eyebrow !text-[9px] ${open ? "min-w-0 flex-1 truncate" : "shrink-0"}`}>Weather now</span>
+        {open
+          ? observed && (
+              <span className="telemetry text-[9px] text-muted-foreground" title="Measured by satellite and radar, not modelled">
+                observed
+              </span>
+            )
+          : (
+              <span className="telemetry min-w-0 flex-1 truncate text-right text-[9px] text-muted-foreground">{hours.join(" · ")}</span>
+            )}
+      </button>
+      {open && (
+        <div className="px-2.5 pb-2">
+          {observed && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPlaying(!w.playing)}
+                disabled={times.length < 2}
+                aria-label={w.playing ? "Pause" : "Play the last two hours"}
+                title={w.playing ? "Pause" : "Play the last two hours"}
+                className="grid size-6 shrink-0 place-items-center rounded-sm bg-selected text-foreground hover:bg-hover disabled:opacity-40"
+              >
+                {w.playing ? <Pause className="size-3" weight="fill" /> : <Play className="size-3" weight="fill" />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, times.length - 1)}
+                value={Math.max(0, index)}
+                disabled={times.length < 2}
+                aria-label="Moment shown"
+                onKeyDown={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  const i = Number(e.target.value)
+                  setPlaying(false)
+                  setMoment(i >= times.length - 1 ? null : times[i])
+                }}
+                className="min-w-0 flex-1 accent-[rgb(var(--p-accent))]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaying(false)
+                  setMoment(null)
+                }}
+                disabled={w.at === null}
+                className="shrink-0 text-micro text-muted-foreground hover:text-foreground disabled:opacity-40"
+              >
+                Latest
+              </button>
+            </div>
+          )}
+          <div className={observed ? "mt-1.5 flex flex-col gap-0.5" : "hidden"}>
+            {o.weatherSatellite && layerLine("Clouds", w.satellite, sat, () => void refreshSatellite())}
+            {o.weatherRadar && layerLine("Rain", w.radar, radar, () => void refreshRadar())}
+          </div>
+          {o.weatherSatellite && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {(Object.keys(SATELLITE) as SatelliteProduct[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setSatelliteProduct(p)}
+                  aria-pressed={w.product === p}
+                  title={p === "geocolor" ? "True colour by day, infrared by night" : "Infrared day and night: clouds read the same at any hour"}
+                  className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
+                    w.product === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
+                  }`}
+                >
+                  {SATELLITE[p].label}
+                </button>
+              ))}
+              <input
+                type="range"
+                min={0.2}
+                max={1}
+                step={0.05}
+                value={w.satelliteOpacity}
+                aria-label="Cloud layer opacity"
+                title="Cloud layer opacity"
+                onKeyDown={(e) => e.stopPropagation()}
+                onChange={(e) => setOpacity("satellite", Number(e.target.value))}
+                className="ml-auto w-16 accent-[rgb(var(--p-accent))]"
+              />
+            </div>
+          )}
+          {(["satellite", "radar"] as const).some((l) => (l === "satellite" ? o.weatherSatellite : o.weatherRadar) && tilesFailing(w, l)) && (
+            <p className="mt-1.5 text-micro leading-snug" style={{ color: "var(--warning)" }}>
+              {o.weatherRadar && tilesFailing(w, "radar")
+                ? "Radar tiles are being refused. RainViewer limits requests from one address; the radar comes back once the limit resets, usually within a minute."
+                : "Satellite tiles are not loading. The connection or NASA GIBS may be down; the map keeps what it has."}
+            </p>
+          )}
+          {o.weatherRadar && (
+            <p className="mt-1.5 text-micro leading-snug text-muted-foreground">
+              Radar reaches where Brazil's radars do: dense in the South and Southeast, sparse inland in the Northeast. No colour where there is no
+              radar is not no rain.
+            </p>
+          )}
+          {o.weatherWind && <WindSection divided={observed} />}
+          <p className="mt-1.5 flex flex-wrap gap-x-1.5 text-[9px] text-muted-foreground">
+            {o.weatherSatellite && (
+              <button type="button" onClick={() => BrowserOpenURL("https://earthdata.nasa.gov/gibs")} className="hover:text-foreground hover:underline">
+                NASA GIBS · NOAA GOES-East
+              </button>
+            )}
+            {o.weatherRadar && (
+              <button type="button" onClick={() => BrowserOpenURL("https://www.rainviewer.com")} className="hover:text-foreground hover:underline">
+                RainViewer
+              </button>
+            )}
+            {o.weatherWind && (
+              <button type="button" onClick={() => BrowserOpenURL("https://www.unidata.ucar.edu/software/tds/")} className="hover:text-foreground hover:underline">
+                NOAA GFS · UCAR THREDDS
+              </button>
+            )}
+          </p>
         </div>
       )}
-      <div className={observed ? "mt-1.5 flex flex-col gap-0.5" : "hidden"}>
-        {o.weatherSatellite && layerLine("Clouds", w.satellite, sat, () => void refreshSatellite())}
-        {o.weatherRadar && layerLine("Rain", w.radar, radar, () => void refreshRadar())}
-      </div>
-      {o.weatherSatellite && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          {(Object.keys(SATELLITE) as SatelliteProduct[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setSatelliteProduct(p)}
-              aria-pressed={w.product === p}
-              title={p === "geocolor" ? "True colour by day, infrared by night" : "Infrared day and night: clouds read the same at any hour"}
-              className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
-                w.product === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
-              }`}
-            >
-              {SATELLITE[p].label}
-            </button>
-          ))}
-          <input
-            type="range"
-            min={0.2}
-            max={1}
-            step={0.05}
-            value={w.satelliteOpacity}
-            aria-label="Cloud layer opacity"
-            title="Cloud layer opacity"
-            onKeyDown={(e) => e.stopPropagation()}
-            onChange={(e) => setOpacity("satellite", Number(e.target.value))}
-            className="ml-auto w-16 accent-[rgb(var(--p-accent))]"
-          />
-        </div>
-      )}
-      {(["satellite", "radar"] as const).some((l) => (l === "satellite" ? o.weatherSatellite : o.weatherRadar) && tilesFailing(w, l)) && (
-        <p className="mt-1.5 text-micro leading-snug" style={{ color: "var(--warning)" }}>
-          {o.weatherRadar && tilesFailing(w, "radar")
-            ? "Radar tiles are being refused. RainViewer limits requests from one address; the radar comes back once the limit resets, usually within a minute."
-            : "Satellite tiles are not loading. The connection or NASA GIBS may be down; the map keeps what it has."}
-        </p>
-      )}
-      {o.weatherRadar && (
-        <p className="mt-1.5 text-micro leading-snug text-muted-foreground">
-          Radar reaches where Brazil's radars do: dense in the South and Southeast, sparse inland in the Northeast. No colour where there is no
-          radar is not no rain.
-        </p>
-      )}
-      {o.weatherWind && <WindSection divided={observed} />}
-      <p className="mt-1.5 flex flex-wrap gap-x-1.5 text-[9px] text-muted-foreground">
-        {o.weatherSatellite && (
-          <button type="button" onClick={() => BrowserOpenURL("https://earthdata.nasa.gov/gibs")} className="hover:text-foreground hover:underline">
-            NASA GIBS · NOAA GOES-East
-          </button>
-        )}
-        {o.weatherRadar && (
-          <button type="button" onClick={() => BrowserOpenURL("https://www.rainviewer.com")} className="hover:text-foreground hover:underline">
-            RainViewer
-          </button>
-        )}
-        {o.weatherWind && (
-          <button type="button" onClick={() => BrowserOpenURL("https://www.unidata.ucar.edu/software/tds/")} className="hover:text-foreground hover:underline">
-            NOAA GFS · UCAR THREDDS
-          </button>
-        )}
-      </p>
     </div>
   )
 }
