@@ -657,6 +657,40 @@ def coverage(conn, aoi_geojson, dist: str, ano: int) -> dict | None:
     }
 
 
+def reach(conn, aoi_geojson) -> list[dict]:
+    """
+    How much of an area each register the store holds can answer about.
+
+    THE SAME MEASURE THE READING REPORTS, ASKED BEFORE THE READING. `coverage`
+    is the one implementation and this calls it once per holding, so the share
+    shown on an empty screen is the share the run will carry. Measuring it a
+    second way -- against the simplified shape the concession layer draws, or
+    by sampling points -- would put two numbers for one quantity on screen,
+    and the reader would have no way to tell which one the reading used.
+
+    EVERY HOLDING, NOT THE CHOSEN ONE. Choosing refuses where two distributors
+    are loaded and the request names neither, and a question asked before the
+    run has to answer rather than refuse. The reading still chooses by the
+    units that fall inside the area and not by ground, so a holding listed
+    here with a small share is not a prediction of which register will be
+    read: it is what each one covers.
+
+    Ordered by the ground each one holds, so the register that can answer most
+    of this area is first.
+    """
+    if not table_exists(conn, 'conj'):
+        return []
+    out = []
+    for h in holdings(conn):
+        one = coverage(conn, aoi_geojson, h['distribuidora'], h['ano'])
+        if one is None:
+            continue
+        out.append({'distribuidora': h['distribuidora'], 'ano': h['ano'],
+                    'unidades': h['unidades'], **one})
+    out.sort(key=lambda r: -(r['dentro_km2'] or 0))
+    return out
+
+
 def concessions(conn) -> dict:
     """
     Where each register the store holds actually reaches, as a layer.

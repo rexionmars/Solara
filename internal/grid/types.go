@@ -459,14 +459,14 @@ type TownRegister struct {
 // register carries and IBGE's own meshes are keyed on. It carries the register
 // it came from, because the layer draws several.
 type TownConsumption struct {
-	Town          string `json:"mun"`
-	Distribuidora string `json:"distribuidora"`
-	Year          int    `json:"ano"`
-	Units       int     `json:"unidades"`
-	EnergyMWh   float64 `json:"energia_ano_mwh"`
-	Generators  int     `json:"geradores"`
-	InjectedMWh float64 `json:"injetada_ano_mwh"`
-	PowerKW     float64 `json:"potencia_kw"`
+	Town          string  `json:"mun"`
+	Distribuidora string  `json:"distribuidora"`
+	Year          int     `json:"ano"`
+	Units         int     `json:"unidades"`
+	EnergyMWh     float64 `json:"energia_ano_mwh"`
+	Generators    int     `json:"geradores"`
+	InjectedMWh   float64 `json:"injetada_ano_mwh"`
+	PowerKW       float64 `json:"potencia_kw"`
 }
 
 // ---- Where each register reaches, as a layer ----------------------------------------
@@ -496,4 +496,39 @@ type Concession struct {
 	Geometry json.RawMessage `json:"geometry"`
 	AreaKM2  *float64        `json:"area_km2"`
 	Vertices int             `json:"vertices"`
+}
+
+// ---- How much of an area each register covers, asked before the reading -------------
+
+// ReachProbe is what the demand_reach action returns: for one ground, the
+// share of it each loaded register is the register of.
+//
+// It exists so the question "can this be asked here at all" is answered before
+// the reading is spent rather than inside its reply. Nothing here is about
+// consumption; a probe that reported figures would be a reading run twice.
+type ReachProbe struct {
+	// Every holding the store carries, including one whose tariff sets the
+	// load did not bring and whose share therefore cannot be measured.
+	Holdings []DemandHolding `json:"holdings"`
+	// One entry per holding whose reach could be measured, most ground first.
+	// Empty where the store carries no bdgd.conj, which is a share that is
+	// missing and not a share of zero.
+	Coverage []ReachCoverage `json:"coberturas"`
+	Note     string          `json:"nota"`
+}
+
+// ReachCoverage is one register measured against one ground. The fields after
+// Units are DemandCoverage's, which the reading carries in its own reply: the
+// same quantity from the same function, so the figure shown before a run is
+// the figure the run reports.
+type ReachCoverage struct {
+	Distribuidora string  `json:"distribuidora"`
+	Year          int     `json:"ano"`
+	Units         int     `json:"unidades"`
+	AreaKM2       float64 `json:"area_km2"`
+	ConcessionKM2 float64 `json:"concessao_km2"`
+	InsideKM2     float64 `json:"dentro_km2"`
+	// Null where the ground has no area to divide by.
+	CoveredPct *float64 `json:"cobertura_pct"`
+	Note       string   `json:"nota"`
 }

@@ -223,3 +223,54 @@ def test_the_concession_layer_draws_every_holding_the_store_has(loaded):
         assert c['geometry']['type'] in ('Polygon', 'MultiPolygon')
         assert c['area_km2'] > 0
     assert json.dumps(out)  # the shell receives this as JSON
+
+
+def test_the_registry_routes_the_reach_probe():
+    assert registry.resolve('demand_reach') is actions.demand_reach
+
+
+def test_the_probe_needs_an_area_before_it_opens_the_store(capsys):
+    with pytest.raises(SystemExit):
+        actions.demand_reach({'action': 'demand_reach'})
+    said = capsys.readouterr().err
+    assert 'polygon_geojson' in said
+    assert 'opening the grid store' not in said
+
+
+def test_a_store_without_the_tariff_sets_measures_nothing_rather_than_zero(monkeypatch):
+    # An empty list is a share that could not be measured. Returning zeroes
+    # would read as "no register reaches here", which is the opposite claim.
+    monkeypatch.setattr(demand, 'table_exists', lambda conn, table: False)
+    assert demand.reach(object(), natal()) == []
+
+
+def test_the_probe_answers_for_every_holding_and_ranks_them_by_ground(loaded):
+    out = demand.reach(loaded, natal())
+    if not out:
+        pytest.skip('this load carries no tariff sets')
+    assert len(out) == len(demand.holdings(loaded))
+    # Most ground first, so the head of the list is the register that can
+    # answer most of this area.
+    assert out == sorted(out, key=lambda r: -r['dentro_km2'])
+    for row in out:
+        assert row['distribuidora'] and row['ano']
+        assert row['dentro_km2'] <= row['area_km2']
+        assert 0 <= row['cobertura_pct'] <= 100
+    assert json.dumps(out)  # the shell receives this as JSON
+
+
+def test_the_probe_reports_the_share_the_reading_will_report(loaded):
+    """
+    The number shown before the run is the number the run carries. They come
+    from one function, and this is what would fail if a second way of
+    measuring it were introduced.
+    """
+    held = demand.holdings(loaded)
+    dist, ano = held[0]['distribuidora'], held[0]['ano']
+    probed = [r for r in demand.reach(loaded, natal())
+              if r['distribuidora'] == dist and r['ano'] == ano]
+    inside = demand.coverage(loaded, natal(), dist, ano)
+    if not probed or inside is None:
+        pytest.skip('this load carries no tariff sets')
+    assert probed[0]['cobertura_pct'] == inside['cobertura_pct']
+    assert probed[0]['dentro_km2'] == inside['dentro_km2']

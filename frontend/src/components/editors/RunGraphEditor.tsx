@@ -23,7 +23,7 @@ import {
   type Group,
   type NumberField as FieldDef,
 } from "../../lib/params"
-import { checkGridStore, concessions, dsnSourceLabel, gridStore, storeReachable, storeReport, townDemand } from "../../lib/grid"
+import { checkGridStore, concessions, dsnSourceLabel, gridStore, loadReach, reachByArea, storeReachable, storeReport, townDemand } from "../../lib/grid"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, isAreaProduct, project, type Polygon, type Product } from "../../lib/project"
 import {
   cardValues,
@@ -368,6 +368,41 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const busy = !!run && run.product === product && run.sourceId === source?.id
   const { poll } = useOperator(OPERATOR[product])
 
+  /*
+    HOW MUCH OF THIS GROUND THE REGISTER COVERS, on the card that runs it.
+
+    It is a fact about the Area and the Grid store together, and in a fan-in
+    graph the two meet at the run card and nowhere else -- so it is said here
+    rather than on either input, which would claim a wire that is not drawn.
+
+    Only the consumption reading asks it. The other products read sources that
+    cover the country, so a share of the ground would always be 100 and say
+    nothing. Measured before the run, by the same function the reading
+    reports, and consulted where the decision to press is taken.
+  */
+  const probe = useStore(reachByArea)[area?.id ?? ""]?.state
+  useEffect(() => {
+    if (product === "demand" && area) loadReach(area.id, area.polygon)
+  }, [product, area?.id, area?.polygon])
+  const coverage = ((): { said: string; low: boolean } | null => {
+    if (product !== "demand" || !area) return null
+    if (!probe || probe.kind === "loading" || probe.kind === "idle") return { said: "Measuring what each register covers here…", low: false }
+    if (probe.kind === "failed") return { said: `The register did not answer: ${probe.message}`, low: true }
+    const best = probe.data.coberturas[0]
+    if (!best) return { said: "This store carries no tariff sets, so how much of this ground it covers cannot be measured.", low: false }
+    if (!best.cobertura_pct) {
+      return { said: `No register loaded here reaches ${area.name}. A reading over it comes back empty.`, low: true }
+    }
+    const who = `${best.distribuidora.replace(/_/g, " ")} ${best.ano}`
+    return {
+      said:
+        best.cobertura_pct >= 100
+          ? `${who} covers all of ${area.name}.`
+          : `${who} covers ${best.cobertura_pct}% of ${area.name}; every figure will be about that part alone.`,
+      low: best.cobertura_pct < 50,
+    }
+  })()
+
   const [places, move, resetPlaces] = useKeptPlaces(product)
   const [heights, setHeights] = useState<Record<string, number>>({})
   const onMeasure = useCallback((id: string, h: number) => {
@@ -611,6 +646,11 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     ),
     run: (
       <div className="flex flex-col gap-1.5">
+        {coverage && (
+          <p className="text-micro leading-snug" style={coverage.low ? { color: "var(--warning)" } : undefined}>
+            {coverage.said}
+          </p>
+        )}
         <button
           type="button"
           onClick={() => poll === true && void runOperator(OPERATOR[product])}

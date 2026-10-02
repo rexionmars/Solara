@@ -1,5 +1,6 @@
 import type { Feature, FeatureCollection, LineString, Point } from "geojson"
-import { GridConcessions, GridNetwork, GridPlants, GridTownDemand, InspectGridStore, SetGridStore } from "../../wailsjs/go/main/App"
+import { GridConcessions, GridDemandReach, GridNetwork, GridPlants, GridTownDemand, InspectGridStore, SetGridStore } from "../../wailsjs/go/main/App"
+import { energy } from "../../wailsjs/go/models"
 import type { grid } from "../../wailsjs/go/models"
 import { errorMessage } from "./errors"
 import { stateMesh } from "./places"
@@ -230,6 +231,69 @@ export function loadTownDemand(): void {
  * network and costs tens of kilobytes.
  */
 export const concessions = createStore<LayerState<ConcessionLayer>>({ kind: "idle" })
+
+// ---- How much of one area each register covers, before a reading is run --------------
+
+/** One register measured against one ground, as the reading itself measures it. */
+export type ReachCoverage = {
+  distribuidora: string
+  ano: number
+  unidades: number
+  area_km2: number
+  concessao_km2: number
+  dentro_km2: number
+  /** Null where the ground has no area to divide by. */
+  cobertura_pct: number | null
+}
+
+export type ReachProbe = {
+  holdings: { distribuidora: string; ano: number; unidades: number }[]
+  /** Most ground first. Empty where the store carries no tariff sets to measure against. */
+  coberturas: ReachCoverage[]
+  note: string
+}
+
+/**
+ * How much of an area each loaded register can answer about.
+ *
+ * PER AREA AND NOT PER SESSION, which is why this is not one of the layer
+ * stores above: the answer is about a ground, so a second area is a second
+ * question. Kept by area id so returning to an area does not ask again.
+ *
+ * The figure is the one `coverage()` computes inside the reading, from the
+ * same function on the unsimplified tariff sets -- NOT measured off the
+ * concession layer, which is simplified to about 200 m and would put a second
+ * number for one quantity on screen.
+ */
+export const reachByArea = createStore<Record<string, { key: string; state: LayerState<ReachProbe> }>>({})
+
+/*
+  THE GROUND IS PART OF THE KEY, not just the area's identity. An area that is
+  redrawn keeps its id, and a probe stored under the id alone would answer
+  about the shape that is gone. The key is the ring itself, so a moved area is
+  a question that has not been asked yet.
+*/
+const ringKey = (polygon: { coordinates: number[][][] }) => JSON.stringify(polygon.coordinates)
+
+export function loadReach(areaId: string, polygon: { type: string; coordinates: number[][][] }): void {
+  const key = ringKey(polygon)
+  const held = reachByArea.get()[areaId]
+  if (held?.key === key && (held.state.kind === "loading" || held.state.kind === "ready")) return
+  const set = (state: LayerState<ReachProbe>) => reachByArea.set({ ...reachByArea.get(), [areaId]: { key, state } })
+  set({ kind: "loading" })
+  GridDemandReach(energy.Polygon.createFrom(polygon))
+    .then((probe) =>
+      set({
+        kind: "ready",
+        data: {
+          holdings: probe.holdings ?? [],
+          coberturas: (probe.coberturas ?? []) as ReachCoverage[],
+          note: probe.nota ?? "",
+        },
+      }),
+    )
+    .catch((e) => set({ kind: "failed", message: errorMessage(e) }))
+}
 
 /** What a clicked reach says about itself. */
 export type ReachProps = {

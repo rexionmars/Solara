@@ -50,6 +50,10 @@ export function GridConcessions() {
   return window['go']['main']['App']['GridConcessions']();
 }
 
+export function GridDemandReach(arg1) {
+  return window['go']['main']['App']['GridDemandReach'](arg1);
+}
+
 export function GridNetwork() {
   return window['go']['main']['App']['GridNetwork']();
 }
