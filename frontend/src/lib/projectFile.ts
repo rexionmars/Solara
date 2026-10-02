@@ -16,8 +16,8 @@ import { createStore } from "./store"
 import { ask, lastOperation } from "./ui"
 
 /**
- * The project on disk: a JSON document, `name.terra`, and beside it a
- * `name.terra-data` folder holding the rasters the terrain results were drawn
+ * The project on disk: a JSON document, `name.solara`, and beside it a
+ * `name.solara-data` folder holding the rasters the terrain results were drawn
  * from. The Go side owns the folder (app_project.go); this module owns the
  * document.
  */
@@ -27,9 +27,12 @@ const VERSION = 1
 
 type ProjectDocument = ProjectData & { format: string; version: number; savedAt: string }
 
-function nameFromPath(path: string): string {
+const PROJECT_EXT = /\.solara$/i
+
+/** A project's name from its path: the file name without the extension. */
+export function nameFromPath(path: string): string {
   const base = path.split(/[\\/]/).pop() ?? path
-  return base.replace(/\.terra$/i, "")
+  return base.replace(PROJECT_EXT, "")
 }
 
 // ---- Recent files -----------------------------------------------------------
@@ -40,7 +43,9 @@ const MAX_RECENT = 10
 function readRecent(): string[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : []
+    // Only .solara: the shell refuses anything else, so a .terra path left from
+    // before the extension changed would sit in the list failing to open.
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string" && PROJECT_EXT.test(p)) : []
   } catch {
     return []
   }

@@ -54,7 +54,7 @@ func TestSaveProject_CopiesTheRunsAndPrunesTheOthers(t *testing.T) {
 	writeRun(t, results, "run1", map[string]string{"solar_poa.png": "png", "nested/solar_poa.tif": "tif"})
 	writeRun(t, results, "run2", map[string]string{"solar_poa.png": "png2"})
 	a := &App{resultsDir: results}
-	path := filepath.Join(t.TempDir(), "Site.terra")
+	path := filepath.Join(t.TempDir(), "Site.solara")
 
 	got, err := a.saveProjectTo(path, `{"v":1}`, []string{"run1", "run2", "run1"})
 	if err != nil {
@@ -63,7 +63,7 @@ func TestSaveProject_CopiesTheRunsAndPrunesTheOthers(t *testing.T) {
 	if got != path || readFile(t, path) != `{"v":1}` {
 		t.Fatalf("saved to %s with %q", got, readFile(t, got))
 	}
-	data := filepath.Join(filepath.Dir(path), "Site.terra-data")
+	data := filepath.Join(filepath.Dir(path), "Site.solara-data")
 	if names := dirNames(t, data); !reflect.DeepEqual(names, []string{"run1", "run2"}) {
 		t.Fatalf("data folder holds %v", names)
 	}
@@ -106,16 +106,30 @@ func TestSaveProject_AddsTheExtension(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(dir, "Site.terra"); got != want {
+	if want := filepath.Join(dir, "Site.solara"); got != want {
 		t.Fatalf("saved to %s, want %s", got, want)
 	}
 	// A name that has the extension in another case keeps it.
-	got, err = a.saveProjectTo(filepath.Join(dir, "Other.TERRA"), "{}", nil)
+	got, err = a.saveProjectTo(filepath.Join(dir, "Other.SOLARA"), "{}", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.Base(got) != "Other.TERRA" {
+	if filepath.Base(got) != "Other.SOLARA" {
 		t.Fatalf("saved as %s", filepath.Base(got))
+	}
+}
+
+// Only a .solara file opens; .terra is TERRA's.
+func TestOpenProject_RefusesAnotherExtension(t *testing.T) {
+	a := &App{resultsDir: t.TempDir()}
+	for _, name := range []string{"Site.terra", "Site.json", "Site"} {
+		path := filepath.Join(t.TempDir(), name)
+		if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.openProjectFrom(path); err == nil {
+			t.Fatalf("%s was opened", name)
+		}
 	}
 }
 
@@ -123,8 +137,8 @@ func TestSaveProject_AddsTheExtension(t *testing.T) {
 // neither place is an error, and the document is not written over.
 func TestSaveProject_KeepsARunOnlyTheDataFolderHolds(t *testing.T) {
 	a := &App{resultsDir: t.TempDir()}
-	path := filepath.Join(t.TempDir(), "Site.terra")
-	data := filepath.Join(filepath.Dir(path), "Site.terra-data")
+	path := filepath.Join(t.TempDir(), "Site.solara")
+	data := filepath.Join(filepath.Dir(path), "Site.solara-data")
 	writeRun(t, data, "old", map[string]string{"layer.png": "kept"})
 
 	if _, err := a.saveProjectTo(path, "{}", []string{"old"}); err != nil {
@@ -145,7 +159,7 @@ func TestSaveProject_KeepsARunOnlyTheDataFolderHolds(t *testing.T) {
 func TestSaveProject_RefusesUnsafeRunIDs(t *testing.T) {
 	results := t.TempDir()
 	a := &App{resultsDir: results}
-	path := filepath.Join(t.TempDir(), "Site.terra")
+	path := filepath.Join(t.TempDir(), "Site.solara")
 	for _, id := range []string{"", ".", "..", "../run", `a\b`, "a/b", ".hidden"} {
 		if _, err := a.saveProjectTo(path, "{}", []string{id}); err == nil {
 			t.Errorf("run id %q was accepted", id)
@@ -164,7 +178,7 @@ func TestOpenProject_RestoresTheRunsIntoAFreshSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Something in the data folder that is not a run.
-	data := filepath.Join(filepath.Dir(path), "Site.terra-data")
+	data := filepath.Join(filepath.Dir(path), "Site.solara-data")
 	if err := os.WriteFile(filepath.Join(data, "notes.txt"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +215,7 @@ func TestOpenProject_RestoresTheRunsIntoAFreshSession(t *testing.T) {
 }
 
 func TestOpenProject_WithoutADataFolder(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "Bare.terra")
+	path := filepath.Join(t.TempDir(), "Bare.solara")
 	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}

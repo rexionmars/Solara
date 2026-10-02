@@ -21,8 +21,8 @@ the guard against quitting with unsaved changes.
 
 A project is two things on disk, side by side:
 
-	Site.terra          the interface's document, opaque to the shell
-	Site.terra-data/    one subdirectory per run the document refers to
+	Site.solara         the interface's document, opaque to the shell
+	Site.solara-data/   one subdirectory per run the document refers to
 
 The shell never reads the document. The interface serialises it and names the
 runs it refers to, and the shell only moves those runs' files. Keeping the
@@ -40,9 +40,9 @@ the same id interchangeable with the original.
 */
 
 const (
-	projectExt = ".terra"
+	projectExt = ".solara"
 	// Suffix of the data folder beside a project file.
-	projectDataSuffix = ".terra-data"
+	projectDataSuffix = ".solara-data"
 	// Largest project document OpenProject reads. The document holds results
 	// summaries and drawn areas, not rasters; past this it is not a project
 	// file, and reading it whole would hand the webview a string it cannot
@@ -51,7 +51,7 @@ const (
 )
 
 // projectFilter is the dialog filter for project files.
-var projectFilter = []wruntime.FileFilter{{DisplayName: "Solara project (*.terra)", Pattern: "*.terra"}}
+var projectFilter = []wruntime.FileFilter{{DisplayName: "Solara project (*.solara)", Pattern: "*.solara"}}
 
 // OpenedProject is a project file read by OpenProject.
 type OpenedProject struct {
@@ -217,10 +217,15 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	return answer != "Quit" && answer != "Yes"
 }
 
+// hasProjectExt reports whether path ends in the project extension, in any case.
+func hasProjectExt(path string) bool {
+	return strings.EqualFold(filepath.Ext(path), projectExt)
+}
+
 // withProjectExt adds the project extension unless the name already has it, in
-// any case: a file the user named Site.TERRA is not renamed Site.TERRA.terra.
+// any case: a file the user named Site.SOLARA is not renamed Site.SOLARA.solara.
 func withProjectExt(path string) string {
-	if strings.EqualFold(filepath.Ext(path), projectExt) {
+	if hasProjectExt(path) {
 		return path
 	}
 	return path + projectExt
@@ -318,6 +323,10 @@ func (a *App) storeRun(data, id string) error {
 /*
 openProjectFrom reads the document at path and restores its runs.
 
+Only a .solara file is opened. The dialog filter is not the only way in -- the
+recent list hands a path straight here -- and .terra belongs to TERRA, whose
+documents this application does not read.
+
 A run already in the results directory is left alone rather than overwritten:
 the id names the same immutable files, and an analysis or a layer being served
 may be reading them. Every directory in the data folder is restored, not only
@@ -328,6 +337,9 @@ func (a *App) openProjectFrom(path string) (*OpenedProject, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
+	}
+	if !hasProjectExt(path) {
+		return nil, fmt.Errorf("%s is not a Solara project (*%s)", filepath.Base(path), projectExt)
 	}
 	content, err := readProjectFile(path)
 	if err != nil {

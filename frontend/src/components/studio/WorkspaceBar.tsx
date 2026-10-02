@@ -2,7 +2,7 @@ import { useState } from "react"
 import { CaretDown, Cube, FloppyDisk, FolderOpen, FolderSimple, Plus, Stack } from "@phosphor-icons/react"
 import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
-import { openProject, recentFiles } from "../../lib/projectFile"
+import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"
 import { STUDIO_GROUPS } from "../../lib/editors"
 import { WORKSPACES, activeWorkspace, screen, setWorkspace } from "../../lib/screen"
 import { useStore } from "../../lib/store"
@@ -10,8 +10,6 @@ import { OperatorMenuItem, StudioMenuGroup, StudioMenuItem, StudioMenuRule, Stud
 
 /** The bar's height. */
 export const WORKSPACE_BAR_PX = 28
-
-const baseName = (path: string) => (path.split(/[\\/]/).pop() ?? path).replace(/\.terra$/i, "")
 
 /**
  * The workspace bar, as TERRA's.
@@ -185,7 +183,7 @@ export function WorkspaceBar() {
                 <StudioMenuItem
                   key={path}
                   icon={FolderSimple}
-                  label={baseName(path)}
+                  label={nameFromPath(path)}
                   checked={path === p.path}
                   title={path}
                   onSelect={() => {
@@ -221,7 +219,7 @@ export function WorkspaceBar() {
         <button
           type="button"
           onClick={() => void runOperator("SAVE")}
-          title={p.path ? `Save over "${baseName(p.path)}"` : "Save this project under a name"}
+          title={p.path ? `Save over "${nameFromPath(p.path)}"` : "Save this project under a name"}
           className="flex h-6 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
         >
           <FloppyDisk className="size-3.5" />

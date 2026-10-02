@@ -4,7 +4,7 @@ import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { RELEASE_NAME } from "../../lib/brand"
 import { findOperator, formatKeys, runOperator } from "../../lib/operators"
 import { project } from "../../lib/project"
-import { openProject, recentFiles } from "../../lib/projectFile"
+import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"
 import { FEATURED_STILL, SPLASH_STILLS } from "../../lib/splashBackground"
 import { useStore } from "../../lib/store"
 import { activeTool } from "../../lib/tools"
@@ -12,8 +12,6 @@ import { coordinatePrompt, splashOpen } from "../../lib/ui"
 
 /** As many as Blender lists; the rest are behind "More…" and the project menu. */
 const RECENT_SHOWN = 5
-
-const baseName = (path: string) => (path.split(/[\\/]/).pop() ?? path).replace(/\.terra$/i, "")
 
 function Row({
   icon: IconC,
@@ -165,7 +163,7 @@ export function StartSplash() {
               recent
                 .slice(0, RECENT_SHOWN)
                 .map((path) => (
-                  <Row key={path} icon={FolderSimple} label={baseName(path)} title={path} onSelect={act(() => openProject(path))} />
+                  <Row key={path} icon={FolderSimple} label={nameFromPath(path)} title={path} onSelect={act(() => openProject(path))} />
                 ))
             ) : (
               <p className="px-1.5 py-1.5 text-meta leading-relaxed text-muted-foreground">

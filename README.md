@@ -76,8 +76,8 @@ each input of the run node says whether the reading on screen read it:
 
 Every action is an operator: reachable from a menu, a key, the operator search
 (F3) and the console, with a poll that says why it cannot run instead of
-failing after. Every change is an undo step. A project is one `name.terra`
-file, with the terrain rasters in a `name.terra-data` folder beside it.
+failing after. Every change is an undo step. A project is one `name.solara`
+file, with the terrain rasters in a `name.solara-data` folder beside it.
 
 ## The grid store
 

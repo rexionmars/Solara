@@ -2,7 +2,7 @@ import { useState } from "react"
 import { CaretDown, FloppyDisk, FolderOpen, FolderSimple, Plus, Stack } from "@phosphor-icons/react"
 import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
-import { openProject, recentFiles } from "../../lib/projectFile"
+import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"
 import { useStore } from "../../lib/store"
 import {
   OperatorMenuItem,
@@ -22,8 +22,6 @@ import {
  * sidebar's wordmark, and the project data-block off the page header, but
  * neither learned or forgot anything on the way.
  */
-
-const baseName = (path: string) => (path.split(/[\\/]/).pop() ?? path).replace(/\.terra$/i, "")
 
 /** Everything the application can do that is not about one page. */
 export function AppMenu({
@@ -119,7 +117,7 @@ export function ProjectMenu() {
               <StudioMenuItem
                 key={path}
                 icon={FolderSimple}
-                label={baseName(path)}
+                label={nameFromPath(path)}
                 checked={path === p.path}
                 title={path}
                 onSelect={() => {
@@ -155,7 +153,7 @@ export function ProjectMenu() {
       <button
         type="button"
         onClick={() => void runOperator("SAVE")}
-        title={p.path ? `Save over "${baseName(p.path)}"` : "Save this project under a name"}
+        title={p.path ? `Save over "${nameFromPath(p.path)}"` : "Save this project under a name"}
         className="flex h-5 shrink-0 items-center gap-1.5 rounded-sm px-1.5 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
       >
         <FloppyDisk className="size-3" />
