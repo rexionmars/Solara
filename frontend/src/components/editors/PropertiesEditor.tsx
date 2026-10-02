@@ -10,6 +10,7 @@ import { RUN_OPERATOR, runOperator } from "../../lib/operators"
 import { seasonLabel } from "../../lib/params"
 import {
   PRODUCT_NAMES,
+  PRODUCT_SUMMARY,
   commit,
   findItem,
   isResult,
@@ -43,15 +44,10 @@ import { ParamFields } from "./ParamFields"
  * is where its progress and its answer are read.
  */
 
-const SUBJECT: Record<AnyItem["kind"], string> = {
-  site: "Site",
-  area: "Area",
-  solar: "Solar resource",
-  wind: "Wind screening",
-  terrain: "Solar terrain",
-  connection: "Grid connection",
-  demand: "Area demand",
-}
+// The two objects, then every product under the one name PRODUCT_NAMES gives
+// it. Spelling the products again here is how the same reading came to be
+// called two things in two panels.
+const SUBJECT: Record<AnyItem["kind"], string> = { site: "Site", area: "Area", ...PRODUCT_NAMES }
 
 /** The subject, its name and where it is, as TERRA heads a reading. */
 function Head({ item, meta }: { item: AnyItem; meta: string }) {
@@ -148,15 +144,6 @@ function Figures({ result }: { result: ResultObject }) {
 
 const RUN = RUN_OPERATOR
 
-const WHAT: Record<Product, string> = {
-  solar: "NASA POWER at the site's radiation cell; the photovoltaic yield with pvlib.",
-  wind: "MERRA-2 at the site's cell, extrapolated to hub height. Gross and unvalidated: a screening.",
-  terrain: "Plane-of-array irradiation over the area's 30 m terrain, with horizon shading. Draws a layer.",
-  connection: "Where the area could join the transmission network, and what the plants already joined there lost. Read from the grid store.",
-  demand:
-    "What the area already draws from the network and already generates behind the meter, from the BDGD register in the grid store.",
-}
-
 /** A product's card: what it reads, its settings, the run, and what it last produced. */
 function ProductCard({ product, source }: { product: Product; source: SiteObject | AreaObject }) {
   const d = useStore(project).data
@@ -171,7 +158,7 @@ function ProductCard({ product, source }: { product: Product; source: SiteObject
       title={PRODUCT_NAMES[product]}
       aside={latest && <span className="telemetry text-[9px] text-muted-foreground">{results.length} run{results.length === 1 ? "" : "s"}</span>}
     >
-      <p className="text-body leading-relaxed text-muted-foreground">{WHAT[product]}</p>
+      <p className="text-body leading-relaxed text-muted-foreground">{PRODUCT_SUMMARY[product]}</p>
       <Disclosure label="Settings" defaultOpen={!latest}>
         <ParamFields group={product} />
       </Disclosure>

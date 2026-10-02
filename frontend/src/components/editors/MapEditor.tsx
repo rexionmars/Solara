@@ -11,6 +11,7 @@ import { mapView, measure } from "../../lib/mapState"
 import { setSiteCoordinate } from "../../lib/objects"
 import { findOperator, formatKeys, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, findItem, isResult, project, renameItem } from "../../lib/project"
+import { openRunGraph } from "../../lib/screen"
 import { useStore } from "../../lib/store"
 import { SERVICE_CREDITS, SERVICES } from "../../lib/services"
 import { TOOLS, activeTool, basemap, overlays, type Overlays } from "../../lib/tools"
@@ -63,9 +64,18 @@ const objectMenu = (): MenuItem[] => [
   op("LEGEND"),
   op("DELETE"),
   { type: "heading", label: "Analyze" },
-  op("SOLAR"),
-  op("WIND"),
-  op("TERRAIN"),
+  /*
+    ONE ITEM, NOT ONE PER PRODUCT. This menu used to run three of the five
+    products straight from the map, which spent a run with none of its inputs
+    on screen -- and left the other two unreachable, so right-clicking an area
+    read as "this area cannot be asked that". Both are the same defect: a
+    request is five or six settings, and the board is where they are all
+    visible at once.
+
+    RERUN stays because it is not a request. It repeats one the project
+    already holds, with the settings that run recorded.
+  */
+  { type: "action", label: "Set up a run…", run: () => openRunGraph() },
   op("RERUN"),
 ]
 

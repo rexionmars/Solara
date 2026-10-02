@@ -1,8 +1,8 @@
 import { useState } from "react"
-import { ChartBar, Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "@phosphor-icons/react"
-import { RUN_OPERATOR, runOperator } from "../../lib/operators"
-import { PRODUCT_NAMES, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
-import { areaStates, setAreaState } from "../../lib/screen"
+import { ChartBar, Fan, Graph, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { runOperator } from "../../lib/operators"
+import { PRODUCT_NAMES, PRODUCT_SUMMARY, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
+import { areaStates, openRunGraph, setAreaState } from "../../lib/screen"
 import { select, useActiveItem } from "../../lib/selection"
 import { useStore } from "../../lib/store"
 import type { MenuItem } from "../../lib/ui"
@@ -15,7 +15,7 @@ import type { Place } from "../studio/Board"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AreaHeader } from "../studio/StudioArea"
-import { OperatorButton } from "../ui/Fields"
+import { btnPrimary } from "../ui/buttons"
 
 /**
  * A product's reading, as TERRA's Solar result and Wind screening editors:
@@ -222,18 +222,39 @@ function StaleNotice({ stale, onRerun, floating }: { stale: string; onRerun: () 
   )
 }
 
+/*
+  WHAT AN EMPTY READING SAYS, AND WHAT IT MUST NOT DO.
+
+  It says what the product is, in the one sentence PRODUCT_SUMMARY holds, and
+  it sends the reader to the run graph. It does NOT run anything.
+
+  A RUN IS SET UP IN ONE PLACE. The graph shows every input of a request at
+  once, each with the state of its own wire, which is what makes the request
+  legible before it is spent. A button here ran the same product with none of
+  that on screen, so the reader pressed without seeing the ground, the
+  register or the settings it would use -- and a second place to press is a
+  second place for the two to disagree. The canvas exists to stop that, so
+  this screen points at it instead of competing with it.
+*/
+
 function Empty({ product }: { product: Product }) {
   const IconC = ICON[product]
   const on = isAreaProduct(product) ? "an area" : "a site"
   return (
-    <div className="mx-auto flex max-w-sm flex-col items-center gap-2 px-4 py-16 text-center">
-      <IconC className="size-5 text-muted-foreground/60" />
-      <p className="eyebrow">{PRODUCT_NAMES[product]}</p>
-      <p className="text-body leading-relaxed text-muted-foreground">
-        No reading yet. Make {on} active and run it here or from its card in Properties; every run stays in the project to be read
-        and compared.
+    <div className="mx-auto flex max-w-md flex-col gap-3 px-6 py-16">
+      <div className="flex items-center gap-2">
+        <IconC className="size-4 text-muted-foreground/60" />
+        <p className="eyebrow">{PRODUCT_NAMES[product]}</p>
+      </div>
+      <p className="text-body leading-relaxed">{PRODUCT_SUMMARY[product]}</p>
+      <p className="text-meta leading-relaxed text-muted-foreground">
+        No reading yet. A run is set up in the run graph, where {on} and every setting it reads are on one board; what it
+        produces is read back here, and stays in the project to be compared.
       </p>
-      <OperatorButton name={RUN_OPERATOR[product]} primary />
+      <button type="button" onClick={() => openRunGraph(product)} className={`${btnPrimary} self-start`}>
+        <Graph className="size-3.5" />
+        Set up a run
+      </button>
     </div>
   )
 }

@@ -99,7 +99,32 @@ export const PRODUCT_NAMES: Record<Product, string> = {
   wind: "Wind screening",
   terrain: "Solar terrain",
   connection: "Grid connection",
-  demand: "Area demand",
+  demand: "Area consumption",
+}
+
+/**
+ * What each product is, in one sentence, from here and nowhere else.
+ *
+ * ONE SOURCE BECAUSE IT IS ASKED IN TWO PLACES. The properties card and the
+ * empty reading both have to answer "what does this do", and while each kept
+ * its own wording the reading's screen described the button and the card
+ * described the product. A reader who saw only the reading never got the
+ * answer.
+ *
+ * CONSUMPTION IS NOT DEMAND, and the wording keeps them apart on purpose. The
+ * register carries monthly energy, ENE_01..12; demand in this sector is kW at
+ * an instant, and the register's own DEM_ columns -- which exist in medium and
+ * high voltage -- are not read by this product. Calling it demand would
+ * promise a quantity it does not carry.
+ */
+export const PRODUCT_SUMMARY: Record<Product, string> = {
+  solar: "NASA POWER at the site's radiation cell; the photovoltaic yield with pvlib.",
+  wind: "MERRA-2 at the site's cell, extrapolated to hub height. Gross and unvalidated: a screening.",
+  terrain: "Plane-of-array irradiation over the area's 30 m terrain, with horizon shading. Draws a layer.",
+  connection:
+    "Where the area could join the transmission network, and what the plants already joined there lost. Read from the grid store.",
+  demand:
+    "What this area already draws from the network and already puts back, counted from the distributor's BDGD register, with the share of that register its own generators contradict.",
 }
 
 /** The products read over an area rather than at a site. */

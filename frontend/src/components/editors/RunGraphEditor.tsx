@@ -24,7 +24,7 @@ import {
   type NumberField as FieldDef,
 } from "../../lib/params"
 import { checkGridStore, concessions, dsnSourceLabel, gridStore, storeReachable, storeReport, townDemand } from "../../lib/grid"
-import { PRODUCT_NAMES, isAreaProduct, project, type Polygon, type Product } from "../../lib/project"
+import { PRODUCT_NAMES, PRODUCT_SUMMARY, isAreaProduct, project, type Polygon, type Product } from "../../lib/project"
 import {
   cardValues,
   currentInputs,
@@ -527,12 +527,18 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
       ),
     radiation: <Param group="solar" field="climatologyYears" label="Climatology" />,
     product: (
-      <Select
-        value={product}
-        ariaLabel="Product"
-        onChange={(v) => setAreaState(areaId, { product: v as Product })}
-        options={PRODUCTS.map((p) => ({ value: p, label: PRODUCT_NAMES[p] }))}
-      />
+      <>
+        <Select
+          value={product}
+          ariaLabel="Product"
+          onChange={(v) => setAreaState(areaId, { product: v as Product })}
+          options={PRODUCTS.map((p) => ({ value: p, label: PRODUCT_NAMES[p] }))}
+        />
+        {/* What the chosen product is, under the control that chooses it --
+            the layer card's shape, and the only place on the board that has to
+            answer "what does this one do". */}
+        <Muted>{PRODUCT_SUMMARY[product]}</Muted>
+      </>
     ),
     array: <Param group="solar" field="surfaceAzimuth" label="Azimuth" />,
     store: (

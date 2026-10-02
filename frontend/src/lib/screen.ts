@@ -419,3 +419,28 @@ export function showResult(id: string, product?: Product): void {
   if (leaves(activeTree()).some((a) => a.editor === product)) return
   setWorkspace(WORKSPACE_OF[product])
 }
+
+/**
+ * Open the run graph with one product already chosen.
+ *
+ * THE ONE WAY TO A RUN, so the places that used to run a product themselves
+ * can send the reader here instead. A run has five or six inputs and the
+ * graph is where all of them are visible at once; a button elsewhere spends
+ * the run with none of them on screen.
+ *
+ * The product is kept per graph panel, so it is set on whichever panel is
+ * showing the graph -- after the switch, because the workspace it switches to
+ * may be the one that introduces that panel. A workspace already showing a
+ * graph keeps its own layout and only changes what the graph is about.
+ *
+ * Without a product the graph keeps the one it had, which is what a caller
+ * that has no product in mind should ask for: the map's menu opens the board,
+ * it does not choose what the board is about.
+ */
+export function openRunGraph(product?: Product): void {
+  if (!leaves(activeTree()).some((a) => a.editor === "graph")) setWorkspace("graph")
+  if (!product) return
+  for (const a of leaves(activeTree())) {
+    if (a.editor === "graph") setAreaState(a.id, { product })
+  }
+}

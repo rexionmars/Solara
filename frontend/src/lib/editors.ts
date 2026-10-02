@@ -147,11 +147,11 @@ export const EDITORS: readonly EditorMeta[] = [
   {
     id: "demand",
     group: "grid",
-    label: "Area demand",
+    label: "Area consumption",
     icon: ChartBar,
     minRem: 22,
     minRowRem: 14,
-    hint: "What an area already draws from the network, and what it generates behind the meter",
+    hint: "What an area already draws from the network, and what it already puts back",
   },
 ]
 
