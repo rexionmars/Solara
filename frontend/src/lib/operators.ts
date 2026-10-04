@@ -40,7 +40,7 @@ import { SetProjectDirty } from "../../wailsjs/go/main/App"
 import { checkSidecar, sidecar } from "./sidecarStatus"
 import { createStore, useStore } from "./store"
 import { activeTool, mapRegions, setTool } from "./tools"
-import { lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen, toggleRibbon } from "./ui"
+import { addressSearchOpen, lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen, toggleRibbon } from "./ui"
 
 /**
  * Every action the application performs, in one registry, as Blender's
@@ -529,6 +529,18 @@ export const OPERATORS: Operator[] = [
     quiet: true,
     poll: needMap,
     run: () => setTool("measure"),
+  },
+  {
+    name: "LOCATE",
+    aliases: ["FIND", "ADDRESS"],
+    label: "Locate",
+    description: "Find an address or a place by name and take the map to it",
+    icon: MagnifyingGlass,
+    menu: "Map › View",
+    keys: ["Mod+F"],
+    quiet: true,
+    poll: needMap,
+    run: () => addressSearchOpen.set(true),
   },
 
   // View

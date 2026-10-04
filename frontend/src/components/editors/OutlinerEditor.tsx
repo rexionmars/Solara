@@ -31,7 +31,8 @@ import { overlays, type Overlays } from "../../lib/tools"
 import { openContextMenu, renaming, type MenuItem } from "../../lib/ui"
 import { StudioHeaderToggle } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
-import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS } from "./MapEditor"
+import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
+import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS, layerNote } from "./MapEditor"
 
 /**
  * The project's outliner, as an object explorer: ONE tree, from the project
@@ -130,6 +131,11 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   const job = useStore(running)
   const legends = useStore(legendsShown)
   const shown = useStore(overlays)
+  // Read so a layer's note is redrawn when its register answers; layerNote reads the stores itself.
+  useStore(plantRegister)
+  useStore(networkRegister)
+  useStore(concessions)
+  useStore(townDemand)
   const state = useStore(areaStates)[areaId] ?? {}
   const onlyVisible = !!state.onlyVisible
   // Folders are open until closed, except the layer groups, which are closed until opened.
@@ -350,6 +356,19 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
                 </span>
               )}
 
+              {/* What a layer holds once read, or that it could not be: the map's popover said this, and this is the one list now. */}
+              {row.layer &&
+                (() => {
+                  const note = layerNote(row.layer)
+                  return note.text ? (
+                    <span
+                      className={`telemetry shrink-0 text-micro tabular-nums ${note.failed ? "text-destructive-quiet" : "text-muted-foreground/70"}`}
+                      title={note.failed}
+                    >
+                      {note.text}
+                    </span>
+                  ) : null
+                })()}
               {row.count !== undefined && <span className="telemetry shrink-0 text-micro tabular-nums text-muted-foreground/70">{row.count}</span>}
               {busy && <span className="size-1.5 shrink-0 animate-pulse rounded-[1px] bg-accent" title="Running" />}
               {stale && (

@@ -171,6 +171,9 @@ export const lastOperationOpen = createStore<boolean>(false)
 /** Whether the map's Weather now plate is expanded, or retracted to its heading and the hours drawn. */
 export const weatherPlateOpen = createStore<boolean>(true)
 
+/** The map's address search: folded to its magnifier, or open with its field. */
+export const addressSearchOpen = createStore<boolean>(false)
+
 /** The Add › Site at Coordinates dialog. */
 export const coordinatePrompt = createStore<boolean>(false)
 

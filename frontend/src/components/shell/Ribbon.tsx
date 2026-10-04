@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from "react"
-import { CaretDown, CaretUp, Cube, GlobeHemisphereWest, Graph, type Icon } from "@phosphor-icons/react"
+import { CaretDown, CaretUp, Crosshair, Cube, GlobeHemisphereWest, Graph, type Icon } from "@phosphor-icons/react"
 import { STUDIO_GROUPS, editorMeta } from "../../lib/editors"
 import { findOperator, formatKeys, pollOperator, runOperator, usePollTick } from "../../lib/operators"
 import { PRODUCT_NAMES, type Product } from "../../lib/project"
 import { WORKSPACES, openRunGraph, screen, setWorkspace } from "../../lib/screen"
 import { useStore } from "../../lib/store"
-import { activeTool, basemap, overlays, type Overlays, type ToolId } from "../../lib/tools"
-import { ribbonCollapsed, ribbonTab, toggleRibbon, type RibbonTab } from "../../lib/ui"
-import { BASEMAP_ITEMS, GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS } from "../editors/MapEditor"
+import { activeTool, basemap, overlays, type ToolId } from "../../lib/tools"
+import { coordinatePrompt, ribbonCollapsed, ribbonTab, toggleRibbon, type RibbonTab } from "../../lib/ui"
+import { BASEMAP_ITEMS } from "../editors/MapEditor"
 import { StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AppMenu, ProjectMenu } from "./AppMenus"
 
@@ -42,7 +42,6 @@ const TABS: { id: RibbonTab; label: string; hint: string }[] = [
   { id: "share", label: "Share", hint: "What leaves the application: results, tables and the project file" },
 ]
 
-type OverlayItem = { key: keyof Overlays; label: string }
 
 const TOOL_OF: Record<string, ToolId> = { TOOL_SELECT: "select", TOOL_SITE: "site", TOOL_MEASURE: "measure" }
 
@@ -56,8 +55,6 @@ const RUN_LABEL: Record<Product, string> = {
 }
 
 const TABLES: Product[] = ["solar", "terrain", "wind", "connection", "demand"]
-
-const pick = (items: OverlayItem[], ...keys: (keyof Overlays)[]) => items.filter((it) => keys.includes(it.key))
 
 function tone(on: boolean | undefined, disabled: boolean | undefined): string {
   if (disabled) return "cursor-not-allowed text-muted-foreground/40"
@@ -153,20 +150,6 @@ function Op({ name, args, label, tall }: { name: string; args?: string[]; label?
   )
 }
 
-/** A layer of the map, on or off. */
-function Layer({ item }: { item: OverlayItem }) {
-  const o = useStore(overlays)
-  return (
-    <Command
-      label={item.label}
-      title={`${o[item.key] ? "Hide" : "Show"}: ${item.label}`}
-      on={o[item.key]}
-      check
-      onClick={() => overlays.set((cur) => ({ ...cur, [item.key]: !cur[item.key] }))}
-    />
-  )
-}
-
 /** The ground the map draws, and the relief under it. */
 function Basemap() {
   const ground = useStore(basemap)
@@ -226,23 +209,6 @@ function Column({ children }: { children: ReactNode }) {
   return <div className="flex shrink-0 flex-col justify-center gap-px">{children}</div>
 }
 
-/** Layers, three to a column, for as many columns as they need. */
-function Layers({ items }: { items: OverlayItem[] }) {
-  const columns: OverlayItem[][] = []
-  for (let i = 0; i < items.length; i += 3) columns.push(items.slice(i, i + 3))
-  return (
-    <>
-      {columns.map((col) => (
-        <Column key={col[0].key}>
-          {col.map((it) => (
-            <Layer key={it.key} item={it} />
-          ))}
-        </Column>
-      ))}
-    </>
-  )
-}
-
 function Run({ product }: { product: Product }) {
   return (
     <Command
@@ -264,6 +230,17 @@ function MapTab() {
         <Column>
           <Op name="UNDO" />
           <Op name="REDO" />
+        </Column>
+      </Group>
+      <Group label="Object">
+        <Column>
+          <Op name="RENAME" label="Rename" />
+          <Op name="HIDE" label="Hide / show" />
+          <Op name="UNHIDE_ALL" />
+        </Column>
+        <Column>
+          <Op name="SELECT_NONE" />
+          <Op name="LEGEND" label="Legend" />
           <Op name="DELETE" />
         </Column>
       </Group>
@@ -282,22 +259,21 @@ function MapTab() {
       <Group label="Place">
         <Op name="TOOL_SITE" label="Site" tall />
         <Op name="AREA_PLACE" label="Area" tall />
+        <Column>
+          <Command
+            icon={Crosshair}
+            label="At coordinates"
+            title="Add a site by typing its latitude and longitude"
+            onClick={() => coordinatePrompt.set(true)}
+          />
+        </Column>
       </Group>
       <Group label="Layer">
         <Basemap />
-        <Layers items={pick(OVERLAY_ITEMS, "siteLabels", "areas", "layers")} />
-      </Group>
-      <Group label="Grid registers">
-        <Layers items={GRID_ITEMS} />
-      </Group>
-      <Group label="Weather now">
-        <Layers items={WEATHER_ITEMS} />
-      </Group>
-      <Group label="Reference">
-        <Layers items={REFERENCE_ITEMS} />
       </Group>
       <Group label="Inquiry">
         <Op name="TOOL_MEASURE" tall />
+        <Op name="LOCATE" tall />
       </Group>
     </>
   )
@@ -369,13 +345,6 @@ function ViewTab() {
           <Op name="RESET_LAYOUT" label="Reset this workspace" />
           <Op name="FULLSCREEN" label="Fullscreen" />
           <Op name="SEARCH" label="Search operators" />
-        </Column>
-      </Group>
-      <Group label="Map editor">
-        <Column>
-          <Op name="TOGGLE_TOOLBAR" />
-          <Op name="TOGGLE_SIDEBAR" />
-          <Layer item={{ key: "legend", label: "Legend" }} />
         </Column>
       </Group>
     </>
