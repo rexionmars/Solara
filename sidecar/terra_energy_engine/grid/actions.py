@@ -48,6 +48,31 @@ def _window(req: Request, conn, dataset: str = 'pv_curtailment_detail'):
                         'record': [lo, hi], 'used': [start, end]}
 
 
+def _profile(conn) -> str:
+    """Which kind of store answered; a database that is not a store is refused here."""
+    from terra_energy_engine.grid import contract
+
+    kind = contract.profile(conn)
+    if kind == 'none':
+        raise protocol.Unavailable(contract.NOT_A_STORE)
+    return kind
+
+
+def _brazil_only(conn, what: str) -> None:
+    """
+    Refuse a reading that exists only over the Brazilian record.
+
+    The contract (grid/contract.py) covers what any country publishes; the BDGD
+    register, the concessions and the curtailment record are not among those,
+    and a store prepared to the contract is not missing them -- it never had
+    them to carry.
+    """
+    if _profile(conn) != 'terra':
+        raise protocol.Unavailable(
+            f'{what} is read from the Brazilian record TERRA loads, and this '
+            f'store follows the contract, which does not carry it.')
+
+
 def _aoi(req: Request):
     if not req.get('polygon_geojson'):
         protocol.fail('this action needs polygon_geojson')
@@ -92,6 +117,29 @@ def grid_congestion(req: Request) -> None:
     radius = float(protocol.request_positive(req, 'search_radius_km', SEARCH_RADIUS_KM))
     protocol.emit_progress(10, 'opening the grid store')
     with store.connect(req) as conn:
+        if _profile(conn) == 'contract':
+            from terra_energy_engine.grid import contract
+
+            protocol.emit_progress(50, 'the store\'s network')
+            reach = contract.connection_context(conn, _aoi(req), max_km=radius)
+            protocol.emit_progress(100, 'done')
+            _reply({
+                'grid_congestion': {
+                    'connection': reach,
+                    'curtailment_at_connected_plants': None,
+                    'curtailment_absent': (
+                        'This store follows the contract, which carries no '
+                        'curtailment record: what plants here lost is not '
+                        'something it can say.'),
+                    'window': None,
+                    'note': (
+                        'Proximity says whether reaching the network is '
+                        'plausible. It is not a grant of capacity: the '
+                        'constraint that curtails a plant is usually upstream '
+                        'of where it connects.'),
+                }
+            })
+            return
         protocol.emit_progress(35, 'transmission register')
         reach = congestion.connection_context(conn, _aoi(req), max_km=radius)
         protocol.emit_progress(70, 'curtailment at connected plants')
@@ -137,9 +185,25 @@ def grid_plants(req: Request) -> None:
     protocol.emit_progress(20, 'opening the grid store')
     with store.connect(req) as conn:
         protocol.emit_progress(50, 'reading the register')
-        layer = store.register_geojson(
-            conn, bbox=bbox, kinds=kinds,
-            limit=int(protocol.request_positive(req, 'limit', 40000, cast=int)))
+        limit = int(protocol.request_positive(req, 'limit', 40000, cast=int))
+        if _profile(conn) == 'contract':
+            from terra_energy_engine.grid import contract
+
+            layer = contract.plants_geojson(conn, bbox=bbox, kinds=kinds, limit=limit)
+            protocol.emit_progress(100, 'done')
+            _reply({
+                'grid_plants': {
+                    'geojson': layer,
+                    'counts': layer['counts'],
+                    'bbox': bbox,
+                    'note': (
+                        'A point is one plant as the store registers it, not a '
+                        'footprint. This store follows the contract and carries '
+                        'no operational record, so no plant is marked as metered.'),
+                }
+            })
+            return
+        layer = store.register_geojson(conn, bbox=bbox, kinds=kinds, limit=limit)
 
     protocol.emit_progress(100, 'done')
     _reply({
@@ -168,8 +232,13 @@ def grid_network(req: Request) -> None:
     protocol.emit_progress(20, 'opening the grid store')
     with store.connect(req) as conn:
         protocol.emit_progress(50, 'reading the network register')
-        layer = store.network_geojson(
-            conn, bbox=bbox, min_kv=float(protocol.request_number(req, 'min_kv', 0.0)))
+        min_kv = float(protocol.request_number(req, 'min_kv', 0.0))
+        if _profile(conn) == 'contract':
+            from terra_energy_engine.grid import contract
+
+            layer = contract.network_geojson(conn, bbox=bbox, min_kv=min_kv)
+        else:
+            layer = store.network_geojson(conn, bbox=bbox, min_kv=min_kv)
 
     protocol.emit_progress(100, 'done')
     _reply({'grid_network': layer})
@@ -180,10 +249,30 @@ def grid_coverage(req: Request) -> None:
     What the store holds, and which revision of it. The record is revised in
     batches, so a figure is a figure about one revision, and this is what says
     which.
-    """
-    from terra_energy_engine.grid import store
 
+    ANSWERS FOR ANY DATABASE THAT OPENS, store or not. `store` says which kind
+    it is -- TERRA's, one prepared to the contract, or neither -- and, for a
+    contract store, every departure from the contract. The person preparing a
+    store reads this on the Grid store card, so a database that is not yet one
+    has to come back as a report and not as a failure.
+    """
+    from terra_energy_engine.grid import contract, store
+
+    no_conflicts = {'total': 0, 'identical': 0, 'note': ''}
     with store.connect(req) as conn:
+        report = contract.describe(conn)
+        if report['profile'] != 'terra':
+            _reply({
+                'grid_coverage': {
+                    'datasets': [],
+                    **(contract.counts(report) if report['profile'] == 'contract' else {
+                        'plants': {'registered': 0, 'with_geometry': 0},
+                        'network': {'substations': 0, 'lines_in_service': 0}}),
+                    'load_conflicts': no_conflicts,
+                    'store': report,
+                }
+            })
+            return
         held = store.coverage(conn)
         with conn.cursor() as cur:
             cur.execute('SELECT count(*), count(geom) FROM br.plant')
@@ -206,8 +295,25 @@ def grid_coverage(req: Request) -> None:
                                    'Instants where one plant had two rows. The '
                                    'first was kept; br.load_conflict records '
                                    'every choice.')},
+            'store': report,
         }
     })
+
+
+def store_boundaries(req: Request) -> None:
+    """
+    The named grounds a contract store carries: a level's list, or one
+    boundary with its shape when `id` names it.
+    """
+    from terra_energy_engine.grid import contract, store
+
+    with store.connect(req) as conn:
+        if _profile(conn) != 'contract':
+            raise protocol.Unavailable(
+                'This store carries no boundaries of its own; the catalogue '
+                'reads IBGE for it.')
+        _reply({'store_boundaries': contract.boundaries(
+            conn, level=req.get('level'), parent=req.get('parent'), boundary_id=req.get('id'))})
 
 
 def demand_area(req: Request) -> None:
@@ -232,6 +338,7 @@ def demand_area(req: Request) -> None:
     work_dir = Path(work_dir) if work_dir else None
     protocol.emit_progress(10, 'opening the grid store')
     with store.connect(req) as conn:
+        _brazil_only(conn, 'The consumption reading')
         protocol.emit_progress(40, 'consumer units in the area')
         context = demand.demand_context(conn, aoi, req, work_dir)
 
@@ -259,6 +366,7 @@ def demand_reach(req: Request) -> None:
     aoi = _aoi(req)
     protocol.emit_progress(20, 'opening the grid store')
     with store.connect(req) as conn:
+        _brazil_only(conn, 'The register coverage')
         demand._require_schema(conn)
         protocol.emit_progress(60, 'measuring each register against the area')
         held = demand.holdings(conn)
@@ -289,6 +397,7 @@ def grid_concessions(req: Request) -> None:
 
     protocol.emit_progress(20, 'opening the grid store')
     with store.connect(req) as conn:
+        _brazil_only(conn, 'The concession layer')
         demand._require_schema(conn)
         protocol.emit_progress(55, 'where each register reaches')
         layer = demand.concessions(conn)
@@ -318,6 +427,7 @@ def demand_towns(req: Request) -> None:
 
     protocol.emit_progress(20, 'opening the grid store')
     with store.connect(req) as conn:
+        _brazil_only(conn, 'Consumption by municipality')
         demand._require_schema(conn)
         held = demand.holdings(conn)
         if not held:

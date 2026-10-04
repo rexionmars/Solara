@@ -38,12 +38,32 @@ func gridConfigDir() (string, error) {
 	return store.DefaultDir()
 }
 
-func (a *App) chosenGridDSN() string {
+// savedGridDSN is the connection last connected, remembered between sessions
+// so the Grid store card comes back filled in.
+func (a *App) savedGridDSN() string {
 	dir, err := gridConfigDir()
 	if err != nil {
 		return ""
 	}
 	return grid.LoadConfig(dir).DSN
+}
+
+/*
+chosenGridDSN is the store the grid products read: the saved connection, but
+only once it has been connected in this session.
+
+A SESSION STARTS DISCONNECTED. Remembering a connection and using it are two
+things, and they were one: the application opened already reading whichever
+database was connected last, and drew its layers on a map nobody had asked
+anything of. A reader who had done nothing was looking at data with no way to
+tell where it came from. Connecting is one press on a card that is already
+filled in, and it is the reader's.
+*/
+func (a *App) chosenGridDSN() string {
+	if !a.gridConnected.Load() {
+		return ""
+	}
+	return a.savedGridDSN()
 }
 
 // InspectGridStore reports which store the grid products read and what it
@@ -59,7 +79,8 @@ func (a *App) InspectGridStore() (*grid.StoreReport, error) {
 }
 
 // SetGridStore points the grid products at dsn and reports what it holds. An
-// empty dsn forgets the choice and returns to the default.
+// empty dsn forgets the choice, which disconnects: there is no store to fall
+// back to (grid.ErrNoStore).
 //
 // A DSN that does not answer is refused and not saved, with the reason in the
 // report: a saved store nobody can reach would only move the failure to the
@@ -86,10 +107,87 @@ func (a *App) SetGridStore(dsn string) (*grid.StoreReport, error) {
 	if err := grid.SaveConfig(dir, grid.Config{DSN: dsn}); err != nil {
 		return nil, err
 	}
+	a.gridConnected.Store(dsn != "")
 	return grid.Inspect(ctx, r, dsn), nil
 }
 
-// GridPlants reads the ANEEL plant register as a map layer.
+// DisconnectGridStore stops reading the store for this session and keeps the
+// connection remembered, so the card stays filled in for the next Connect.
+func (a *App) DisconnectGridStore() (*grid.StoreReport, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	a.gridConnected.Store(false)
+	ctx, cancel := context.WithTimeout(a.ctx, gridInspectTimeout)
+	defer cancel()
+	return grid.Inspect(ctx, r, ""), nil
+}
+
+// GridStoreConnection is the store chosen in Settings as the fields of its
+// connection card. The password is not among them, only whether one is saved.
+func (a *App) GridStoreConnection() grid.StoreConnection {
+	return grid.SavedConnection(a.savedGridDSN())
+}
+
+// ParseGridStoreURL takes a pasted connection string apart into the card's
+// fields, password included: it is the reader's own, pasted a moment ago.
+func (a *App) ParseGridStoreURL(dsn string) (grid.StoreConnection, error) {
+	return grid.ParseDSN(dsn)
+}
+
+// TestGridStore checks the store the fields describe and saves nothing. It
+// checks those fields even while TERRA_BR_DSN is set, since the question is
+// whether they would work, not which store is read now.
+func (a *App) TestGridStore(conn grid.StoreConnection) (*grid.StoreReport, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	dsn, err := conn.WithSavedPassword(a.savedGridDSN()).DSN()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridInspectTimeout)
+	defer cancel()
+	return grid.Try(ctx, r, dsn), nil
+}
+
+// SetGridStoreConnection points the grid products at the store the fields
+// describe, under SetGridStore's rules. An empty password with HasPassword set
+// keeps the one already saved.
+func (a *App) SetGridStoreConnection(conn grid.StoreConnection) (*grid.StoreReport, error) {
+	dsn, err := conn.WithSavedPassword(a.savedGridDSN()).DSN()
+	if err != nil {
+		return nil, err
+	}
+	return a.SetGridStore(dsn)
+}
+
+// StoreBoundaryList lists the named grounds of a store prepared to the
+// contract: what its catalogue of areas is read from, in IBGE's place.
+func (a *App) StoreBoundaryList() (*grid.BoundaryList, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
+	defer cancel()
+	return grid.Boundaries(ctx, r, a.chosenGridDSN())
+}
+
+// StoreBoundary reads one of those grounds with its outline.
+func (a *App) StoreBoundary(id string) (*grid.BoundaryShape, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, gridLayerTimeout)
+	defer cancel()
+	return grid.Boundary(ctx, r, id, a.chosenGridDSN())
+}
+
+// GridPlants reads the plant register as a map layer.
 func (a *App) GridPlants() (*grid.PlantsLayer, error) {
 	r, err := a.analysisRunner()
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,10 +17,17 @@ import (
 	"github.com/rexionmars/TerraEnergyEngine/internal/sidecar"
 )
 
-func TestResolve_PrecedenceIsVariableThenChosenThenDefault(t *testing.T) {
+func TestResolve_PrecedenceIsVariableThenChosenThenNoStore(t *testing.T) {
 	t.Setenv(EnvDSN, "")
-	if send, source, shown := Resolve(""); send != "" || source != SourceDefault || shown != DefaultDSN {
+	if send, source, shown := Resolve(""); send != "" || source != SourceNone || shown != "" {
 		t.Errorf("nothing set: got %q %q %q", send, source, shown)
+	}
+	// With no store connected nothing is read, the default included.
+	if _, err := target(""); !errors.Is(err, ErrNoStore) {
+		t.Errorf("nothing set: target answered %v", err)
+	}
+	if r := Inspect(context.Background(), nil, ""); r.Reachable || r.DSNSource != SourceNone || r.Unreachable == "" {
+		t.Errorf("nothing set: inspected as %+v", r)
 	}
 	if send, source, _ := Resolve("  postgresql://db/terra_br "); send != "postgresql://db/terra_br" || source != SourceChosen {
 		t.Errorf("chosen: got %q %q", send, source)
@@ -124,7 +132,7 @@ func TestInspect_ReportsEitherContentsOrAReason(t *testing.T) {
 	r := liveRunner(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	report := Inspect(ctx, r, "")
+	report := Inspect(ctx, r, DefaultDSN)
 	if report.Reachable == (report.Unreachable != "") {
 		t.Fatalf("reachable %v with reason %q", report.Reachable, report.Unreachable)
 	}
@@ -236,5 +244,67 @@ func TestDemandAnalysis_DecodesAReplyAndLeavesNoNullList(t *testing.T) {
 	}
 	if a.Assumptions.Ceiling.Source != "request" {
 		t.Errorf("the ceiling's origin was lost: %+v", a.Assumptions.Ceiling)
+	}
+}
+
+func TestStoreConnection_RoundTripsThroughItsString(t *testing.T) {
+	for _, dsn := range []string{
+		"postgresql:///terra_br",
+		"postgresql://ana@/terra_br",
+		"postgresql://ana:s3cret@db.local:5433/outra?sslmode=require",
+		"postgresql://ana:p%40ss%2Fword@localhost/terra_br",
+		"postgresql://[::1]:5432/terra_br",
+		"postgresql://localhost/terra_br?connect_timeout=3&sslmode=verify-full",
+	} {
+		c, err := ParseDSN(dsn)
+		if err != nil {
+			t.Errorf("ParseDSN(%q): %v", dsn, err)
+			continue
+		}
+		if got, err := c.DSN(); err != nil || got != dsn {
+			t.Errorf("round trip of %q = %q, %v", dsn, got, err)
+		}
+	}
+}
+
+func TestStoreConnection_EmptyFieldsAreTheDefaultStore(t *testing.T) {
+	if got, err := (StoreConnection{}).DSN(); err != nil || got != DefaultDSN {
+		t.Errorf("empty connection = %q, %v; want %q", got, err, DefaultDSN)
+	}
+}
+
+func TestStoreConnection_RefusesWhatIsNotAConnection(t *testing.T) {
+	if _, err := (StoreConnection{Port: "abc"}).DSN(); err == nil {
+		t.Error("a port that is not a number was accepted")
+	}
+	if _, err := (StoreConnection{SSLMode: "sometimes"}).DSN(); err == nil {
+		t.Error("an unknown SSL mode was accepted")
+	}
+	if _, err := ParseDSN("host=db dbname=terra_br"); err == nil {
+		t.Error("the keyword form was taken for a URL")
+	}
+	// The reason must not repeat the string: it carries the password.
+	if _, err := ParseDSN("postgresql://ana:s3cret@db:port/x"); err == nil || strings.Contains(err.Error(), "s3cret") {
+		t.Errorf("unreadable URL: %v", err)
+	}
+}
+
+func TestStoreConnection_SavedPasswordIsKeptAndNeverShown(t *testing.T) {
+	saved := "postgresql://ana:s3cret@db.local/terra_br"
+	shown := SavedConnection(saved)
+	if shown.Password != "" || !shown.HasPassword || shown.User != "ana" || shown.Host != "db.local" {
+		t.Errorf("saved connection as fields: %+v", shown)
+	}
+	// Sent back untouched, it is the string that was saved.
+	if got, _ := shown.WithSavedPassword(saved).DSN(); got != saved {
+		t.Errorf("kept password: %q", got)
+	}
+	// A password typed over it replaces it.
+	shown.Password = "outra"
+	if got, _ := shown.WithSavedPassword(saved).DSN(); got != "postgresql://ana:outra@db.local/terra_br" {
+		t.Errorf("replaced password: %q", got)
+	}
+	if c := SavedConnection("host=db dbname=terra_br"); c.Host != "" || c.HasPassword {
+		t.Errorf("keyword form as fields: %+v", c)
 	}
 }

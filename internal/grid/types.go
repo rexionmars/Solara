@@ -14,7 +14,7 @@ import (
 type StoreReport struct {
 	// The connection, with any password masked.
 	DSN string `json:"dsn"`
-	// Where the DSN came from: SourceEnv, SourceChosen or SourceDefault.
+	// Where the DSN came from: SourceEnv, SourceChosen or SourceNone.
 	DSNSource   string    `json:"dsn_source"`
 	Reachable   bool      `json:"reachable"`
 	Unreachable string    `json:"unreachable,omitempty"`
@@ -27,6 +27,84 @@ type Coverage struct {
 	Plants        PlantCoverage     `json:"plants"`
 	Network       NetworkCoverage   `json:"network"`
 	LoadConflicts LoadConflicts     `json:"load_conflicts"`
+	// Which kind of store answered, and how it stands against the contract.
+	Store *StoreInfo `json:"store,omitempty"`
+}
+
+// The kinds of store (sidecar grid/contract.py): the one TERRA loads, one
+// prepared to the contract in contract/v1.sql, and a database that is neither.
+const (
+	ProfileTerra    = "terra"
+	ProfileContract = "contract"
+	ProfileNone     = "none"
+)
+
+// StoreInfo is what kind of store a database is and what it can do. For a
+// contract store it carries every departure from the contract, said as the
+// thing to fix: it is what the person preparing the store reads.
+type StoreInfo struct {
+	Profile         string  `json:"profile"`
+	Name            *string `json:"name"`
+	ContractVersion *int    `json:"contract_version"`
+	// West, south, east, north of what the store holds; nil where it holds
+	// nothing located.
+	Extent       []float64         `json:"extent"`
+	Entities     []StoreEntity     `json:"entities"`
+	Problems     []string          `json:"problems"`
+	Capabilities StoreCapabilities `json:"capabilities"`
+}
+
+// StoreEntity is one table of the contract as the store holds it.
+type StoreEntity struct {
+	Entity   string   `json:"entity"`
+	Table    string   `json:"table"`
+	Present  bool     `json:"present"`
+	Rows     int      `json:"rows"`
+	Problems []string `json:"problems"`
+}
+
+// StoreCapabilities is what the store can answer. Brazil is the record only
+// TERRA's store carries: curtailment, the BDGD register, the concessions.
+type StoreCapabilities struct {
+	Plants     bool `json:"plants"`
+	Network    bool `json:"network"`
+	Connection bool `json:"connection"`
+	Boundaries bool `json:"boundaries"`
+	Brazil     bool `json:"brazil"`
+}
+
+// ---- The boundaries of a contract store -----------------------------------------------
+
+// BoundaryList is the store's named grounds without their shapes: a country's
+// municipalities are tens of megabytes, and choosing one needs only its name.
+type BoundaryList struct {
+	Levels []BoundaryLevel `json:"levels"`
+	Places []BoundaryPlace `json:"places"`
+}
+
+type BoundaryLevel struct {
+	Level int    `json:"level"`
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+type BoundaryPlace struct {
+	ID         string  `json:"id"`
+	Level      int     `json:"level"`
+	Name       string  `json:"name"`
+	ParentID   *string `json:"parent_id"`
+	ParentName *string `json:"parent_name"`
+}
+
+// BoundaryShape is one boundary with its outline, a GeoJSON MultiPolygon
+// passed through undecoded.
+type BoundaryShape struct {
+	ID        string          `json:"id"`
+	Level     int             `json:"level"`
+	LevelName string          `json:"level_name"`
+	Name      string          `json:"name"`
+	ParentID  *string         `json:"parent_id"`
+	Geometry  json.RawMessage `json:"geometry" ts_type:"any"`
 }
 
 // DatasetCoverage is one ONS dataset as loaded: its periods ("2024-04"), its

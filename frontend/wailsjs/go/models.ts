@@ -1112,6 +1112,97 @@ export namespace grid {
 	        this.voltage_confirmed = source["voltage_confirmed"];
 	    }
 	}
+	export class BoundaryLevel {
+	    level: number;
+	    name: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryLevel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.level = source["level"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	    }
+	}
+	export class BoundaryPlace {
+	    id: string;
+	    level: number;
+	    name: string;
+	    parent_id?: string;
+	    parent_name?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryPlace(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.level = source["level"];
+	        this.name = source["name"];
+	        this.parent_id = source["parent_id"];
+	        this.parent_name = source["parent_name"];
+	    }
+	}
+	export class BoundaryList {
+	    levels: BoundaryLevel[];
+	    places: BoundaryPlace[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryList(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.levels = this.convertValues(source["levels"], BoundaryLevel);
+	        this.places = this.convertValues(source["places"], BoundaryPlace);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class BoundaryShape {
+	    id: string;
+	    level: number;
+	    level_name: string;
+	    name: string;
+	    parent_id?: string;
+	    geometry: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryShape(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.level = source["level"];
+	        this.level_name = source["level_name"];
+	        this.name = source["name"];
+	        this.parent_id = source["parent_id"];
+	        this.geometry = source["geometry"];
+	    }
+	}
 	export class BusHeadroom {
 	    bus: number;
 	    lines_in_service: number;
@@ -1464,6 +1555,88 @@ export namespace grid {
 		    return a;
 		}
 	}
+	export class StoreCapabilities {
+	    plants: boolean;
+	    network: boolean;
+	    connection: boolean;
+	    boundaries: boolean;
+	    brazil: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreCapabilities(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plants = source["plants"];
+	        this.network = source["network"];
+	        this.connection = source["connection"];
+	        this.boundaries = source["boundaries"];
+	        this.brazil = source["brazil"];
+	    }
+	}
+	export class StoreEntity {
+	    entity: string;
+	    table: string;
+	    present: boolean;
+	    rows: number;
+	    problems: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreEntity(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entity = source["entity"];
+	        this.table = source["table"];
+	        this.present = source["present"];
+	        this.rows = source["rows"];
+	        this.problems = source["problems"];
+	    }
+	}
+	export class StoreInfo {
+	    profile: string;
+	    name?: string;
+	    contract_version?: number;
+	    extent: number[];
+	    entities: StoreEntity[];
+	    problems: string[];
+	    capabilities: StoreCapabilities;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profile = source["profile"];
+	        this.name = source["name"];
+	        this.contract_version = source["contract_version"];
+	        this.extent = source["extent"];
+	        this.entities = this.convertValues(source["entities"], StoreEntity);
+	        this.problems = source["problems"];
+	        this.capabilities = this.convertValues(source["capabilities"], StoreCapabilities);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LoadConflicts {
 	    total: number;
 	    identical: number;
@@ -1535,6 +1708,7 @@ export namespace grid {
 	    plants: PlantCoverage;
 	    network: NetworkCoverage;
 	    load_conflicts: LoadConflicts;
+	    store?: StoreInfo;
 	
 	    static createFrom(source: any = {}) {
 	        return new Coverage(source);
@@ -1546,6 +1720,7 @@ export namespace grid {
 	        this.plants = this.convertValues(source["plants"], PlantCoverage);
 	        this.network = this.convertValues(source["network"], NetworkCoverage);
 	        this.load_conflicts = this.convertValues(source["load_conflicts"], LoadConflicts);
+	        this.store = this.convertValues(source["store"], StoreInfo);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2250,6 +2425,35 @@ export namespace grid {
 		    return a;
 		}
 	}
+	
+	
+	export class StoreConnection {
+	    host: string;
+	    port: string;
+	    user: string;
+	    password: string;
+	    database: string;
+	    ssl_mode: string;
+	    params?: Record<string, string>;
+	    has_password: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreConnection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.user = source["user"];
+	        this.password = source["password"];
+	        this.database = source["database"];
+	        this.ssl_mode = source["ssl_mode"];
+	        this.params = source["params"];
+	        this.has_password = source["has_password"];
+	    }
+	}
+	
 	
 	export class StoreReport {
 	    dsn: string;

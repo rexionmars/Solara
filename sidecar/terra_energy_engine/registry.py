@@ -34,6 +34,8 @@ ACTIONS: dict[str, str] = {
     # Consumption by municipality, as a layer read before any area is chosen.
     'demand_towns': 'terra_energy_engine.grid.actions:demand_towns',
     'grid_concessions': 'terra_energy_engine.grid.actions:grid_concessions',
+    # The named grounds of a store prepared to the contract (grid/contract.py).
+    'store_boundaries': 'terra_energy_engine.grid.actions:store_boundaries',
     # The weather now, where only the sidecar can read the format.
     'wind_field': 'terra_energy_engine.weather.actions:wind_field',
 }
