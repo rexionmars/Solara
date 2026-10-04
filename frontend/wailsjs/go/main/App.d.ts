@@ -5,6 +5,7 @@ import {energy} from '../models';
 import {store} from '../models';
 import {main} from '../models';
 import {weather} from '../models';
+import {world} from '../models';
 
 export function AnalyzeGridConnection(arg1:grid.ConnectionRequest):Promise<grid.ConnectionAnalysis>;
 
@@ -83,3 +84,11 @@ export function TestGridStore(arg1:grid.StoreConnection):Promise<grid.StoreRepor
 export function UpdateDisplayName(arg1:string):Promise<store.User>;
 
 export function WindField(arg1:number,arg2:Array<number>):Promise<weather.WindField>;
+
+export function WorldBoundary(arg1:string,arg2:number,arg3:string):Promise<world.Shape>;
+
+export function WorldCountries():Promise<world.Countries>;
+
+export function WorldLevels(arg1:string):Promise<Array<world.Level>>;
+
+export function WorldPlaces(arg1:string,arg2:number):Promise<Array<world.Place>>;

@@ -36,6 +36,9 @@ ACTIONS: dict[str, str] = {
     'grid_concessions': 'terra_energy_engine.grid.actions:grid_concessions',
     # The named grounds of a store prepared to the contract (grid/contract.py).
     'store_boundaries': 'terra_energy_engine.grid.actions:store_boundaries',
+    # Boundaries of any country, for ground no store and no national service names.
+    'world_countries': 'terra_energy_engine.world.boundaries:world_countries',
+    'world_boundaries': 'terra_energy_engine.world.boundaries:world_boundaries',
     # The weather now, where only the sidecar can read the format.
     'wind_field': 'terra_energy_engine.weather.actions:wind_field',
 }

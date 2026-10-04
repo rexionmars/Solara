@@ -157,3 +157,19 @@ export function UpdateDisplayName(arg1) {
 export function WindField(arg1, arg2) {
   return window['go']['main']['App']['WindField'](arg1, arg2);
 }
+
+export function WorldBoundary(arg1, arg2, arg3) {
+  return window['go']['main']['App']['WorldBoundary'](arg1, arg2, arg3);
+}
+
+export function WorldCountries() {
+  return window['go']['main']['App']['WorldCountries']();
+}
+
+export function WorldLevels(arg1) {
+  return window['go']['main']['App']['WorldLevels'](arg1);
+}
+
+export function WorldPlaces(arg1, arg2) {
+  return window['go']['main']['App']['WorldPlaces'](arg1, arg2);
+}
