@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { MagnifyingGlass, MapPin, X } from "@phosphor-icons/react"
+import { MagnifyingGlass, MapPin, X } from "../../lib/icons"
 import { errorMessage } from "../../lib/errors"
 import { asCoordinates, searchAddress, type Found } from "../../lib/geocode"
 import { framePolygon } from "../../lib/mapEngine"

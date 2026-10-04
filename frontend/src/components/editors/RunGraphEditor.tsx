@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { ArrowsClockwise, ChartBar, CircleNotch, CodeSimple, Eye, Fan, FlowArrow, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { ArrowsClockwise, ChartBar, CircleNotch, CodeSimple, Eye, Fan, FlowArrow, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "../../lib/icons"
 import { lastFailure, running } from "../../lib/analysis"
 import { errorMessage } from "../../lib/errors"
 import { frameItem, framePolygon } from "../../lib/mapEngine"

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { ArrowSquareOut, CaretDown, CaretRight, Pencil, Warning } from "@phosphor-icons/react"
+import { ArrowSquareOut, CaretDown, CaretRight, Pencil, Warning } from "../../lib/icons"
 import { running } from "../../lib/analysis"
 import { reveal } from "../../lib/export"
 import { formatLat, formatLng } from "../../lib/format"

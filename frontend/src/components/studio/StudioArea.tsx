@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { ArrowsIn, ArrowsOut, Columns, Rows, X } from "@phosphor-icons/react"
+import { ArrowsIn, ArrowsOut, Columns, Rows, X } from "../../lib/icons"
 import { EDITORS, STUDIO_GROUPS, editorMeta, type EditorId } from "../../lib/editors"
 import { AREA_RADIUS_PX, closeArea, hoveredArea, setEditor, splitArea, toggleMaximized, type Rect } from "../../lib/screen"
+import { editorArt } from "../../lib/art"
 import { StudioHeaderPopoverButton } from "./HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "./Popover"
 
@@ -163,6 +164,7 @@ export function StudioArea({
               triggerRef={p.ref}
               onClick={p.onClick}
               icon={meta.icon}
+              art={editorArt(meta.id)}
               label={meta.label}
               // Below 12rem the label withdraws and the glyph is all that is left.
               showLabel={rect.w > 12 * rootPx}
@@ -184,6 +186,7 @@ export function StudioArea({
                       <StudioMenuItem
                         key={e.id}
                         icon={e.icon}
+                        art={editorArt(e.id)}
                         label={e.label}
                         checked={e.id === editor}
                         disabled={blocked}

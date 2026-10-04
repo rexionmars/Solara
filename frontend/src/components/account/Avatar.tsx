@@ -1,4 +1,4 @@
-import { User as UserIcon } from "@phosphor-icons/react"
+import { User as UserIcon } from "../../lib/icons"
 import type { User } from "../../lib/account"
 
 /**

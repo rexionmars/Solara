@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react"
-import { CaretDown, CaretUp, Crosshair, Cube, GlobeHemisphereWest, Graph, type Icon } from "@phosphor-icons/react"
+import { CaretDown, CaretUp, Crosshair, Cube, GlobeHemisphereWest, Graph, type Icon } from "../../lib/icons"
 import { STUDIO_GROUPS, editorMeta } from "../../lib/editors"
 import { findOperator, formatKeys, pollOperator, runOperator, usePollTick } from "../../lib/operators"
 import { PRODUCT_NAMES, type Product } from "../../lib/project"
 import { WORKSPACES, openRunGraph, screen, setWorkspace } from "../../lib/screen"
+import { artSrc, operatorArt } from "../../lib/art"
 import { useStore } from "../../lib/store"
 import { activeTool, basemap, overlays, type ToolId } from "../../lib/tools"
 import { coordinatePrompt, ribbonCollapsed, ribbonTab, toggleRibbon, type RibbonTab } from "../../lib/ui"
@@ -62,9 +63,25 @@ function tone(on: boolean | undefined, disabled: boolean | undefined): string {
   return "text-foreground/85 hover:bg-hover hover:text-foreground"
 }
 
+// Which drawing each product and workspace asks for; the operators' are in lib/art.ts with the sets on trial.
+const ART_BY_PRODUCT: Record<Product, string> = { solar: "solar", terrain: "terrain", wind: "wind", connection: "connection", demand: "demand" }
+/** A workspace is drawn as what it is built around: the product's art, or the editor's. */
+const ART_BY_WORKSPACE: Record<string, string> = {
+  layout: "layout",
+  graph: "run-graph",
+  data: "data",
+  scripting: "scripting",
+  solar: "solar",
+  terrain: "terrain",
+  wind: "wind",
+  connection: "connection",
+  demand: "demand",
+}
+
 /** One command. Tall, it is a group's principal verb; short, three of them stack in a column. */
 function Command({
   icon: IconC,
+  art,
   label,
   title,
   tall,
@@ -76,6 +93,8 @@ function Command({
   expanded,
 }: {
   icon?: Icon
+  /** The coloured drawing that stands in for the glyph, by its file name. */
+  art?: string
   label: string
   title: string
   tall?: boolean
@@ -99,7 +118,12 @@ function Command({
         onClick={onClick}
         className={`flex min-w-11 shrink-0 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-sm px-1.5 text-meta transition-colors ${tone(on, disabled)}`}
       >
-        {IconC && <IconC className="size-[18px] shrink-0" />}
+        {artSrc(art, true) ? (
+          // Greyed with the command: a colour that stayed lit would say it can be pressed.
+          <img src={artSrc(art, true)} alt="" draggable={false} className={`size-5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
+        ) : (
+          IconC && <IconC className="size-[18px] shrink-0" />
+        )}
         {label}
       </button>
     )
@@ -121,6 +145,8 @@ function Command({
         >
           {on && <span className="size-1.5 rounded-[1px] bg-accent" />}
         </span>
+      ) : artSrc(art, false) ? (
+        <img src={artSrc(art, false)} alt="" draggable={false} className={`size-3.5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
       ) : (
         IconC && <IconC className="size-3 shrink-0 text-muted-foreground" />
       )}
@@ -140,6 +166,7 @@ function Op({ name, args, label, tall }: { name: string; args?: string[]; label?
   return (
     <Command
       icon={op.icon}
+      art={operatorArt(op.name)}
       label={label ?? op.label.replace(/…$/, "")}
       title={poll === true ? `${op.description}${key}` : poll}
       tall={tall}
@@ -164,6 +191,7 @@ function Basemap() {
         <Command
           buttonRef={t.ref as React.Ref<HTMLButtonElement>}
           icon={GlobeHemisphereWest}
+          art="basemap"
           label="Basemap"
           title="The ground the map draws"
           tall
@@ -213,6 +241,7 @@ function Run({ product }: { product: Product }) {
   return (
     <Command
       icon={editorMeta(product).icon}
+      art={ART_BY_PRODUCT[product]}
       label={RUN_LABEL[product]}
       title={`Set up ${PRODUCT_NAMES[product]} in the run graph`}
       tall
@@ -262,6 +291,7 @@ function MapTab() {
         <Column>
           <Command
             icon={Crosshair}
+            art="coordinates"
             label="At coordinates"
             title="Add a site by typing its latitude and longitude"
             onClick={() => coordinatePrompt.set(true)}
@@ -299,6 +329,7 @@ function AnalysisTab() {
       <Group label="Run">
         <Command
           icon={Graph}
+          art="run-graph"
           label="Run graph"
           title="Open the run graph: choose the product, the place and the settings, and see what a run would read"
           tall
@@ -330,6 +361,7 @@ function ViewTab() {
               <Command
                 key={w.id}
                 icon={w.icon}
+                art={ART_BY_WORKSPACE[w.id]}
                 label={w.label}
                 title={w.hint}
                 tall

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { CaretRight, X } from "@phosphor-icons/react"
+import { CaretRight, X } from "../../lib/icons"
 import { Marker } from "maplibre-gl"
 import type { energy } from "../../../wailsjs/go/models"
 import { currentMap } from "../../lib/mapEngine"

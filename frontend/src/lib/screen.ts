@@ -1,4 +1,4 @@
-import { ChartBar, Cube, Fan, Graph, Mountains, PlugsConnected, Sun, Table, TerminalWindow, type Icon } from "@phosphor-icons/react"
+import { ChartBar, Cube, Fan, Graph, Mountains, PlugsConnected, Sun, Table, TerminalWindow, type Icon } from "./icons"
 import { EDITORS, editorMeta, type EditorId, type StudioGroup } from "./editors"
 import type { Product } from "./project"
 import { select } from "./selection"

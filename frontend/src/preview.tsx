@@ -4,7 +4,7 @@ import "./index.css"
 import {
   ChartBar, Database, Fan, Graph, MapTrifold, Mountains, PlugsConnected,
   Scroll, Sun, Table, TerminalWindow, Export as ExportIcon, ArrowClockwise,
-} from "@phosphor-icons/react"
+} from "./lib/icons"
 import type { grid } from "../wailsjs/go/models"
 import { DemandBoard } from "./components/energy/DemandBoard"
 import { Chip, Panel, Stat } from "./components/energy/primitives"

@@ -1,5 +1,6 @@
+import { artSrc } from "../../lib/art"
 import { useState } from "react"
-import { CaretDown, type Icon } from "@phosphor-icons/react"
+import { CaretDown, type Icon } from "../../lib/icons"
 import type { MenuItem } from "../../lib/ui"
 import { MenuItems, StudioPopover } from "./Popover"
 
@@ -86,6 +87,7 @@ export function StudioHeaderToggle({
 export function StudioHeaderPopoverButton({
   triggerRef,
   icon: IconC,
+  art,
   label,
   showLabel = false,
   open,
@@ -96,6 +98,8 @@ export function StudioHeaderPopoverButton({
 }: {
   triggerRef: (el: HTMLElement | null) => void
   icon?: Icon
+  /** The coloured drawing that stands in for the glyph, where the set on trial has one (lib/art.ts). */
+  art?: string
   label: string
   showLabel?: boolean
   open?: boolean
@@ -120,7 +124,7 @@ export function StudioHeaderPopoverButton({
             : "text-muted-foreground hover:bg-hover hover:text-foreground"
       } ${className}`}
     >
-      {IconC && <IconC className="size-3 shrink-0" />}
+      {artSrc(art) ? <img src={artSrc(art)} alt="" draggable={false} className="size-3.5 shrink-0" /> : IconC && <IconC className="size-3 shrink-0" />}
       {showLabel && <span className="truncate text-meta">{label}</span>}
       <CaretDown className="size-2.5 shrink-0 opacity-60" />
     </button>

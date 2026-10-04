@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { ArrowCounterClockwise, Check } from "@phosphor-icons/react"
+import { ArrowCounterClockwise, Check } from "../../lib/icons"
 import { formatKeys, runOperator, useOperator } from "../../lib/operators"
 import { btnGhostDense, btnPrimary } from "./buttons"
 

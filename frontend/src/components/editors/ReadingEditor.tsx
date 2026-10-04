@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChartBar, Fan, Graph, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "@phosphor-icons/react"
+import { ChartBar, Fan, Graph, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "../../lib/icons"
 import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
 import { areaStates, openRunGraph, setAreaState } from "../../lib/screen"

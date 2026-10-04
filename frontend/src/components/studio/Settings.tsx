@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Database, Gear, Info, Keyboard, User } from "@phosphor-icons/react"
+import { Database, Gear, Info, Keyboard, User } from "../../lib/icons"
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BRAND_TAGLINE, RELEASE_NAME } from "../../lib/brand"
 import { defaults, loadDefaults } from "../../lib/defaults"

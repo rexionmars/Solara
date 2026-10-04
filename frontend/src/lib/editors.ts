@@ -1,4 +1,4 @@
-import { ChartBar, Fan, Graph, MapTrifold, Mountains, PlugsConnected, Scroll, SlidersHorizontal, Sun, Table, TerminalWindow, TreeView, type Icon } from "@phosphor-icons/react"
+import { ChartBar, Fan, Graph, MapTrifold, Mountains, PlugsConnected, Scroll, SlidersHorizontal, Sun, Table, TerminalWindow, TreeView, type Icon } from "./icons"
 
 /**
  * What an area can be, named once, as TERRA's studioEditors names its own.

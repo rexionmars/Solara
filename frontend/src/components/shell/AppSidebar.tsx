@@ -1,4 +1,4 @@
-import { CaretDown, MagnifyingGlass, SidebarSimple, type Icon } from "@phosphor-icons/react"
+import { CaretDown, MagnifyingGlass, SidebarSimple, type Icon } from "../../lib/icons"
 import { useState, type ReactNode } from "react"
 
 /**

@@ -20,12 +20,13 @@ import {
   Swatches,
   Warning,
   type Icon,
-} from "@phosphor-icons/react"
+} from "../../lib/icons"
 import { running } from "../../lib/analysis"
 import { legendsShown, setLegendShown } from "../../lib/mapState"
 import { isResult, project, renameItem, resultsOf, setHidden, staleReason, type AnyItem } from "../../lib/project"
 import { areaStates, setAreaState, showResult } from "../../lib/screen"
 import { select, selection } from "../../lib/selection"
+import { artSrc } from "../../lib/art"
 import { useStore } from "../../lib/store"
 import { overlays, type Overlays } from "../../lib/tools"
 import { openContextMenu, renaming, type MenuItem } from "../../lib/ui"
@@ -66,6 +67,9 @@ const TINT: Record<AnyItem["kind"], string> = {
   demand: "var(--node-socket-method)",
 }
 const FOLDER_TINT = "var(--warning)"
+/** The coloured drawing of each kind of thing, by what it means (lib/art.ts); the same names the ribbon asks for. */
+const ART: Record<AnyItem["kind"], string> = { site: "site", area: "area", solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand" }
+const GROUP_ART: Record<string, string> = { "g:overlays": "layers", "g:grid": "store", "g:weather": "weather", "g:reference": "basemap" }
 
 /** The map's layers, in the groups the map's own popover offers them in. */
 const LAYER_GROUPS: { id: string; label: string; icon: Icon; items: { key: keyof Overlays; label: string }[] }[] = [
@@ -81,6 +85,8 @@ type Row = {
   depth: number
   label: string
   icon: Icon
+  /** The coloured drawing that stands in for the glyph, where the set on trial has one. */
+  art?: string
   tint: string
   expandable: boolean
   open: boolean
@@ -150,7 +156,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   const rows: Row[] = []
   const folder = (key: string, depth: number, label: string, count: number, icon?: Icon): boolean => {
     const open = isOpen(key)
-    rows.push({ key, depth, label, icon: icon ?? (open ? FolderOpen : Folder), tint: FOLDER_TINT, expandable: count > 0, open, count, folder: true })
+    rows.push({ key, depth, label, icon: icon ?? (open ? FolderOpen : Folder), art: GROUP_ART[key] ?? (open ? "folder-open" : "folder"), tint: FOLDER_TINT, expandable: count > 0, open, count, folder: true })
     return open && count > 0
   }
   const objects = (key: string, label: string, list: readonly (AnyItem & { kind: "site" | "area" })[]) => {
@@ -159,15 +165,15 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
     for (const o of kept) {
       const results = resultsOf(data, o.id).filter((r) => !onlyVisible || !r.hidden)
       const open = isOpen(o.id)
-      rows.push({ key: o.id, depth: 2, label: o.name, icon: ICON[o.kind], tint: TINT[o.kind], expandable: results.length > 0, open, item: o })
+      rows.push({ key: o.id, depth: 2, label: o.name, icon: ICON[o.kind], art: ART[o.kind], tint: TINT[o.kind], expandable: results.length > 0, open, item: o })
       if (!open) continue
       // Newest first: the reading on screen is the one a reader looks for.
       for (const r of [...results].reverse()) {
-        rows.push({ key: r.id, depth: 3, label: r.name, icon: ICON[r.kind], tint: TINT[r.kind], expandable: false, open: false, item: r })
+        rows.push({ key: r.id, depth: 3, label: r.name, icon: ICON[r.kind], art: ART[r.kind], tint: TINT[r.kind], expandable: false, open: false, item: r })
       }
     }
   }
-  rows.push({ key: "root", depth: 0, label: data.name, icon: Database, tint: "rgb(var(--p-accent))", expandable: true, open: isOpen("root"), folder: true })
+  rows.push({ key: "root", depth: 0, label: data.name, icon: Database, art: "project", tint: "rgb(var(--p-accent))", expandable: true, open: isOpen("root"), folder: true })
   if (isOpen("root")) {
     objects("f:sites", "Sites", data.sites)
     objects("f:areas", "Areas", data.areas)
@@ -176,7 +182,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
       for (const g of groups) {
         if (!folder(g.id, 2, g.label, g.items.length)) continue
         for (const it of g.items) {
-          rows.push({ key: `l:${it.key}`, depth: 3, label: it.label, icon: g.icon, tint: "var(--node-socket-value)", expandable: false, open: false, layer: it.key })
+          rows.push({ key: `l:${it.key}`, depth: 3, label: it.label, icon: g.icon, art: GROUP_ART[g.id], tint: "var(--node-socket-value)", expandable: false, open: false, layer: it.key })
         }
       }
     }
@@ -329,7 +335,12 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
               ) : (
                 <span className="size-3.5 shrink-0" />
               )}
-              <IconC className={`size-3.5 shrink-0 ${dim ? "opacity-40" : ""}`} weight="fill" style={{ color: row.tint }} />
+              {artSrc(row.art) ? (
+                // Dimmed with its row: a hidden layer's drawing should not be the brightest thing on it.
+                <img src={artSrc(row.art)} alt="" draggable={false} className={`size-4 shrink-0 ${dim ? "opacity-40 grayscale" : ""}`} />
+              ) : (
+                <IconC className={`size-3.5 shrink-0 ${dim ? "opacity-40" : ""}`} weight="fill" style={{ color: row.tint }} />
+              )}
               {item && editing === item.id ? (
                 <input
                   autoFocus

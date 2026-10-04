@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { CaretDown, CaretRight, Stack } from "@phosphor-icons/react"
+import { CaretDown, CaretRight, Stack } from "../../lib/icons"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { runConnection, runSolar, runTerrain, runWind } from "../../lib/analysis"
 import { BASEMAPS, IMAGERY_TILES, type BasemapId } from "../../lib/basemap"

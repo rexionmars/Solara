@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Minus, SignIn, Square, X } from "@phosphor-icons/react"
+import { Minus, SignIn, Square, X } from "../../lib/icons"
 import { Environment, Quit, WindowMinimise, WindowToggleMaximise } from "../../../wailsjs/runtime/runtime"
 import { account } from "../../lib/account"
 import { BRAND_TAGLINE } from "../../lib/brand"

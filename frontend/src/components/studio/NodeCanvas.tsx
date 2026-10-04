@@ -10,7 +10,7 @@ import {
   TreeStructure,
   X,
   type Icon,
-} from "@phosphor-icons/react"
+} from "../../lib/icons"
 import { NODE_W, type Place } from "../../lib/runGraph"
 import { openContextMenu } from "../../lib/ui"
 

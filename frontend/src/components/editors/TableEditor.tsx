@@ -1,4 +1,4 @@
-import { CaretDown, CaretUp, Fan, Mountains, PlugsConnected, Sun, Warning } from "@phosphor-icons/react"
+import { CaretDown, CaretUp, Fan, Mountains, PlugsConnected, Sun, Warning } from "../../lib/icons"
 import { PRODUCT_NAMES, isAreaProduct, project, staleReason, type Product } from "../../lib/project"
 import { areaStates, setAreaState } from "../../lib/screen"
 import { select, selection } from "../../lib/selection"

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CaretDown, Cube, FloppyDisk, FolderOpen, FolderSimple, Plus, Stack } from "@phosphor-icons/react"
+import { CaretDown, Cube, FloppyDisk, FolderOpen, FolderSimple, Plus, Stack } from "../../lib/icons"
 import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
 import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"

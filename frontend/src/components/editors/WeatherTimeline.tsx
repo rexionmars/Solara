@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { CaretLeft, CaretRight, Pause, Play, SkipBack, SkipForward } from "@phosphor-icons/react"
+import { CaretLeft, CaretRight, Pause, Play, SkipBack, SkipForward } from "../../lib/icons"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { useStore } from "../../lib/store"
 import { overlays } from "../../lib/tools"

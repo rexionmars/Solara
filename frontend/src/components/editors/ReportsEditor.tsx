@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { Info, Play, Warning, WarningOctagon, type Icon } from "@phosphor-icons/react"
+import { Info, Play, Warning, WarningOctagon, type Icon } from "../../lib/icons"
 import { clearReports, reports, type ReportLevel } from "../../lib/reports"
 import { areaStates, setAreaState } from "../../lib/screen"
 import { useStore } from "../../lib/store"

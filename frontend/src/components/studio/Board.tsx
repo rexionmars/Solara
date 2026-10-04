@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { ArrowsOut, Info, Minus, Plus } from "@phosphor-icons/react"
+import { ArrowsOut, Info, Minus, Plus } from "../../lib/icons"
 
 /**
  * A reading as cards on a ground, rather than as a page inside a panel.

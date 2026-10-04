@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CaretDown, FloppyDisk, FolderOpen, FolderSimple, Plus, Stack } from "@phosphor-icons/react"
+import { CaretDown, FloppyDisk, FolderOpen, FolderSimple, Plus, ProjectStack } from "../../lib/icons"
 import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
 import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"
@@ -98,7 +98,7 @@ export function ProjectMenu() {
             className="flex h-5 min-w-0 items-center gap-1.5 rounded-sm px-1.5 text-meta transition-colors hover:brightness-125"
             style={{ background: "var(--s-control)" }}
           >
-            <Stack className="size-3 shrink-0 text-muted-foreground" />
+            <ProjectStack className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate text-foreground">{p.data.name}</span>
             {p.dirty && (
               <span
@@ -135,6 +135,7 @@ export function ProjectMenu() {
         <StudioMenuRule />
         <StudioMenuItem
           icon={Plus}
+          art="new"
           label="New project"
           onSelect={() => {
             setOpen(false)
