@@ -32,7 +32,8 @@ import { overlays, type Overlays } from "../../lib/tools"
 import { openContextMenu, renaming, type MenuItem } from "../../lib/ui"
 import { StudioHeaderToggle } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
-import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
+import { availableLayers, mapRegion } from "../../lib/capabilities"
+import { concessions, gridStore, networkRegister, plantRegister, townDemand } from "../../lib/grid"
 import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS, layerNote } from "./MapEditor"
 
 /**
@@ -142,6 +143,9 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   useStore(networkRegister)
   useStore(concessions)
   useStore(townDemand)
+  // The layers listed are the ones this store and this ground can answer for.
+  const storeNow = useStore(gridStore)
+  const ground = useStore(mapRegion)
   const state = useStore(areaStates)[areaId] ?? {}
   const onlyVisible = !!state.onlyVisible
   // Folders are open until closed, except the layer groups, which are closed until opened.
@@ -177,7 +181,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   if (isOpen("root")) {
     objects("f:sites", "Sites", data.sites)
     objects("f:areas", "Areas", data.areas)
-    const groups = LAYER_GROUPS.map((g) => ({ ...g, items: g.items.filter((it) => !onlyVisible || shown[it.key]) })).filter((g) => g.items.length)
+    const groups = LAYER_GROUPS.map((g) => ({ ...g, items: availableLayers(g.items, storeNow, ground).filter((it) => !onlyVisible || shown[it.key]) })).filter((g) => g.items.length)
     if (folder("f:layers", 1, "Map layers", groups.length)) {
       for (const g of groups) {
         if (!folder(g.id, 2, g.label, g.items.length)) continue

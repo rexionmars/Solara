@@ -7,15 +7,44 @@ import { createStore } from "./store"
  * the operators the engine runs.
  */
 
-// Centroid of Brazil's territory, at a zoom that shows all of it.
-export const HOME_VIEW = { center: [-51.9, -14.2] as [number, number], zoom: 3.5 }
+/*
+  The whole world, which is where a map opens the first time and what Home
+  frames when neither the project nor a store says where the work is. It was
+  Brazil, when Brazil was the only ground the application read.
+*/
+export const HOME_VIEW = { center: [0, 15] as [number, number], zoom: 1.4 }
+
+const VIEW_KEY = "terra-energy.mapView.v1"
+
+/** Where the map was last left, so it opens on the ground being worked on. */
+export function restoreView(): { center: [number, number]; zoom: number } {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null") as { lng?: number; lat?: number; zoom?: number } | null
+    if (v && Number.isFinite(v.lng) && Number.isFinite(v.lat) && Number.isFinite(v.zoom) && Math.abs(v.lat!) <= 90) {
+      return { center: [v.lng!, v.lat!], zoom: v.zoom! }
+    }
+  } catch {
+    // An unreadable note of the last view is no view; the world is.
+  }
+  return HOME_VIEW
+}
+
+export function rememberView(lng: number, lat: number, zoom: number): void {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ lng, lat, zoom }))
+  } catch {
+    /* a convenience only */
+  }
+}
 
 export type MapViewState = { lng: number; lat: number; zoom: number; bearing: number; pitch: number }
 
+const opened = restoreView()
+
 export const mapView = createStore<MapViewState>({
-  lng: HOME_VIEW.center[0],
-  lat: HOME_VIEW.center[1],
-  zoom: HOME_VIEW.zoom,
+  lng: opened.center[0],
+  lat: opened.center[1],
+  zoom: opened.zoom,
   bearing: 0,
   pitch: 0,
 })

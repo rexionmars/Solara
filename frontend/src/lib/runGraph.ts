@@ -82,7 +82,7 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col" | "band">> = {
   season: { id: "season", label: "Season", h: 74 },
   turbine: { id: "turbine", label: "Turbine", h: 100 },
   roughness: { id: "roughness", label: "Roughness", h: 100 },
-  store: { id: "store", label: "Grid store", h: 100 },
+  store: { id: "store", label: "Grid store", h: 290 },
   reach: { id: "reach", label: "Reach", h: 74 },
   ceiling: { id: "ceiling", label: "Yield ceiling", h: 74 },
   cell: { id: "cell", label: "Layer cell", h: 74 },
@@ -155,12 +155,29 @@ export function runGraph(product: Product): RunGraph {
   const nodes = overArea ? [at("catalogue", 0), ...run] : run
   const edges = overArea ? [["catalogue", "area"] as const, ...runEdges] : runEdges
 
+  /*
+    THE STORE'S CARD IS ON EVERY BOARD. It is where a store is connected, and
+    it used to exist only on the two products that read one in their run: on
+    a solar or wind board there was nowhere to connect at all, while the map
+    below drew its layers from that same store. Where the run does not take
+    it, it stands in the map's band and feeds the map, which is what reads it
+    there.
+  */
+  const storeOnMap = !inputs.includes("store")
   // The map's own chain, in its own band: catalogue, ground, layer, screen.
-  const mapNodes = [at("catalogue2", 0, 1), at("region", 1, 1), at("layer", 1, 1), at("mapdraw", 2, 1)]
+  const mapNodes = [
+    at("catalogue2", 0, 1),
+    at("region", 1, 1),
+    at("layer", 1, 1),
+    ...(storeOnMap ? [at("store", 1, 1)] : []),
+    at("mapdraw", 2, 1),
+  ]
   const mapEdges = [
     ["catalogue2", "region"] as const,
     ["region", "mapdraw"] as const,
     ["layer", "mapdraw"] as const,
+    // The store feeds the map from wherever its card stands.
+    ["store", "mapdraw"] as const,
   ]
   return { nodes: [...nodes, ...mapNodes], edges: [...edges, ...mapEdges] }
 }

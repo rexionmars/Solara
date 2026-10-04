@@ -193,7 +193,7 @@ function PlaceDialogBody() {
   const [all, setAll] = useState<Boundary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
-  const [busy, setBusy] = useState<number | null>(null)
+  const [busy, setBusy] = useState<number | string | null>(null)
   const close = () => placePrompt.set(false)
 
   useEffect(() => {

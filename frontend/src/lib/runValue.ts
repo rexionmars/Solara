@@ -35,7 +35,7 @@ export function reading(v: RunValue): string {
     case "band":
       return Number.isFinite(v.low) && Number.isFinite(v.high) ? `${num(v.low)}-${num(v.high)} ${v.unit}`.trim() : ""
     case "store":
-      return v.reachable ? "reachable" : "unreachable"
+      return v.reachable ? "connected" : "not connected"
     case "none":
       return ""
   }

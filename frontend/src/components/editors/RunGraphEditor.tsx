@@ -4,7 +4,9 @@ import { lastFailure, running } from "../../lib/analysis"
 import { errorMessage } from "../../lib/errors"
 import { frameItem, framePolygon } from "../../lib/mapEngine"
 import { addArea } from "../../lib/objects"
-import { catalogue, outline, search, type Boundary, type PlaceLevel } from "../../lib/places"
+import { availableLayers, productBlocked, productOffered } from "../../lib/capabilities"
+import { graphCuts, graphLinks, isCut, setCut, setGraphLink, type WireScope } from "../../lib/graphLinks"
+import { catalogueOf, outline, search, type Boundary, type Catalogue, type CatalogueLevel } from "../../lib/places"
 import { note, reports } from "../../lib/reports"
 import { defaults } from "../../lib/defaults"
 import { formatLat, formatLng } from "../../lib/format"
@@ -23,7 +25,7 @@ import {
   type Group,
   type NumberField as FieldDef,
 } from "../../lib/params"
-import { checkGridStore, concessions, dsnSourceLabel, gridStore, loadReach, reachByArea, storeReachable, storeReport, townDemand } from "../../lib/grid"
+import { catalogueSource, checkGridStore, concessions, dsnSourceLabel, gridStore, loadReach, reachByArea, storeReachable, storeReport, townDemand } from "../../lib/grid"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, isAreaProduct, project, type Polygon, type Product } from "../../lib/project"
 import {
   cardValues,
@@ -45,7 +47,8 @@ import { NodeCanvas, type CanvasApi, type CanvasBoard, type CanvasEdge, type Can
 import { StudioHeaderMenu } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
 import { fieldInput } from "../ui/buttons"
-import { btnGhostDense } from "../ui/buttons"
+import { btnGhostDense, btnIcon } from "../ui/buttons"
+import { StoreConnectionForm, StoreHoldings } from "../energy/StoreConnection"
 import { NumberField, Select } from "../ui/Fields"
 import { ConsoleBody } from "./ConsoleBody"
 
@@ -183,32 +186,8 @@ function useRemoved(product: Product) {
 */
 const SOURCES: readonly string[] = ["catalogue", "catalogue2"]
 const GROUNDS: readonly string[] = ["area", "region"]
-const LINKS_KEY = "terra-energy.graph.links"
-const DEFAULT_LINKS = ["catalogue>area", "catalogue2>region"]
-
-function readLinks(): string[] {
-  try {
-    const kept = JSON.parse(localStorage.getItem(LINKS_KEY) ?? "null")
-    return Array.isArray(kept) ? kept : DEFAULT_LINKS
-  } catch {
-    return DEFAULT_LINKS
-  }
-}
-
-function useLinks() {
-  const [links, setLinks] = useState(readLinks)
-  const set = (link: string, on: boolean) =>
-    setLinks((prev) => {
-      const next = on ? (prev.includes(link) ? prev : [...prev, link]) : prev.filter((l) => l !== link)
-      try {
-        localStorage.setItem(LINKS_KEY, JSON.stringify(next))
-      } catch {
-        /* a convenience: the wires are as the board first drew them next time */
-      }
-      return next
-    })
-  return [links, set] as const
-}
+/** The cards whose wires are the reader's: the catalogues, and the grid store (graphLinks.ts). */
+const LINKED: readonly string[] = [...SOURCES, "store"]
 
 // ---- Card parts --------------------------------------------------------------------
 
@@ -253,44 +232,102 @@ function CatalogueCard({
   to: readonly string[]
   onRegion: (picked: { name: string; polygon: Polygon }) => void
 }) {
-  const [level, setLevel] = useState<PlaceLevel>("estados")
-  const [all, setAll] = useState<Boundary[] | null>(null)
+  // The store's own boundaries when it carries them, IBGE's for Brazil, the
+  // world's otherwise; asked again when another store is connected.
+  const from = catalogueSource(useStore(gridStore))
+  const fromKey = typeof from === "string" ? from : `store:${from.store}`
+  const [cat, setCat] = useState<Catalogue | null>(null)
+  const [level, setLevel] = useState<string | null>(null)
   const [state, setState] = useState<Boundary | null>(null)
+  // Under a catalogue that is read a country at a time: the chosen country's
+  // levels, and each level's boundaries once it has been asked for.
+  const [sub, setSub] = useState<{ levels: CatalogueLevel[]; places: Record<string, Boundary[]> } | null>(null)
   const [query, setQuery] = useState("")
-  const [taking, setTaking] = useState<number | null>(null)
+  const [taking, setTaking] = useState<number | string | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
 
   useEffect(() => {
     let live = true
-    catalogue().then(
-      (rows) => live && setAll(rows),
+    setCat(null)
+    setState(null)
+    setSub(null)
+    setLevel(null)
+    setFailed(null)
+    catalogueOf(from).then(
+      (c) => live && setCat(c),
       (e) => live && setFailed(errorMessage(e))
     )
     return () => {
       live = false
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromKey])
 
-  const rows = !all
-    ? null
-    : level === "estados"
-      ? all.filter((p) => p.level === "estados")
-      : all.filter((p) => p.level === "municipios" && (!state || p.uf === state.uf))
+  const lazy = cat?.expand
+  const levels = [...(cat?.levels ?? []), ...(lazy && sub ? sub.levels : [])]
+  const at = level ?? levels[0]?.id ?? ""
+  const top = cat?.levels[0]?.id
+  // A level under a chosen country is read the first time its tab is opened.
+  const wanted = lazy && state && at !== top && sub && !sub.places[at] ? at : null
+  useEffect(() => {
+    if (!wanted || !lazy || !state) return
+    let live = true
+    lazy.places(state, wanted).then(
+      (places) => live && setSub((cur) => (cur ? { ...cur, places: { ...cur.places, [wanted]: places } } : cur)),
+      (e) => live && setFailed(errorMessage(e))
+    )
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted, state?.key])
+
+  const all = cat?.places ?? null
+  // The boundary chosen one level up narrows this level's list; chosen any
+  // further up, or not at all, the whole level is listed.
+  const above = levels[levels.findIndex((l) => l.id === at) - 1]?.id
+  const rows =
+    lazy && at !== top
+      ? (sub?.places[at] ?? null)
+      : !all
+        ? null
+        : all.filter((p) => p.level === at && (!state || state.level !== above || p.group === state.key))
+  const plural = levels.find((l) => l.id === at)?.plural ?? "boundaries"
 
   const shown = !rows ? null : query.trim() ? search(rows, query, 40) : rows
+
+  /** Choose a country of a catalogue read a country at a time: its levels become the tabs. */
+  const open = async (place: Boundary) => {
+    if (!lazy) return
+    setTaking(place.id)
+    setFailed(null)
+    try {
+      const found = await lazy.levels(place)
+      setState(place)
+      setSub({ levels: found, places: {} })
+      setQuery("")
+      // Its first subdivision where it has one, which is what a reader came for.
+      setLevel((found.find((l) => l.id !== "0") ?? found[0])?.id ?? null)
+    } catch (e) {
+      setFailed(errorMessage(e))
+    } finally {
+      setTaking(null)
+    }
+  }
 
   const take = async (place: Boundary) => {
     setTaking(place.id)
     setFailed(null)
     try {
       const { polygon, parts } = await outline(place)
-      const name = place.level === "estados" ? place.name : `${place.name} (${place.uf})`
+      const name = place.uf && place.level !== levels[0]?.id ? `${place.name} (${place.uf})` : place.name
       if (parts > 1) {
         // One ring, so the islands and exclaves of this boundary are not in
         // it. Said here rather than left for the reading to be quietly short.
         note(`${place.name} is published in ${parts} parts; the largest is the ground taken, the rest are not in it.`)
       }
-      if (place.level === "estados") setState(place)
+      // Under a country-at-a-time catalogue the country stays the one chosen.
+      if (!lazy && place.level !== levels[levels.length - 1]?.id) setState(place)
       if (to.includes("region")) {
         onRegion({ name, polygon })
         framePolygon(polygon)
@@ -309,12 +346,7 @@ function CatalogueCard({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <div className="flex gap-1">
-        {(
-          [
-            ["estados", "State"],
-            ["municipios", "Municipality"],
-          ] as const
-        ).map(([id, label]) => (
+        {levels.map(({ id, label }) => (
           <button
             key={id}
             type="button"
@@ -323,7 +355,7 @@ function CatalogueCard({
               setQuery("")
             }}
             className={`h-5 rounded-[3px] px-1.5 text-micro ${
-              level === id ? "bg-selected text-foreground" : "text-muted-foreground hover:bg-hover"
+              at === id ? "bg-selected text-foreground" : "text-muted-foreground hover:bg-hover"
             }`}
           >
             {label}
@@ -334,26 +366,25 @@ function CatalogueCard({
       <input
         className={`${fieldInput} !h-6 !text-meta`}
         placeholder={
-          !all
+          !all || !rows
             ? "Reading the catalogue…"
-            : level === "estados"
-              ? "Search states"
-              : state
-                ? `Search in ${state.uf}`
-                : "Search municipalities"
+            : state && (lazy ? at !== top : state.level === above)
+              ? `Search in ${lazy ? state.name : state.uf || state.name}`
+              : `Search ${plural}`
         }
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         disabled={!all}
       />
 
-      <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
+      {/* A fixed window on the list: a card as tall as a country's provinces pushes the rest of the board off the screen. */}
+      <div className="panel-scroll max-h-[220px] min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {shown?.map((p) => (
           <button
             key={`${p.level}-${p.id}`}
             type="button"
-            disabled={taking !== null || !to.length}
-            onClick={() => void take(p)}
+            disabled={taking !== null || (!to.length && !(lazy && p.level === top))}
+            onClick={() => void (lazy && p.level === top ? open(p) : take(p))}
             className="flex w-full items-baseline justify-between gap-2 rounded-[3px] px-1 py-0.5 text-left hover:bg-hover disabled:opacity-40"
           >
             <span className="truncate text-meta text-foreground">{p.name}</span>
@@ -410,7 +441,11 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const stored = useStore(areaStates)[areaId]?.product as Product | undefined
   const site = activeSite()
   const area = activeArea()
-  const product: Product = stored && PRODUCTS.includes(stored) ? stored : area ? "terrain" : "solar"
+  // Only what the connected store could answer: a product it never could is
+  // not on the list, and a stored choice of one falls back to what is.
+  const storeNow = useStore(gridStore)
+  const offered = PRODUCTS.filter((p) => productOffered(p, storeNow))
+  const product: Product = stored && offered.includes(stored) ? stored : area ? "terrain" : "solar"
   const source = isAreaProduct(product) ? area : site
   const map = useStore(mapGraph)
   const shown = useStore(overlays)
@@ -496,7 +531,10 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
 
   const [places, move, resetPlaces] = useKeptPlaces(product)
   const [gone, setRemoved] = useRemoved(product)
-  const [links, setLink] = useLinks()
+  const links = useStore(graphLinks)
+  const setLink = setGraphLink
+  // The request's own wires the reader has cut (graphLinks.ts): every wire is cuttable.
+  const cuts = useStore(graphCuts)
   // The header's menus act on the board, which holds its own selection.
   const board = useRef<CanvasApi | null>(null)
   const [heights, setHeights] = useState<Record<string, number>>({})
@@ -510,20 +548,31 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   // The request's own wires, and the reader's in place of the catalogue's two.
   const made = links.map((l) => l.split(">") as [RunNodeId, RunNodeId])
   // Only the wires with a card at both ends: a card off the board sends nothing along one.
-  const wired = [...graph.edges.filter(([from]) => !SOURCES.includes(from)), ...made].filter(([from, to]) => onBoard(from) && onBoard(to))
+  // A store's wire is drawn only onto a card that reads the store on this board.
+  const takesStore = (to: RunNodeId) => graph.edges.some(([f, t]) => f === "store" && t === to)
+  const scopeOf = (to: RunNodeId): WireScope => (to === "mapdraw" || graph.nodes.find((n) => n.id === to)?.band ? "map" : product)
+  const wired = [...graph.edges.filter(([from, to]) => !LINKED.includes(from) && !isCut(from, to, scopeOf(to), cuts)), ...made].filter(
+    ([from, to]) => onBoard(from) && onBoard(to) && (from !== "store" || takesStore(to))
+  )
   /** Where a catalogue's wires land, among the cards on this board. */
   const landsOn = (id: RunNodeId) => wired.filter(([from]) => from === id).map(([, to]) => to)
   const toRegion = (p: { name: string; polygon: Polygon }) => setMapGraph({ region: { kind: "place", name: p.name, polygon: p.polygon } })
   const fallback = defaultPlaces(graph, heights)
   const values = cardValues(
     {
-      ...currentInputs(d, product, site, area, storeReachable(store)),
+      // Connected is not enough: the wire is good only if this store can answer this product.
+      ...currentInputs(d, product, site, area, storeReachable(store) && !productBlocked(product, store)),
       // The map band is on every board, so its cards are in every table.
       region: regionArea ? { label: regionArea.name, at: JSON.stringify(regionArea.polygon.coordinates) } : null,
       mapLayer: layerMeta(map.layer).label,
     },
     engine
   )
+  // The catalogue cards say where they read: the store's own boundaries, or IBGE's.
+  const reads = catalogueSource(store)
+  const catalogueLabel = reads === "ibge" ? "IBGE" : reads === "world" ? "World" : "Store"
+  values.catalogue = { kind: "choice", label: catalogueLabel }
+  values.catalogue2 = { kind: "choice", label: catalogueLabel }
   const last = lastRun(d, product, source, failure)
   const lastValues = last ? cardValues(last.inputs, engine) : null
   const pct = run?.progress === null || !run ? null : Math.round(Math.max(0, Math.min(100, run.progress)))
@@ -634,7 +683,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
           value={map.layer}
           ariaLabel="Layer"
           onChange={(v) => setMapGraph({ layer: v as MapLayerKey })}
-          options={MAP_LAYERS.map((l) => ({ value: l.key, label: l.label }))}
+          options={availableLayers(MAP_LAYERS, store).map((l) => ({ value: l.key, label: l.label }))}
         />
         <Muted>{layerMeta(map.layer).what}</Muted>
       </>
@@ -671,7 +720,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
           value={product}
           ariaLabel="Product"
           onChange={(v) => setAreaState(areaId, { product: v as Product })}
-          options={PRODUCTS.map((p) => ({ value: p, label: PRODUCT_NAMES[p] }))}
+          options={offered.map((p) => ({ value: p, label: PRODUCT_NAMES[p] }))}
         />
         {/* What the chosen product is, under the control that chooses it --
             the layer card's shape, and the only place on the board that has to
@@ -687,35 +736,45 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
             className={`size-1.5 shrink-0 rounded-full ${store.kind === "checking" ? "animate-pulse bg-accent" : report?.reachable ? "bg-success" : "bg-muted-foreground/50"}`}
           />
           <span className="telemetry text-meta text-foreground">
-            {store.kind === "checking" ? "checking" : report ? (report.reachable ? "reachable" : "unreachable") : store.kind === "failed" ? "not checked" : "unknown"}
+            {store.kind === "checking"
+              ? "checking"
+              : report
+                ? report.reachable
+                  ? "connected"
+                  : report.dsn_source === "none"
+                    ? "not connected"
+                    : report.coverage?.store?.profile === "none"
+                      ? "not a store"
+                      : "unreachable"
+                : store.kind === "failed"
+                  ? "not checked"
+                  : "unknown"}
           </span>
-          {report && <span className="ml-auto truncate text-micro text-muted-foreground">{dsnSourceLabel(report.dsn_source)}</span>}
+          {report?.dsn_source === "TERRA_BR_DSN" && <span className="truncate text-micro text-muted-foreground">{dsnSourceLabel(report.dsn_source)}</span>}
+          <button
+            type="button"
+            className={`${btnIcon} ml-auto !size-5`}
+            disabled={store.kind === "checking"}
+            onClick={() => void checkGridStore(true)}
+            title="Ask the connected store again"
+            aria-label="Check the grid store again"
+          >
+            <ArrowsClockwise className="size-3" />
+          </button>
         </div>
-        {report && (
+        {report?.dsn && (
           <span className="telemetry selectable truncate text-micro text-muted-foreground" title={report.dsn}>
             {report.dsn}
           </span>
         )}
-        {(report?.unreachable || store.kind === "failed") && (
+        {((report?.unreachable && report.dsn_source !== "none") || store.kind === "failed") && (
           <p className="line-clamp-3 text-micro leading-snug text-muted-foreground" title={report?.unreachable ?? (store.kind === "failed" ? store.message : "")}>
             {report?.unreachable ?? (store.kind === "failed" ? store.message : "")}
           </p>
         )}
-        {report?.reachable && report.coverage && (
-          <span className="text-micro text-muted-foreground">
-            {report.coverage.plants.registered.toLocaleString()} plants · {report.coverage.network.lines_in_service.toLocaleString()} lines
-          </span>
-        )}
-        <button
-          type="button"
-          className={`${btnGhostDense} !h-6 self-start`}
-          disabled={store.kind === "checking"}
-          onClick={() => void checkGridStore(true)}
-          title="Ask the grid store again; Settings › Grid store chooses another"
-        >
-          <ArrowsClockwise className="size-3" />
-          Check again
-        </button>
+        <StoreHoldings dense />
+        {/* The connection itself: nothing reaches the run, or the map, that did not come through here. */}
+        <StoreConnectionForm dense />
       </>
     ),
     reach: <Param group="connection" field="searchRadiusKm" label="Radius" />,
@@ -824,6 +883,8 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
       a layer with no register behind it.
     */
     if (isMapNode(from)) return "read"
+    // The store's card feeding the map is a map wire like the others.
+    if (from === "store" && graph.nodes.find((n) => n.id === "store")?.band) return "read"
     if (busy) return "reading"
     if (lastValues && signature(lastValues[from]) === signature(value)) return last!.ok ? "read" : "failed"
     return "pending"
@@ -843,12 +904,14 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
           const st = state(from)
           // No card, no wire: the row says what the input IS, since nothing else on the board does now.
           const off = gone.has(from)
+          // A wire the reader cut: the card is there and sends nothing here.
+          const cut = !off && !wired.some(([f, t]) => f === from && t === spec.id)
           return {
             id: from,
             label: graph.nodes.find((n) => n.id === from)?.label ?? from,
             colour: socketOf(values[from]),
-            note: off ? reading(values[from]) || EDGE_NOTE.missing : EDGE_NOTE[st],
-            noteColour: off ? undefined : NOTE_COLOUR[st],
+            note: off ? reading(values[from]) || EDGE_NOTE.missing : cut ? "not wired" : EDGE_NOTE[st],
+            noteColour: off || cut ? undefined : NOTE_COLOUR[st],
           }
         }),
       }
@@ -865,7 +928,8 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
       title: spec.label,
       head: headOf(value),
       output: { id: "out", label: reading(value) || "none", colour: socketOf(value) },
-      connectable: SOURCES.includes(spec.id),
+      // Every card's socket pulls: a wire that was cut is put back by pulling it again.
+      connectable: true,
       inputs: incoming.length
         ? incoming.map(([from]) => ({
             id: from,
@@ -884,7 +948,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     socket: from,
     colour: socketOf(values[from]),
     state: state(from),
-    removable: SOURCES.includes(from),
+    removable: true,
   }))
 
   const labelOf = (id: RunNodeId) => graph.nodes.find((n) => n.id === id)?.label ?? id
@@ -1038,7 +1102,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
             <StudioHeaderMenu
               label="View"
               items={() => [
-                ...PRODUCTS.map((p) => ({
+                ...offered.map((p) => ({
                   type: "action" as const,
                   label: PRODUCT_NAMES[p],
                   icon: PRODUCT_ICON[p],
@@ -1106,8 +1170,22 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
         onConnect={(from, to) => {
           if (SOURCES.includes(from) && GROUNDS.includes(to)) setLink(`${from}>${to}`, true)
           else if (SOURCES.includes(from)) note("A catalogue supplies ground: its wire lands on an Area or a Region card.")
+          // One of the request's own wires, cut before and pulled back onto the card it belongs on.
+          else if (!LINKED.includes(from) && graph.edges.some(([f, t]) => f === from && t === to)) setCut(from, to, scopeOf(to as RunNodeId), false)
+          else if (!LINKED.includes(from)) {
+            const home = graph.edges.find(([f]) => f === from)?.[1]
+            note(home ? `That card's value goes to the ${labelOf(home)} card: its wire lands there.` : "That card sends nothing along a wire.")
+          }
+          else if (from === "store" && takesStore(to as RunNodeId)) setLink(`store>${to}`, true)
+          else if (from === "store") {
+            note(
+              takesStore("run")
+                ? "The store feeds the Map and this product's Run: its wire lands on one of those two cards."
+                : "The store feeds the Map. This product's run does not read a store, so its Run card takes no wire from it."
+            )
+          }
         }}
-        onDisconnect={(from, to) => setLink(`${from}>${to}`, false)}
+        onDisconnect={(from, to) => (LINKED.includes(from) ? setLink(`${from}>${to}`, false) : setCut(from, to, scopeOf(to as RunNodeId), true))}
         sections={sections}
         tabs={tabs}
       />

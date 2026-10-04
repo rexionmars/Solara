@@ -26,6 +26,7 @@ import {
   type Settings,
   type SiteObject,
 } from "./project"
+import { wiredSettings } from "./graphLinks"
 import { fail, info, note } from "./reports"
 import { showResult } from "./screen"
 import { createStore } from "./store"
@@ -146,7 +147,8 @@ async function run(
 const siteLabel = (s: SiteObject) => `at ${s.name} (${formatLat(s.lat, 4)} ${formatLng(s.lon, 4)})`
 
 export function runSolar(site: SiteObject, replace?: string): Promise<string | null> {
-  const p = project.get().data.settings.solar
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
+  const p = wiredSettings("solar", project.get().data.settings.solar)
   const at = { lon: site.lon, lat: site.lat }
   return run(
     "solar",
@@ -176,7 +178,8 @@ export function runSolar(site: SiteObject, replace?: string): Promise<string | n
 }
 
 export async function runWind(site: SiteObject, replace?: string): Promise<string | null> {
-  const p = project.get().data.settings.wind
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
+  const p = wiredSettings("wind", project.get().data.settings.wind)
   const problem = windSettingsError(p)
   if (problem) {
     fail(`Wind screening not started: ${problem}.`)
@@ -215,7 +218,8 @@ export async function runWind(site: SiteObject, replace?: string): Promise<strin
 }
 
 export function runTerrain(area: AreaObject, replace?: string): Promise<string | null> {
-  const p = project.get().data.settings.terrain
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
+  const p = wiredSettings("terrain", project.get().data.settings.terrain)
   const polygon = area.polygon
   return run(
     "terrain",
@@ -242,7 +246,8 @@ export function runTerrain(area: AreaObject, replace?: string): Promise<string |
 }
 
 export function runConnection(area: AreaObject, replace?: string): Promise<string | null> {
-  const p = project.get().data.settings.connection
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
+  const p = wiredSettings("connection", project.get().data.settings.connection)
   const polygon = area.polygon
   return run(
     "connection",
@@ -280,7 +285,8 @@ export function runConnection(area: AreaObject, replace?: string): Promise<strin
  * the figure on screen is never audited against a number nobody chose.
  */
 export function runDemand(area: AreaObject, replace?: string): Promise<string | null> {
-  const p = project.get().data.settings.demand
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
+  const p = wiredSettings("demand", project.get().data.settings.demand)
   const polygon = area.polygon
   return run(
     "demand",

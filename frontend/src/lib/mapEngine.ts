@@ -15,15 +15,19 @@ import {
   loadNetwork,
   loadPlants,
   concessions,
+  gridStore,
   loadConcessions,
   loadTownDemand,
   networkRegister,
   plantRegister,
+  storeInfo,
   townDemand,
   type ConcessionLayer,
   type TownDemandLayer,
 } from "./grid"
-import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
+import { layerAvailable } from "./capabilities"
+import { graphCuts, graphLinks, mapScoped, storeFeeds } from "./graphLinks"
+import { HOME_VIEW, rememberView, restoreView, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
 import {
   RADAR_MAXZOOM,
   SATELLITE,
@@ -145,7 +149,7 @@ function create(container: HTMLDivElement): void {
   const m = new MapLibreMap({
     container,
     style: BASEMAP_STYLE,
-    ...HOME_VIEW,
+    ...restoreView(),
     // The credit is drawn at the editor's foot instead, as TERRA draws it: a
     // licensing obligation rather than map chrome, with links that open.
     attributionControl: false,
@@ -167,6 +171,7 @@ function create(container: HTMLDivElement): void {
   onMove()
   m.on("moveend", () => {
     const c = m.getCenter()
+    rememberView(c.lng, c.lat, m.getZoom())
     // The wind is read over a window of the model; a map moved out of it asks for the next.
     if (overlays.get().weatherWind) {
       const state = windField.get().state
@@ -192,6 +197,9 @@ function create(container: HTMLDivElement): void {
     // once, so without a subscription the layer only appears when something
     // unrelated happens to re-sync the map.
     concessions.subscribe(syncGrid)
+    gridStore.subscribe(syncGrid)
+    graphLinks.subscribe(syncGrid)
+    graphCuts.subscribe(syncGrid)
     townDemand.subscribe(syncGrid)
     // The map graph is what says which layer is scoped to what; a change to it
     // is a change to what is drawn.
@@ -460,6 +468,8 @@ function addGridLayers(m: MapLibreMap): void {
  * that quietly draws nothing.
  */
 function scopeRegion(): Polygon | null {
+  // A Region or Layer card cut from the Map scopes nothing.
+  if (!mapScoped()) return null
   return resolveRegion(mapGraph.get().region, project.get().data.areas)?.polygon ?? null
 }
 
@@ -468,7 +478,22 @@ function scopeRegion(): Polygon | null {
 function syncGrid(): void {
   const m = map
   if (!m || !m.getLayer(LINE_LAYER)) return
-  const o = overlays.get()
+  const asked = overlays.get()
+  // A layer the connected store cannot answer for is not asked of it, even if
+  // it was left switched on over a store that could: it is off every menu
+  // there, and asking would only fail where nobody is looking.
+  // And none of the store's layers is drawn while its card is cut from the
+  // Map's in the run graph: the wire is the reader's, and it does what it shows.
+  const fed = storeFeeds("mapdraw")
+  const o = {
+    ...asked,
+    gridConcessions: fed && asked.gridConcessions && layerAvailable("gridConcessions"),
+    gridDemand: fed && asked.gridDemand && layerAvailable("gridDemand"),
+    gridMetered: fed && asked.gridMetered && layerAvailable("gridMetered"),
+    gridRegistered: fed && asked.gridRegistered,
+    gridLines: fed && asked.gridLines,
+    gridBuses: fed && asked.gridBuses,
+  }
   const show = (id: string, on: boolean) => m.setLayoutProperty(id, "visibility", on ? "visible" : "none")
   show(CONCESSION_FILL, o.gridConcessions)
   show(CONCESSION_LINE, o.gridConcessions)
@@ -483,6 +508,10 @@ function syncGrid(): void {
     reachSource.setData(clipFeatures(reach.data.geojson, region))
     loadedReach = reach.data
     loadedReachRegion = region
+  }
+  if (reach.kind !== "ready" && loadedReach) {
+    reachSource?.setData(empty())
+    loadedReach = null
   }
 
   show(TOWN_FILL, o.gridDemand)
@@ -1227,7 +1256,11 @@ function frame(points: number[][]): boolean {
   return withMap((m) => {
     const b = bounds(points)
     if (!b) {
-      m.flyTo({ ...HOME_VIEW, bearing: 0, pitch: 0 })
+      // Nothing of the project to frame: the ground the connected store
+      // holds, and with no store the world.
+      const held = storeInfo()?.extent
+      if (held?.length === 4) m.fitBounds([held[0], held[1], held[2], held[3]], { padding: 40, duration: 700 })
+      else m.flyTo({ ...HOME_VIEW, bearing: 0, pitch: 0 })
       return
     }
     if (b[0] === b[2] && b[1] === b[3]) {
@@ -1238,7 +1271,7 @@ function frame(points: number[][]): boolean {
   })
 }
 
-/** Frame every visible object, or the whole of Brazil when there is none (Home). */
+/** Frame every visible object, or what the store holds when there is none (Home). */
 export function frameAll(): boolean {
   const d = project.get().data
   const points = [

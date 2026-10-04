@@ -1,8 +1,11 @@
 import type { FeatureCollection } from "geojson"
+import { StoreBoundary, StoreBoundaryList, WorldBoundary, WorldCountries, WorldLevels, WorldPlaces } from "../../wailsjs/go/main/App"
 import type { Polygon } from "./project"
 
 /**
- * Brazil's administrative boundaries, as areas a product can be read over.
+ * Administrative boundaries, as areas a product can be read over: Brazil's
+ * from IBGE, or any country's from a store prepared to the contract, which
+ * carries its own (solara.boundary).
  *
  * WHY A CATALOGUE AND NOT A DRAWING. A drawn polygon is ground nobody
  * published: it crosses the boundary of whatever register answers the
@@ -38,14 +41,46 @@ const GEOJSON = "application/vnd.geo+json"
 
 export type PlaceLevel = "estados" | "municipios"
 
-/** One entry of the catalogue: what to show, and what to ask the mesh for. */
+/** One entry of the catalogue: what to show, and what to ask the source for its outline. */
 export type Boundary = {
-  /** IBGE's own code, which is what the malhas service is keyed on. */
-  id: number
+  /** IBGE's own code, which the malhas service is keyed on; or the store's id for the boundary. */
+  id: number | string
   name: string
-  level: PlaceLevel
-  /** The state a municipality is in; the state's own initials for a state. */
+  /** "estados" or "municipios" from IBGE; the level's number, as text, from a store. */
+  level: string
+  /** What is written beside the name: the state's initials from IBGE, the parent's name from a store. */
   uf: string
+  /** What a boundary one level down names as its `group`. */
+  key: string
+  /** The `key` of the boundary this one is inside, or "" at the top level. */
+  group: string
+  source: "ibge" | "store" | "world"
+  /** The country a boundary of the world catalogue belongs to, as ISO 3166-1 alpha-3. */
+  iso?: string
+}
+
+/** Which catalogue to read: IBGE's, the world's, or the boundaries of the store connected at this address. */
+export type CatalogueFrom = "ibge" | "world" | { store: string }
+
+/** A level of a catalogue, in the order they nest: the first is the widest ground. */
+export type CatalogueLevel = { id: string; label: string; plural: string }
+
+/** Everything a catalogue card needs: where it reads, its levels, and every entry of them. */
+export type Catalogue = {
+  source: "ibge" | "store" | "world"
+  label: string
+  levels: CatalogueLevel[]
+  places: Boundary[]
+  /**
+   * For a catalogue too large to list whole: the levels and the boundaries
+   * under one top-level entry, read when that entry is chosen. The world has
+   * 230 countries and no reason to read the subdivisions of any but the one
+   * being looked at.
+   */
+  expand?: {
+    levels(top: Boundary): Promise<CatalogueLevel[]>
+    places(top: Boundary, level: string): Promise<Boundary[]>
+  }
 }
 
 async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -71,13 +106,11 @@ export function catalogue(): Promise<Boundary[]> {
     ),
   ])
     .then(([states, towns]) => [
-      ...states.map((s): Boundary => ({ id: s.id, name: s.nome, level: "estados", uf: s.sigla })),
-      ...towns.map((t): Boundary => ({
-        id: t.id,
-        name: t.nome,
-        level: "municipios",
-        uf: t.microrregiao?.mesorregiao?.UF?.sigla ?? "",
-      })),
+      ...states.map((s): Boundary => ({ id: s.id, name: s.nome, level: "estados", uf: s.sigla, key: s.sigla, group: "", source: "ibge" })),
+      ...towns.map((t): Boundary => {
+        const uf = t.microrregiao?.mesorregiao?.UF?.sigla ?? ""
+        return { id: t.id, name: t.nome, level: "municipios", uf, key: String(t.id), group: uf, source: "ibge" }
+      }),
     ])
     .catch((e) => {
       // Not held: a failed catalogue must be asked for again rather than
@@ -86,6 +119,144 @@ export function catalogue(): Promise<Boundary[]> {
       throw e
     })
   return catalogueOnce
+}
+
+const IBGE_LEVELS: CatalogueLevel[] = [
+  { id: "estados", label: "State", plural: "states" },
+  { id: "municipios", label: "Municipality", plural: "municipalities" },
+]
+
+/*
+  The catalogue of a store prepared to the contract, kept per store: another
+  store connected is another list, and the one before it must not answer for it.
+*/
+let storeOnce: { key: string; list: Promise<Catalogue> } | null = null
+
+/** A level's name as the word a search field uses: "Province" to "provinces". */
+const plural = (name: string) => {
+  const n = name.toLowerCase()
+  return n.endsWith("y") ? `${n.slice(0, -1)}ies` : `${n}s`
+}
+
+function storeCatalogue(key: string): Promise<Catalogue> {
+  if (storeOnce?.key === key) return storeOnce.list
+  const list = StoreBoundaryList()
+    .then(
+      (held): Catalogue => ({
+        source: "store",
+        label: "Store",
+        levels: held.levels.map((l) => ({ id: String(l.level), label: l.name, plural: plural(l.name) })),
+        places: held.places.map((p) => ({
+          id: p.id,
+          name: p.name,
+          level: String(p.level),
+          uf: p.parent_name ?? "",
+          key: p.id,
+          group: p.parent_id ?? "",
+          source: "store",
+        })),
+      })
+    )
+    .catch((e) => {
+      storeOnce = null
+      throw e
+    })
+  storeOnce = { key, list }
+  return list
+}
+
+/*
+  The world's catalogue: the countries at once, and a country's levels and
+  boundaries when it is chosen. Held as promises for the session, like IBGE's;
+  the sidecar keeps the files themselves on disk between sessions.
+*/
+let worldOnce: Promise<Catalogue> | null = null
+const worldLevels = new Map<string, Promise<CatalogueLevel[]>>()
+const worldPlaces = new Map<string, Promise<Boundary[]>>()
+
+function forgetOnFailure<K, V>(held: Map<K, Promise<V>>, key: K, made: Promise<V>): Promise<V> {
+  held.set(key, made)
+  made.catch(() => held.delete(key))
+  return made
+}
+
+function worldCatalogue(): Promise<Catalogue> {
+  worldOnce ??= WorldCountries()
+    .then(
+      (held): Catalogue => ({
+        source: "world",
+        label: "World",
+        levels: [{ id: "country", label: "Country", plural: "countries" }],
+        places: held.countries.map((c) => ({
+          id: c.iso3,
+          name: c.name,
+          level: "country",
+          uf: c.iso3,
+          key: c.iso3,
+          group: "",
+          source: "world",
+          iso: c.iso3,
+        })),
+        expand: {
+          levels: (top) =>
+            worldLevels.get(top.key) ??
+            forgetOnFailure(
+              worldLevels,
+              top.key,
+              WorldLevels(top.key).then((levels) =>
+                levels.map((l) => {
+                  // The source names a level only sometimes; otherwise it is its number.
+                  const label = l.level === 0 ? "Whole country" : l.name || `Level ${l.level}`
+                  return { id: String(l.level), label, plural: l.level === 0 ? "the country" : plural(label) }
+                })
+              )
+            ),
+          places: (top, level) => {
+            const key = `${top.key}/${level}`
+            return (
+              worldPlaces.get(key) ??
+              forgetOnFailure(
+                worldPlaces,
+                key,
+                WorldPlaces(top.key, Number(level)).then((places) =>
+                  places.map((p) => ({
+                    id: p.id,
+                    // Sources write names in capitals as often as not; a list of them shouts.
+                    name: p.name === p.name.toUpperCase() ? titled(p.name) : p.name,
+                    level,
+                    uf: top.key,
+                    key: p.id,
+                    group: top.key,
+                    source: "world" as const,
+                    iso: top.key,
+                  }))
+                )
+              )
+            )
+          },
+        },
+      })
+    )
+    .catch((e) => {
+      worldOnce = null
+      throw e
+    })
+  return worldOnce
+}
+
+const titled = (s: string) => s.toLowerCase().replace(/(^|[\s\-'(])\p{L}/gu, (m) => m.toUpperCase())
+
+/**
+ * The catalogue a card reads: the store's own boundaries when the connected
+ * store carries them, IBGE's for Brazil, the world's otherwise.
+ *
+ * Which of the three is the grid module's to decide (catalogueSource), and is
+ * passed in rather than read here because that module already reads this one.
+ */
+export function catalogueOf(from: CatalogueFrom): Promise<Catalogue> {
+  if (from === "world") return worldCatalogue()
+  if (from !== "ibge") return storeCatalogue(from.store)
+  return catalogue().then((places) => ({ source: "ibge", label: "IBGE", levels: IBGE_LEVELS, places }))
 }
 
 /** Accents off and case folded, so "Sao Goncalo" finds "São Gonçalo". */
@@ -127,12 +298,24 @@ export function search(all: Boundary[], query: string, limit = 12): Boundary[] {
  * reading needs it rather than in passing here.
  */
 export async function outline(place: Boundary, signal?: AbortSignal): Promise<{ polygon: Polygon; parts: number }> {
-  const fc = await read<{ features?: { geometry?: { type: string; coordinates: unknown } }[] }>(
-    `${MALHAS}/${place.level}/${place.id}?formato=${encodeURIComponent(GEOJSON)}&qualidade=maxima`,
-    signal
-  )
-  const geom = fc.features?.[0]?.geometry
-  if (!geom) throw new Error(`IBGE holds no outline for ${place.name}`)
+  let geom: { type: string; coordinates: unknown } | undefined
+  if (place.source === "store") {
+    geom = (await StoreBoundary(String(place.id))).geometry
+  } else if (place.source === "world") {
+    // A country is its own level 0, whose one boundary is the country.
+    const whole = place.level === "country"
+    const level = whole ? 0 : Number(place.level)
+    const id = whole ? (await WorldPlaces(place.iso ?? "", 0))[0]?.id : String(place.id)
+    geom = id === undefined ? undefined : (await WorldBoundary(place.iso ?? "", level, id)).geometry
+  } else {
+    const fc = await read<{ features?: { geometry?: { type: string; coordinates: unknown } }[] }>(
+      `${MALHAS}/${place.level}/${place.id}?formato=${encodeURIComponent(GEOJSON)}&qualidade=maxima`,
+      signal
+    )
+    geom = fc.features?.[0]?.geometry
+  }
+  const from = place.source === "store" ? "The store" : place.source === "world" ? "geoBoundaries" : "IBGE"
+  if (!geom) throw new Error(`${from} holds no outline for ${place.name}`)
 
   if (geom.type === "Polygon") {
     return { polygon: { type: "Polygon", coordinates: geom.coordinates as number[][][] }, parts: 1 }
@@ -150,7 +333,7 @@ export async function outline(place: Boundary, signal?: AbortSignal): Promise<{ 
     }
     return { polygon: { type: "Polygon", coordinates: best }, parts: parts.length }
   }
-  throw new Error(`IBGE returned a ${geom.type} for ${place.name}`)
+  throw new Error(`${from} returned a ${geom.type} for ${place.name}`)
 }
 
 /** Twice the signed area of a ring, in square degrees: enough to rank parts. */

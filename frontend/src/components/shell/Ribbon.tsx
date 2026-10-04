@@ -8,6 +8,7 @@ import { artSrc, operatorArt } from "../../lib/art"
 import { useStore } from "../../lib/store"
 import { activeTool, basemap, overlays, type ToolId } from "../../lib/tools"
 import { coordinatePrompt, ribbonCollapsed, ribbonTab, toggleRibbon, type RibbonTab } from "../../lib/ui"
+import { useProductOffered } from "../../lib/capabilities"
 import { BASEMAP_ITEMS } from "../editors/MapEditor"
 import { StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AppMenu, ProjectMenu } from "./AppMenus"
@@ -238,6 +239,8 @@ function Column({ children }: { children: ReactNode }) {
 }
 
 function Run({ product }: { product: Product }) {
+  // A product the connected store could never answer is not offered.
+  if (!useProductOffered(product)) return null
   return (
     <Command
       icon={editorMeta(product).icon}
