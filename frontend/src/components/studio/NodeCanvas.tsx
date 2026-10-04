@@ -454,6 +454,9 @@ export function NodeCanvas({
     const host = hostRef.current
     if (!host) return
     const onWheel = (e: WheelEvent) => {
+      // A list inside a card that has more than it shows takes the wheel; everywhere else it is the zoom.
+      const list = (e.target as HTMLElement | null)?.closest?.(".panel-scroll")
+      if (list && host.contains(list) && list.scrollHeight > list.clientHeight) return
       e.preventDefault()
       touched.current = true
       const rect = host.getBoundingClientRect()
@@ -876,7 +879,16 @@ export function NodeCanvas({
     >
       <div
         ref={hostRef}
-        onPointerDownCapture={() => setWire(null)}
+        onPointerDownCapture={(e) => {
+          setWire(null)
+          // A press anywhere but in a field leaves the field. A card's fields
+          // keep the keyboard while one is focused, so without this a reader
+          // who had typed in a card could select cards and wires and then find
+          // X and Delete doing nothing, the keys still going to the field.
+          const focused = document.activeElement
+          const fields = "input, textarea, select"
+          if (focused instanceof HTMLElement && focused.matches(fields) && !(e.target as HTMLElement).closest(fields)) focused.blur()
+        }}
         onPointerDown={beginGround}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
