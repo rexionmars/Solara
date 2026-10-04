@@ -30,10 +30,6 @@ say what they were computed from and what they are not: the wind screening is
 gross and unvalidated, a connection reading is not an access opinion, and a
 modelled value is never drawn as a measured one.
 
-It is a sibling of [TERRA](https://github.com/rexionmars/TERRA), the earth
-observation application, and shares its studio, its look and, for the grid,
-its database.
-
 ## The products
 
 | product | read at | what it answers | from |
