@@ -378,6 +378,10 @@ function addGridLayers(m: MapLibreMap): void {
       type: "circle",
       source: GRID_BUSES,
       layout: hidden,
+      // Seen from far off, only the stations of the transmission network: a
+      // country's distribution substations are thousands of dots that close
+      // into one white mass over it. Closer in, every station is drawn.
+      filter: ["step", ["zoom"], [">=", ["coalesce", ["get", "kv"], 0], 200], 6, true],
       paint: {
         "circle-radius": [
           "interpolate",
