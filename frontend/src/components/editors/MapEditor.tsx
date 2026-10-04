@@ -49,14 +49,12 @@ export const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
 /*
   The registers that publish themselves. They are kept apart from the grid
   store's own layers because they fail differently: the store is a database
-  this machine either reaches or does not, and these are four services on the
+  this machine either reaches or does not, and these are two services on the
   internet that can each refuse a single view.
 */
 export const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "nightLights", label: "Nighttime lights, VIIRS" },
   { key: "sigel", label: "Turbines and declared strips, SIGEL" },
-  { key: "indigenousLand", label: "Indigenous land, FUNAI" },
-  { key: "protectedAreas", label: "Protected areas, ICMBio" },
 ]
 
 export const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [

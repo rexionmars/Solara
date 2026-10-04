@@ -34,8 +34,8 @@ they are what the sources say, and a reading that ignores them is wrong.
   a concession area.** It answers where this register holds data, which is
   what decides whether a reading can be asked here. It is not a statement
   about who holds the concession in law.
-- **The published register layers cannot be picked.** SIGEL, FUNAI, ICMBio
-  and the nighttime lights arrive as pictures from their own services, so
+- **The published register layers cannot be picked.** SIGEL and the
+  nighttime lights arrive as pictures from their own services, so
   they say where something is and not what it is.
 
 ---
@@ -58,14 +58,12 @@ In the working tree, not yet committed.
 - **Hillshade** from the global elevation tiles, under everything the map
   draws, so relief is present away from the areas a terrain reading has
   already covered.
-- **Four registers that publish themselves**, each drawn straight from its
+- **Two registers that publish themselves**, each drawn straight from its
   own service and each off until asked for:
   - nighttime lights (NASA GIBS, Black Marble day/night band), as a check on
     where load is that does not come from the consumption record;
   - turbines one by one and the strips already declared of public utility
-    (SIGEL, ANEEL), neither of which the local store holds;
-  - indigenous land (FUNAI) and federal protected areas (ICMBio), which are
-    the ground a project cannot have.
+    (SIGEL, ANEEL), neither of which the local store holds.
 - **The credit at the foot follows what is drawn** — the ground in use and
   every register switched on — and says when the map is stretched past the
   zoom its tiles carry.

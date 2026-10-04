@@ -96,9 +96,6 @@ export type Overlays = {
   nightLights: boolean
   /** ANEEL's own map: turbine by turbine, and the strips already declared of public utility. */
   sigel: boolean
-  /** Ground a project cannot have: indigenous land, and the federal protected areas. */
-  indigenousLand: boolean
-  protectedAreas: boolean
 }
 
 const OVERLAYS_KEY = "terra-energy.overlays.v1"
@@ -130,13 +127,11 @@ function restoreOverlays(): Overlays {
     weatherRadar: false,
     weatherWind: false,
     // Off until asked for, all of them: each is a request to somebody else's
-    // service, and a map that opens by calling five of them is a map that
-    // fails in five ways before it has drawn anything.
+    // service, and a map that opens by calling three of them is a map that
+    // fails in three ways before it has drawn anything.
     hillshade: false,
     nightLights: false,
     sigel: false,
-    indigenousLand: false,
-    protectedAreas: false,
   }
   try {
     return { ...fallback, ...(JSON.parse(localStorage.getItem(OVERLAYS_KEY) ?? "{}") as Partial<Overlays>) }
