@@ -12,4 +12,4 @@ export const BRAND_TAGLINE = "energy engine"
  * release features (FEATURED_STILL in splashBackground.ts) and does not follow
  * whichever still a given launch shows.
  */
-export const RELEASE_NAME = "Windfarm"
+export const RELEASE_NAME = "Ridge"

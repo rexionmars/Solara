@@ -1,8 +1,9 @@
 /**
  * The splash stills: what they are, where they came from, and which one shows.
  *
- * Both come from TERRA's own manifest, where they were introduced in 0.4.0 and
- * later retired from that product; their provenance is carried over unchanged.
+ * Windfarm and Ember come from TERRA's own manifest, where they were introduced
+ * in 0.4.0 and later retired from that product; their provenance is carried
+ * over unchanged. Ridge is this application's own.
  * WebP at 1600 px, which is what the 420x280 splash window needs.
  *
  * index.html paints a still before any bundle loads. Its list of paths is
@@ -28,6 +29,14 @@ export type SplashStill = {
 
 export const SPLASH_STILLS: SplashStill[] = [
   {
+    name: "Ridge",
+    path: "/splash/ridge.webp",
+    subject: "four turbines on a wooded ridge under a storm sky, a house among pines below",
+    source: "https://www.pexels.com/photo/15207536/",
+    photographer: "Francesco Ungaro",
+    since: "0.1.0",
+  },
+  {
     name: "Windfarm",
     path: "/splash/windfarm.webp",
     subject: "three turbines silhouetted against a sunset",
@@ -46,7 +55,7 @@ export const SPLASH_STILLS: SplashStill[] = [
 ]
 
 /** The still this release is named for. Equal to RELEASE_NAME in brand.ts. */
-export const FEATURED_STILL = "Windfarm"
+export const FEATURED_STILL = "Ridge"
 
 /*
   Storage keys. index.html writes the same two keys in its inline script, which
