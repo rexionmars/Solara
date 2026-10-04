@@ -79,7 +79,7 @@ const objectMenu = (): MenuItem[] => [
   op("RERUN"),
 ]
 
-const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "siteLabels", label: "Names" },
   { key: "areas", label: "Areas" },
   { key: "layers", label: "Result layers" },
@@ -87,7 +87,7 @@ const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "statistics", label: "Credit and scale" },
 ]
 
-const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "weatherSatellite", label: "Clouds, GOES-East satellite" },
   { key: "weatherRadar", label: "Rain, radar" },
   { key: "weatherWind", label: "Wind, GFS model" },
@@ -99,7 +99,7 @@ const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
   this machine either reaches or does not, and these are four services on the
   internet that can each refuse a single view.
 */
-const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "nightLights", label: "Nighttime lights, VIIRS" },
   { key: "sigel", label: "Turbines and declared strips, SIGEL" },
   { key: "indigenousLand", label: "Indigenous land, FUNAI" },
@@ -111,7 +111,7 @@ const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [
   { id: "satellite", label: "Imagery, Sentinel-2 cloudless" },
 ]
 
-const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "gridConcessions", label: "Where each register has data" },
   { key: "gridDemand", label: "Consumption by municipality" },
   { key: "gridMetered", label: "Plants in the record" },
