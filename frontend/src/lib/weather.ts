@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { WindField as WindFieldBinding } from "../../wailsjs/go/main/App"
 import type { weather as weatherModels } from "../../wailsjs/go/models"
 import { errorMessage } from "./errors"
+import { mapView } from "./mapState"
 import { createStore, useStore } from "./store"
 
 /**
@@ -367,12 +368,38 @@ export const windField = createStore<{ height: WindHeight; state: WindFieldState
 
 export const fieldOf = (s: WindFieldState): weatherModels.WindField | null => (s.kind === "idle" ? null : s.field)
 
+/*
+  GFS is global; what is asked for is a window of it, sized like the one this
+  was first drawn over. Over South America that window is the original one,
+  so nothing changes there. Anywhere else it is centred on the map, snapped to
+  fifteen degrees so that a small pan asks for the same field again and finds
+  it in the cache.
+*/
+const SOUTH_AMERICA = { west: -95, south: -50, east: -10, north: 15 }
+const WINDOW = { lon: 85, lat: 65 }
+
+/** The window of the model the map is over, or [] for the default, South America. */
+export function windRegion(lng: number, lat: number): number[] {
+  if (lng >= SOUTH_AMERICA.west + 15 && lng <= SOUTH_AMERICA.east - 15 && lat >= SOUTH_AMERICA.south + 10 && lat <= SOUTH_AMERICA.north - 5) return []
+  const snap = (v: number) => Math.round(v / 15) * 15
+  const west = Math.min(Math.max(snap(lng) - WINDOW.lon / 2, -180), 180 - WINDOW.lon)
+  const south = Math.min(Math.max(snap(lat) - WINDOW.lat / 2, -85), 85 - WINDOW.lat)
+  return [west, south, west + WINDOW.lon, south + WINDOW.lat]
+}
+
+/** The window the field on screen was read over, as a key: null before any was. */
+let windRead: string | null = null
+export const windRegionRead = () => windRead
+
 export async function refreshWind(): Promise<void> {
   const height = windField.get().height
+  const view = mapView.get()
+  const region = windRegion(view.lng, view.lat)
+  windRead = region.join(",")
   const prior = fieldOf(windField.get().state)
   windField.set((w) => ({ ...w, state: { kind: "loading", field: prior } }))
   try {
-    const field = await WindFieldBinding(height)
+    const field = await WindFieldBinding(height, region)
     // A height switched while this was in flight has its own refresh coming.
     if (windField.get().height !== height) return
     windField.set((w) => ({ ...w, state: { kind: "ready", field, checked: Date.now() } }))

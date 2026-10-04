@@ -23,14 +23,14 @@ func windCacheDir() string {
 	return filepath.Join(dir, "terra-energy-engine", "wind")
 }
 
-// WindField reads the GFS wind over South America at heightM (10 or 100) for
-// the hour now.
-func (a *App) WindField(heightM int) (*weather.WindField, error) {
+// WindField reads the GFS wind at heightM (10 or 100) for the hour now, over
+// region (west, south, east, north) or, with none, over South America.
+func (a *App) WindField(heightM int, region []float64) (*weather.WindField, error) {
 	r, err := a.analysisRunner()
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, windFieldTimeout)
 	defer cancel()
-	return weather.FetchWindField(ctx, r, heightM, windCacheDir())
+	return weather.FetchWindField(ctx, r, heightM, region, windCacheDir())
 }

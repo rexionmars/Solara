@@ -33,6 +33,8 @@ import {
   refreshRadar,
   refreshSatellite,
   refreshWind,
+  windRegion,
+  windRegionRead,
   weather,
   windAt,
   windDirection,
@@ -163,6 +165,14 @@ function create(container: HTMLDivElement): void {
   }
   m.on("move", onMove)
   onMove()
+  m.on("moveend", () => {
+    const c = m.getCenter()
+    // The wind is read over a window of the model; a map moved out of it asks for the next.
+    if (overlays.get().weatherWind) {
+      const state = windField.get().state
+      if (state.kind !== "loading" && windRegion(c.lng, c.lat).join(",") !== windRegionRead()) void refreshWind()
+    }
+  })
   m.on("mouseout", () => {
     cursor.set(null)
     windProbe.set(null)

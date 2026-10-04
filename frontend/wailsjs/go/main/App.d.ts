@@ -68,4 +68,4 @@ export function SetProjectDirty(arg1:boolean):Promise<void>;
 
 export function UpdateDisplayName(arg1:string):Promise<store.User>;
 
-export function WindField(arg1:number):Promise<weather.WindField>;
+export function WindField(arg1:number,arg2:Array<number>):Promise<weather.WindField>;

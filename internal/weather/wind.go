@@ -62,7 +62,10 @@ func decodeWindField(raw []byte) (*WindField, error) {
 // FetchWindField reads the field at heightM, from cacheDir when this hour's
 // is already there. It runs outside the one-analysis rule, so the map keeps
 // its wind while an analysis runs.
-func FetchWindField(ctx context.Context, r *sidecar.Runner, heightM int, cacheDir string) (*WindField, error) {
+//
+// region is west, south, east, north in degrees: how much of the global model
+// is asked for. Empty, the sidecar reads South America, as it always did.
+func FetchWindField(ctx context.Context, r *sidecar.Runner, heightM int, region []float64, cacheDir string) (*WindField, error) {
 	known := false
 	for _, h := range Heights {
 		known = known || h == heightM
@@ -71,6 +74,13 @@ func FetchWindField(ctx context.Context, r *sidecar.Runner, heightM int, cacheDi
 		return nil, fmt.Errorf("the wind field is read at 10 or 100 m, not %d m", heightM)
 	}
 	req := map[string]any{"action": "wind_field", "height_m": heightM}
+	switch len(region) {
+	case 0:
+	case 4:
+		req["region"] = region
+	default:
+		return nil, fmt.Errorf("the wind region is west, south, east, north; got %d numbers", len(region))
+	}
 	if cacheDir != "" {
 		req["wind_cache_dir"] = cacheDir
 	}
