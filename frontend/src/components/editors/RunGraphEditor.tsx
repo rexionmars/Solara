@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { ArrowsClockwise, ChartBar, CircleNotch, CodeSimple, Eye, Fan, FlowArrow, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "@phosphor-icons/react"
 import { lastFailure, running } from "../../lib/analysis"
 import { errorMessage } from "../../lib/errors"
@@ -41,7 +41,7 @@ import { reading, signature, subject, supplied, type RunValue } from "../../lib/
 import { areaStates, setAreaState, showResult } from "../../lib/screen"
 import { activeArea, activeSite, select, selection } from "../../lib/selection"
 import { useStore } from "../../lib/store"
-import { NodeCanvas, type CanvasBoard, type CanvasEdge, type CanvasNode, type CanvasSection, type CanvasTab, type EdgeState } from "../studio/NodeCanvas"
+import { NodeCanvas, type CanvasApi, type CanvasBoard, type CanvasEdge, type CanvasNode, type CanvasSection, type CanvasTab, type EdgeState } from "../studio/NodeCanvas"
 import { StudioHeaderMenu } from "../studio/HeaderControls"
 import { AreaHeader } from "../studio/StudioArea"
 import { fieldInput } from "../ui/buttons"
@@ -128,6 +128,88 @@ function useKeptPlaces(product: Product) {
   return [all[product] ?? {}, move, reset] as const
 }
 
+// ---- Cards taken off the board, kept per product in this browser -----------------
+
+const REMOVED_KEY = "terra-energy.graph.removed"
+/** The map's cards are on every board, so what is taken off that band is taken off all of them. */
+type RemovedKey = Product | "map"
+
+function readRemoved(): Partial<Record<RemovedKey, string[]>> {
+  try {
+    return JSON.parse(localStorage.getItem(REMOVED_KEY) ?? "{}") ?? {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Which cards are off the board.
+ *
+ * TAKING A CARD OFF CHANGES NO SETTING. The project holds the setting, and
+ * Properties edits the same one, so a card is a way in and removing it closes
+ * that way and nothing else: the run still reads the input, and the Run card
+ * says with what on the row the wire used to land on.
+ */
+function useRemoved(product: Product) {
+  const [all, setAll] = useState(readRemoved)
+  const set = (ids: readonly string[], keyOf: (id: string) => RemovedKey, off: boolean) =>
+    setAll((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        const key = keyOf(id)
+        const rest = (next[key] ?? []).filter((x) => x !== id)
+        next[key] = off ? [...rest, id] : rest
+      }
+      try {
+        localStorage.setItem(REMOVED_KEY, JSON.stringify(next))
+      } catch {
+        /* a convenience: the cards are all back next time */
+      }
+      return next
+    })
+  return [new Set([...(all[product] ?? []), ...(all.map ?? [])]), set] as const
+}
+
+// ---- The wires the reader makes, kept in this browser ----------------------------
+
+/*
+  A CATALOGUE'S WIRE IS THE READER'S, and the only kind that is. Every other
+  wire is the shape of a request -- a run reads its record whether or not a
+  line is drawn -- so cutting one would draw a freedom that does not exist. A
+  catalogue supplies ground to whichever card its wire lands on, and that IS a
+  choice: onto Area the boundary becomes an area of the project, onto Region it
+  scopes the map's layer and leaves nothing behind. Cut, the card supplies
+  nothing and says so.
+*/
+const SOURCES: readonly string[] = ["catalogue", "catalogue2"]
+const GROUNDS: readonly string[] = ["area", "region"]
+const LINKS_KEY = "terra-energy.graph.links"
+const DEFAULT_LINKS = ["catalogue>area", "catalogue2>region"]
+
+function readLinks(): string[] {
+  try {
+    const kept = JSON.parse(localStorage.getItem(LINKS_KEY) ?? "null")
+    return Array.isArray(kept) ? kept : DEFAULT_LINKS
+  } catch {
+    return DEFAULT_LINKS
+  }
+}
+
+function useLinks() {
+  const [links, setLinks] = useState(readLinks)
+  const set = (link: string, on: boolean) =>
+    setLinks((prev) => {
+      const next = on ? (prev.includes(link) ? prev : [...prev, link]) : prev.filter((l) => l !== link)
+      try {
+        localStorage.setItem(LINKS_KEY, JSON.stringify(next))
+      } catch {
+        /* a convenience: the wires are as the board first drew them next time */
+      }
+      return next
+    })
+  return [links, set] as const
+}
+
 // ---- Card parts --------------------------------------------------------------------
 
 const FIELDS: Record<Group, FieldDef<string>[]> = {
@@ -157,13 +239,20 @@ const FIELDS: Record<Group, FieldDef<string>[]> = {
  * the same.
  */
 /**
- * `onPick` replaces what taking a boundary DOES.
+ * `to` is where the card's wires land, and so what taking a boundary DOES.
  *
- * Without it the card adds an area to the project, which is right for the run
- * band: a product is run over an area and the project has to own it. With it,
- * the caller decides -- the map band scopes a layer and leaves nothing behind.
+ * Onto Area the boundary is added to the project, which is right for a run: a
+ * product is run over an area and the project has to own it. Onto Region it is
+ * handed to `onRegion`, which scopes a layer and leaves nothing behind. Wired
+ * to neither, the card has nowhere to send a boundary and takes none.
  */
-function CatalogueCard({ onPick }: { onPick?: (picked: { name: string; polygon: Polygon }) => void } = {}) {
+function CatalogueCard({
+  to,
+  onRegion,
+}: {
+  to: readonly string[]
+  onRegion: (picked: { name: string; polygon: Polygon }) => void
+}) {
   const [level, setLevel] = useState<PlaceLevel>("estados")
   const [all, setAll] = useState<Boundary[] | null>(null)
   const [state, setState] = useState<Boundary | null>(null)
@@ -202,10 +291,11 @@ function CatalogueCard({ onPick }: { onPick?: (picked: { name: string; polygon: 
         note(`${place.name} is published in ${parts} parts; the largest is the ground taken, the rest are not in it.`)
       }
       if (place.level === "estados") setState(place)
-      if (onPick) {
-        onPick({ name, polygon })
+      if (to.includes("region")) {
+        onRegion({ name, polygon })
         framePolygon(polygon)
-      } else {
+      }
+      if (to.includes("area")) {
         const id = addArea(polygon, name)
         frameItem({ kind: "area", id, name: place.name, polygon, hidden: false })
       }
@@ -262,7 +352,7 @@ function CatalogueCard({ onPick }: { onPick?: (picked: { name: string; polygon: 
           <button
             key={`${p.level}-${p.id}`}
             type="button"
-            disabled={taking !== null}
+            disabled={taking !== null || !to.length}
             onClick={() => void take(p)}
             className="flex w-full items-baseline justify-between gap-2 rounded-[3px] px-1 py-0.5 text-left hover:bg-hover disabled:opacity-40"
           >
@@ -278,6 +368,7 @@ function CatalogueCard({ onPick }: { onPick?: (picked: { name: string; polygon: 
       </div>
 
       {failed ? <p className="text-micro text-destructive-quiet">{failed}</p> : null}
+      {!to.length ? <Muted>Not wired. Pull this card's socket onto Area or Region to send a boundary there.</Muted> : null}
     </div>
   )
 }
@@ -404,12 +495,25 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   })()
 
   const [places, move, resetPlaces] = useKeptPlaces(product)
+  const [gone, setRemoved] = useRemoved(product)
+  const [links, setLink] = useLinks()
+  // The header's menus act on the board, which holds its own selection.
+  const board = useRef<CanvasApi | null>(null)
   const [heights, setHeights] = useState<Record<string, number>>({})
   const onMeasure = useCallback((id: string, h: number) => {
     setHeights((prev) => (Math.abs((prev[id] ?? 0) - h) < 0.5 ? prev : { ...prev, [id]: h }))
   }, [])
 
   const graph = runGraph(product)
+  const removedKey = (id: string): Product | "map" => (graph.nodes.find((n) => n.id === id)?.band ? "map" : product)
+  const onBoard = (id: string) => graph.nodes.some((n) => n.id === id) && !gone.has(id)
+  // The request's own wires, and the reader's in place of the catalogue's two.
+  const made = links.map((l) => l.split(">") as [RunNodeId, RunNodeId])
+  // Only the wires with a card at both ends: a card off the board sends nothing along one.
+  const wired = [...graph.edges.filter(([from]) => !SOURCES.includes(from)), ...made].filter(([from, to]) => onBoard(from) && onBoard(to))
+  /** Where a catalogue's wires land, among the cards on this board. */
+  const landsOn = (id: RunNodeId) => wired.filter(([from]) => from === id).map(([, to]) => to)
+  const toRegion = (p: { name: string; polygon: Polygon }) => setMapGraph({ region: { kind: "place", name: p.name, polygon: p.polygon } })
   const fallback = defaultPlaces(graph, heights)
   const values = cardValues(
     {
@@ -472,7 +576,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const roughnessError = windSettingsError(d.settings.wind)
 
   const body: Record<RunNodeId, ReactNode> = {
-    catalogue: <CatalogueCard />,
+    catalogue: <CatalogueCard to={landsOn("catalogue")} onRegion={toRegion} />,
     site: sourcePicker("site"),
     area: sourcePicker("area"),
     /*
@@ -485,7 +589,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
       a filter that leaves an object behind every time it is tried is how the
       map ended up with three states outlined on it and nothing to manage them.
     */
-    catalogue2: <CatalogueCard onPick={(p) => setMapGraph({ region: { kind: "place", name: p.name, polygon: p.polygon } })} />,
+    catalogue2: <CatalogueCard to={landsOn("catalogue2")} onRegion={toRegion} />,
     region: (
       <>
         <Select
@@ -725,7 +829,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     return "pending"
   }
 
-  const nodes: CanvasNode[] = graph.nodes.map((spec) => {
+  const nodes: CanvasNode[] = graph.nodes.filter((spec) => !gone.has(spec.id)).map((spec) => {
     const common = { id: spec.id, place: places[spec.id] ?? fallback[spec.id], h: heights[spec.id] ?? spec.h, children: body[spec.id] }
     if (spec.id === "run" || spec.id === "mapdraw") {
       return {
@@ -737,25 +841,31 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
           .filter(([, to]) => to === spec.id)
           .map(([from]) => {
           const st = state(from)
+          // No card, no wire: the row says what the input IS, since nothing else on the board does now.
+          const off = gone.has(from)
           return {
             id: from,
             label: graph.nodes.find((n) => n.id === from)?.label ?? from,
             colour: socketOf(values[from]),
-            note: EDGE_NOTE[st],
-            noteColour: NOTE_COLOUR[st],
+            note: off ? reading(values[from]) || EDGE_NOTE.missing : EDGE_NOTE[st],
+            noteColour: off ? undefined : NOTE_COLOUR[st],
           }
         }),
       }
     }
     // The area card receives the catalogue's wire, so it carries an input row
     // for it to land on. Its own output goes on to the run card as before.
-    const incoming = graph.edges.filter(([, to]) => to === spec.id)
+    // A row for every wire that lands here, and for the catalogue's even while cut: the socket is what a wire is pulled back onto.
+    const incoming = [...graph.edges, ...wired.filter(([from, to]) => !graph.edges.some(([f, t]) => f === from && t === to))].filter(
+      ([, to]) => to === spec.id
+    )
     const value = values[spec.id]
     return {
       ...common,
       title: spec.label,
       head: headOf(value),
       output: { id: "out", label: reading(value) || "none", colour: socketOf(value) },
+      connectable: SOURCES.includes(spec.id),
       inputs: incoming.length
         ? incoming.map(([from]) => ({
             id: from,
@@ -768,12 +878,13 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     }
   })
 
-  const edges: CanvasEdge[] = graph.edges.map(([from, to]) => ({
+  const edges: CanvasEdge[] = wired.map(([from, to]) => ({
     from,
     to,
     socket: from,
     colour: socketOf(values[from]),
     state: state(from),
+    removable: SOURCES.includes(from),
   }))
 
   const labelOf = (id: RunNodeId) => graph.nodes.find((n) => n.id === id)?.label ?? id
@@ -788,8 +899,13 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     .map((band) => ({
       id: `band-${band}`,
       label: band === 0 ? PRODUCT_NAMES[product] : "Map",
-      ids: graph.nodes.filter((n) => n.band === band).map((n) => n.id),
+      ids: graph.nodes.filter((n) => n.band === band && !gone.has(n.id)).map((n) => n.id),
     }))
+    .filter((section) => section.ids.length)
+
+  const removed = graph.nodes
+    .filter((n) => gone.has(n.id))
+    .map((n) => ({ id: n.id, title: n.label, head: n.id === "run" || n.id === "mapdraw" ? "var(--node-head-run)" : headOf(values[n.id]) }))
 
   const bandLabel = (band: number) => (band === 0 ? PRODUCT_NAMES[product] : "Map")
 
@@ -847,7 +963,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
       </div>
       <div className="panel-scroll min-h-0 flex-1 overflow-y-auto pb-1.5">
         {[...new Set(graph.nodes.map((n) => n.band))].sort((a, b) => a - b).map((band) => {
-          const here = graph.edges.filter(([from]) => graph.nodes.find((n) => n.id === from)?.band === band)
+          const here = wired.filter(([from]) => graph.nodes.find((n) => n.id === from)?.band === band)
           if (!here.length) return null
           return (
             <div key={band}>
@@ -918,20 +1034,55 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     <>
       <AreaHeader
         menus={
-          <StudioHeaderMenu
-            label="View"
-            items={() => [
-              ...PRODUCTS.map((p) => ({
-                type: "action" as const,
-                label: PRODUCT_NAMES[p],
-                icon: PRODUCT_ICON[p],
-                checked: p === product,
-                run: () => setAreaState(areaId, { product: p }),
-              })),
-              { type: "sep" as const },
-              { type: "action" as const, label: "Put the nodes back in columns", run: resetPlaces },
-            ]}
-          />
+          <>
+            <StudioHeaderMenu
+              label="View"
+              items={() => [
+                ...PRODUCTS.map((p) => ({
+                  type: "action" as const,
+                  label: PRODUCT_NAMES[p],
+                  icon: PRODUCT_ICON[p],
+                  checked: p === product,
+                  run: () => setAreaState(areaId, { product: p }),
+                })),
+                { type: "sep" as const },
+                { type: "action" as const, label: "Frame all", shortcut: "Home", run: () => board.current?.frame() },
+                { type: "action" as const, label: "Put the nodes back in columns", run: resetPlaces },
+              ]}
+            />
+            {/* One of each card, so what can be added is what was taken off. */}
+            <StudioHeaderMenu
+              label="Add"
+              items={() =>
+                removed.length
+                  ? removed.map((n) => ({ type: "action" as const, label: n.title, run: () => setRemoved([n.id], removedKey, false) }))
+                  : [{ type: "action" as const, label: "Every card is on the board", disabled: "Nothing has been taken off this board", run: () => {} }]
+              }
+            />
+            <StudioHeaderMenu
+              label="Node"
+              items={() => {
+                const wire = board.current?.wire()
+                const cards = board.current?.picked().length ?? 0
+                return [
+                  {
+                    type: "action" as const,
+                    label: wire ? "Remove wire" : cards > 1 ? `Remove ${cards} cards` : "Remove",
+                    shortcut: "X",
+                    disabled: !wire && !cards && "Select a card or a wire first",
+                    run: () => board.current?.remove(),
+                  },
+                  { type: "sep" as const },
+                  {
+                    type: "action" as const,
+                    label: "Put the removed cards back",
+                    disabled: !removed.length && "Nothing has been taken off this board",
+                    run: () => setRemoved(removed.map((n) => n.id), removedKey, false),
+                  },
+                ]
+              }}
+            />
+          </>
         }
         centre={
           <span className="header-label truncate text-meta text-muted-foreground">
@@ -940,7 +1091,26 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
           </span>
         }
       />
-      <NodeCanvas nodes={nodes} edges={edges} onMove={move} onMeasure={onMeasure} sections={sections} tabs={tabs} />
+      <NodeCanvas
+        api={board}
+        nodes={nodes}
+        edges={edges}
+        onMove={move}
+        onMeasure={onMeasure}
+        onRemove={(ids) => setRemoved(ids, removedKey, true)}
+        onRestore={(id, place) => {
+          if (place) move(id, place)
+          setRemoved([id], removedKey, false)
+        }}
+        removed={removed}
+        onConnect={(from, to) => {
+          if (SOURCES.includes(from) && GROUNDS.includes(to)) setLink(`${from}>${to}`, true)
+          else if (SOURCES.includes(from)) note("A catalogue supplies ground: its wire lands on an Area or a Region card.")
+        }}
+        onDisconnect={(from, to) => setLink(`${from}>${to}`, false)}
+        sections={sections}
+        tabs={tabs}
+      />
     </>
   )
 }
