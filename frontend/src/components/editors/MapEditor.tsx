@@ -106,7 +106,7 @@ export const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "protectedAreas", label: "Protected areas, ICMBio" },
 ]
 
-const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [
+export const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [
   { id: "dark", label: "Streets, dark" },
   { id: "satellite", label: "Imagery, Sentinel-2 cloudless" },
 ]

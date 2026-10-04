@@ -93,6 +93,55 @@ export function toggleSidebar(): void {
   }
 }
 
+/*
+  The ribbon under the workspace tabs. Folded, it gives its rows back to the
+  areas and the tabs alone remain; the choice is remembered like the rail's.
+*/
+const RIBBON_KEY = "terra-energy.ribbon.v1"
+
+export const ribbonCollapsed = createStore<boolean>(
+  (() => {
+    try {
+      return localStorage.getItem(RIBBON_KEY) === "1"
+    } catch {
+      return false
+    }
+  })()
+)
+
+/** The ribbon's tabs: what kind of command is wanted, not which arrangement is on screen. */
+export type RibbonTab = "map" | "analysis" | "view" | "share"
+
+const RIBBON_TAB_KEY = "terra-energy.ribbon-tab.v1"
+
+export const ribbonTab = createStore<RibbonTab>(
+  (() => {
+    try {
+      const saved = localStorage.getItem(RIBBON_TAB_KEY)
+      return saved === "analysis" || saved === "view" || saved === "share" ? saved : "map"
+    } catch {
+      return "map"
+    }
+  })()
+)
+
+ribbonTab.subscribe(() => {
+  try {
+    localStorage.setItem(RIBBON_TAB_KEY, ribbonTab.get())
+  } catch {
+    /* a convenience only */
+  }
+})
+
+export function toggleRibbon(): void {
+  ribbonCollapsed.set((v) => !v)
+  try {
+    localStorage.setItem(RIBBON_KEY, ribbonCollapsed.get() ? "1" : "0")
+  } catch {
+    // A convenience only: the ribbon still folds, it just opens again next launch.
+  }
+}
+
 /** The start screen (StartSplash): open at launch, as Blender's splash. */
 export const splashOpen = createStore<boolean>(true)
 

@@ -40,7 +40,7 @@ import { SetProjectDirty } from "../../wailsjs/go/main/App"
 import { checkSidecar, sidecar } from "./sidecarStatus"
 import { createStore, useStore } from "./store"
 import { activeTool, mapRegions, setTool } from "./tools"
-import { lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen } from "./ui"
+import { lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen, toggleRibbon } from "./ui"
 
 /**
  * Every action the application performs, in one registry, as Blender's
@@ -774,6 +774,17 @@ export const OPERATORS: Operator[] = [
     menu: "Studio",
     quiet: true,
     run: () => resetWorkspace(),
+  },
+  {
+    name: "TOGGLE_RIBBON",
+    aliases: ["RIBBON"],
+    label: "Ribbon",
+    description: "Show or fold the ribbon of commands under the workspace tabs",
+    menu: "Studio",
+    keys: ["Ctrl+F1"],
+    inFields: true,
+    quiet: true,
+    run: () => toggleRibbon(),
   },
   {
     name: "FULLSCREEN",

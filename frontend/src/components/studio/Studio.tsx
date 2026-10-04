@@ -24,7 +24,7 @@ import { ContextMenuHost, StudioSurface } from "./Popover"
 import { Settings } from "./Settings"
 import { StartSplash } from "./StartSplash"
 import { StudioArea } from "./StudioArea"
-import { WorkspaceTabs } from "../shell/WorkspaceTabs"
+import { Ribbon } from "../shell/Ribbon"
 import { TitleBar } from "./TitleBar"
 import { Toasts } from "./Toasts"
 
@@ -134,8 +134,8 @@ export function Studio() {
     <div className="app-shell-enter flex h-full flex-col" style={{ background: "var(--s-app)" }}>
       <TitleBar />
       <StudioSurface.Provider value={surface}>
-        {/* The arrangements, thin, between the window's band and the work. */}
-        <WorkspaceTabs />
+        {/* The commands by kind, in tabs, between the window's band and the work. */}
+        <Ribbon />
         <div ref={setSurface} className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-app)" }}>
           {size.w > 0 &&
             (maximized
