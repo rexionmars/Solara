@@ -1,3 +1,4 @@
+import { formatMoment, formatMomentIso } from "./format"
 import { polygonAreaKm2 } from "./geo"
 import { seasonLabel } from "./params"
 import { findItem, staleReason, type Product, type ProjectData, type ResultObject } from "./project"
@@ -14,6 +15,12 @@ export type Column = {
   /** A number to sort and export by, or text. */
   value: (r: ResultObject, d: ProjectData) => number | string | null
   decimals?: number
+  /**
+   * What a file is given in place of `value`, where the screen's form would
+   * lose something on the way out: a moment shown in local time is exported
+   * with its offset.
+   */
+  exported?: (r: ResultObject, d: ProjectData) => number | string | null
 }
 
 const common: Column[] = [
@@ -22,7 +29,7 @@ const common: Column[] = [
 ]
 
 const trailing: Column[] = [
-  { key: "created", label: "Computed", value: (r) => r.createdAt.replace("T", " ").slice(0, 16) },
+  { key: "created", label: "Computed", value: (r) => formatMoment(r.createdAt), exported: (r) => formatMomentIso(r.createdAt) },
   { key: "stale", label: "Status", value: (r, d) => staleReason(d, r) ?? "current" },
 ]
 
@@ -246,7 +253,7 @@ export function toCsv(product: Product, d: ProjectData, rows: ResultObject[]): s
   const body = rows.map((r) =>
     cols
       .map((c) => {
-        const v = c.value(r, d)
+        const v = (c.exported ?? c.value)(r, d)
         return csvField(v === null ? "" : String(v))
       })
       .join(",")

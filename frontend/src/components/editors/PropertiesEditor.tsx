@@ -3,7 +3,7 @@ import { ArrowSquareOut, CaretDown, CaretRight, Pencil, Warning } from "../../li
 import { running } from "../../lib/analysis"
 import { useProductOffered } from "../../lib/capabilities"
 import { reveal } from "../../lib/export"
-import { formatLat, formatLng } from "../../lib/format"
+import { formatLat, formatLng, formatMoment } from "../../lib/format"
 import { groundRules } from "../../lib/ground"
 import { polygonAreaKm2, ringCentre } from "../../lib/geo"
 import { legendsShown, setLegendShown } from "../../lib/mapState"
@@ -329,7 +329,7 @@ function ResultBody({ result }: { result: ResultObject }) {
   const params = Object.entries(result.params as Record<string, unknown>)
   return (
     <>
-      <Head item={result} meta={`${source ? source.name : "deleted source"} · ${result.createdAt.slice(0, 16).replace("T", " ")}`} />
+      <Head item={result} meta={`${source ? source.name : "deleted source"} · ${formatMoment(result.createdAt)}`} />
       <PanelSection title="Figures" aside={<button type="button" className={btnGhostDense} onClick={() => showResult(result.id, result.kind)}><ArrowSquareOut className="size-3" />Read it</button>}>
         {stale && <StaleNote reason={stale} onRerun={() => void runOperator("RERUN")} />}
         <Figures result={result} />

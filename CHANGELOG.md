@@ -101,6 +101,15 @@ In the working tree, not yet committed.
   - A wire cut on the run graph still withholds its value from a run started
     anywhere; the row says "cut".
 
+### Reading a result
+
+- **When a result was computed is shown in local time**, in the comparison
+  table, the result picker and Properties. It was the UTC moment cut short,
+  so an evening run showed the next day. The JSON export keeps the full UTC
+  moment, and a CSV carries the local one with its offset
+  (`2026-10-04T22:46:00-03:00`): on screen the zone is the reader's own, in a
+  file it has to be written.
+
 ### The ground a reading sits on
 
 - **A basemap that can be switched.** The dark street map is now one of two

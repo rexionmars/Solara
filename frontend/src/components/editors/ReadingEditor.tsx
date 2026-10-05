@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { ChartBar, CheckSquare, Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "../../lib/icons"
+import { formatMoment } from "../../lib/format"
 import { RUN_OPERATOR, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
 import { areaStates, setAreaState } from "../../lib/screen"
@@ -123,7 +124,7 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
                   onClick={t.onClick}
                   icon={pinned ? PushPin : undefined}
                   // The source, not the result's name: the area header already says which product this is.
-                  label={result ? `${findItem(d, result.sourceId)?.name ?? "deleted source"} · ${result.createdAt.slice(5, 16).replace("T", " ")}` : "No result"}
+                  label={result ? `${findItem(d, result.sourceId)?.name ?? "deleted source"} · ${formatMoment(result.createdAt, true)}` : "No result"}
                   showLabel
                   open={picker}
                   title="Which result this area reads"
@@ -148,7 +149,7 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
                       key={r.id}
                       icon={staleReason(d, r) ? Warning : undefined}
                       label={`${r.name} · ${findItem(d, r.sourceId)?.name ?? "deleted"}`}
-                      note={r.createdAt.slice(5, 16).replace("T", " ")}
+                      note={formatMoment(r.createdAt, true)}
                       checked={pinned === r.id}
                       title="Pin this area to this result"
                       onSelect={() => {
