@@ -1,10 +1,11 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import type { energy } from "../../../wailsjs/go/models"
+import { Info } from "../../lib/icons"
 
 /**
- * The pieces a result document is built from: a figure, a stat row, a chip,
- * a section, the header. Ported from TERRA's analysisPrimitives, restyled to
- * this application's tokens.
+ * The pieces every reading is built from: the header, the head figures, the
+ * panels and what goes inside them. One set, so that two products' readings
+ * cannot be laid out two ways.
  *
  * Grids here follow the CONTAINER, not the window (the document declares
  * `@container`), because TERRA found that viewport breakpoints give a narrow
@@ -12,23 +13,6 @@ import type { energy } from "../../../wailsjs/go/models"
  */
 
 export const EYEBROW = "text-[11px] uppercase tracking-[0.1em] text-muted-foreground"
-
-/** A label, the figure it names, and the assumption the figure was read under. */
-export function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="min-w-0">
-      <div className={EYEBROW}>{label}</div>
-      <div className="selectable mt-0.5 truncate font-mono text-lg tabular-nums text-foreground" title={value}>
-        {value}
-      </div>
-      {sub && (
-        <div className="truncate font-mono text-[11px] tabular-nums text-muted-foreground" title={sub}>
-          {sub}
-        </div>
-      )}
-    </div>
-  )
-}
 
 /** A label and its value on one baseline, for a dense run of parameters. */
 export function Stat({ label, value }: { label: string; value: string }) {
@@ -43,14 +27,6 @@ export function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function StatGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 gap-x-8 @2xl:grid-cols-2">{children}</div>
-}
-
-export function FigureGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">{children}</div>
-}
-
 /**
  * A result's standing, such as "gross" or "unvalidated". Drawn in the warning
  * colour: a qualifier that changes how every figure below it reads must not be
@@ -61,40 +37,6 @@ export function Chip({ children }: { children: ReactNode }) {
     <span className="rounded-[3px] bg-warning/15 px-1.5 py-px text-[11px] font-medium uppercase tracking-wide text-warning">
       {children}
     </span>
-  )
-}
-
-export function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="border-t border-border py-5">
-      <h3 className="mb-3 text-[13px] font-medium text-foreground">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-/** The product, where it was computed, on what record, and its standing. */
-export function DocumentHeader({
-  product,
-  title,
-  meta,
-  chips,
-}: {
-  product: string
-  /** Where: the site's coordinates, or the area and its window. */
-  title: string
-  meta: string
-  chips?: string[]
-}) {
-  return (
-    <header className="pb-5">
-      <div className="flex items-center gap-2">
-        <p className={EYEBROW}>{product}</p>
-        {chips?.map((c) => <Chip key={c}>{c}</Chip>)}
-      </div>
-      <h2 className="selectable mt-1 whitespace-pre font-mono text-xl tabular-nums text-foreground">{title}</h2>
-      <p className="mt-1 text-xs text-muted-foreground">{meta}</p>
-    </header>
   )
 }
 
@@ -152,345 +94,270 @@ export function Panel({
   bodyClass = "",
   /** Rows that are worth spreading across the full width -- a wide table, a map. */
   span,
+  note,
 }: {
   title: string
   right?: ReactNode
   children: ReactNode
   bodyClass?: string
   span?: boolean
+  /**
+   * What explains the panel's figures -- the assumption they were read under,
+   * what a register does not hold -- behind the head's info button.
+   *
+   * NOT THE QUALIFIER THAT CHANGES HOW A NUMBER IS READ. "Gross", "at least",
+   * "injected, not generated" are part of a figure's label and stay beside
+   * it: a modelled value is never drawn as a measured one.
+   */
+  note?: ReactNode
 }) {
+  const [told, setTold] = useState(false)
   return (
     <section
       className={`flex min-w-0 flex-col rounded-[5px] border border-border bg-sunk ${span ? "@xl:col-span-2" : ""}`}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-hairline px-3 py-1.5">
-        <h3 className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{title}</h3>
+      <header className="flex items-center gap-2 border-b border-hairline px-3 py-1.5">
+        <h3 className="min-w-0 flex-1 truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{title}</h3>
         {right}
+        {note && (
+          <button
+            type="button"
+            onClick={() => setTold((v) => !v)}
+            aria-expanded={told}
+            aria-label={told ? "Hide what these figures assume" : "What these figures assume"}
+            title="What these figures assume"
+            className={`grid size-4 shrink-0 place-items-center rounded-sm transition-colors hover:bg-hover ${
+              told ? "text-accent" : "text-muted-foreground/70 hover:text-foreground"
+            }`}
+          >
+            <Info className="size-3" />
+          </button>
+        )}
       </header>
       <div className={`min-w-0 px-3 py-2.5 ${bodyClass}`}>{children}</div>
+      {note && told && (
+        <div className="mx-3 mb-2.5 flex flex-col gap-1.5 rounded-[4px] bg-black/25 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
+          {note}
+        </div>
+      )}
     </section>
   )
 }
 
-/**
- * The panels, side by side where there is room for it.
- *
- * The breakpoints are the CONTAINER's, never the window's: this grid lives in
- * a column the reader drags, and a wide screen holding a narrow reading panel
- * must lay out as narrow.
- */
-export function PanelGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 gap-2.5 @xl:grid-cols-2">{children}</div>
+// =====================================================================
+// The reading's page: what every product's result is read on.
+//
+// Three levels and no more: a head, one row of up to four indicator
+// cards, one main panel (a second where the answer has two parts), then a
+// line saying where the figures came from. The finish -- colours, type,
+// spacing -- is the `.reading` block of index.css; these are its parts.
+//
+// A NUMBER IS WRITTEN ONCE. The head carries no figure; an indicator's
+// figure is not repeated in the panel under it; the layer's legend is on
+// the map and a file's path is in Export.
+// =====================================================================
+
+/** The page a reading is laid on. It owns the surface, so it fills its studio area. */
+export function ReadingPage({ children }: { children: ReactNode }) {
+  return <div className="reading-page">{children}</div>
+}
+
+/** The product's name and one sentence saying what the reading is of. No figure: that is the first card's. */
+export function ReadingHead({ title, about, chips, tag }: { title: string; about: string; chips?: string[]; tag?: string }) {
+  return (
+    <header className="reading-head">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2>{title}</h2>
+        {/* Which of a product's cases this result is: a fact about it, not a warning. */}
+        {tag && <span className="reading-chip">{tag}</span>}
+        {/* A standing that qualifies every figure below is beside the name, in the warning tone, always on screen. */}
+        {chips?.map((c) => (
+          <span key={c} className="reading-chip" data-tone="warn">
+            {c}
+          </span>
+        ))}
+      </div>
+      <p>{about}</p>
+    </header>
+  )
 }
 
 /**
- * One row of controls, above everything they scope.
+ * What every figure below has to be read under, in one line between the head
+ * and the indicators, always on screen: a screening that is gross and
+ * unvalidated must not look like an assessment for want of a click.
  *
- * Never inside a panel and never one per panel: two panels reading different
- * slices of the same area is how a screen starts disagreeing with itself.
+ * ONE LINE, so the head and the indicators still fit without scrolling. The
+ * engine's full qualification is behind the line's own info button.
  */
-export function ControlBar({ children }: { children: ReactNode }) {
+export function ReadingNotice({ children, more }: { children: ReactNode; more?: ReactNode }) {
+  const [told, setTold] = useState(false)
   return (
-    <div className="mb-2.5 flex flex-wrap items-center gap-2 rounded-[5px] border border-border bg-sunk px-2 py-1.5">
-      {children}
+    <div className="reading-notice" role="note">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1">{children}</span>
+        {more && (
+          <button
+            type="button"
+            onClick={() => setTold((v) => !v)}
+            aria-expanded={told}
+            aria-label={told ? "Hide the full qualification" : "The full qualification"}
+            title="The full qualification"
+            className="grid size-6 shrink-0 place-items-center rounded-md transition-colors hover:bg-white/10"
+          >
+            <Info className="size-4" />
+          </button>
+        )}
+      </div>
+      {more && told && <div className="mt-2 flex flex-col gap-1.5 text-xs leading-relaxed opacity-90">{more}</div>}
     </div>
   )
 }
 
-/** A segmented choice: the levels of a register, the products of a run. */
-export function Tabs<T extends string>({
+/** Up to four indicators abreast; two, then one, as the area narrows. */
+export function IndicatorRow({ children }: { children: ReactNode }) {
+  return <div className="reading-kpis">{children}</div>
+}
+
+/**
+ * One indicator: what it is and over what, a rule, the figure large with its
+ * unit small beside it, a chip, and a line of description.
+ *
+ * THE CHIP HAS ITS OWN LINE, in every card whether or not it has one. Beside
+ * the figure it fits in a wide card and drops under it in a narrow one, and
+ * then the descriptions of four neighbours start at four heights.
+ */
+export function IndicatorCard({
+  title,
+  sub,
+  value,
+  unit,
+  chip,
+  children,
+}: {
+  title: string
+  sub: string
+  value: string
+  unit?: string
+  /** What the figure is read against, or the short qualifier that changes how it is read. */
+  chip?: string
+  children?: ReactNode
+}) {
+  return (
+    <article className="reading-kpi">
+      <header>
+        <h3 title={title}>{title}</h3>
+        <p title={sub}>{sub}</p>
+      </header>
+      <div>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="reading-num selectable min-w-0" data-code={/[A-Za-z]/.test(value) ? "" : undefined} title={value}>
+            {value}
+          </span>
+          {unit && <span className="reading-unit">{unit}</span>}
+        </div>
+        <div className="reading-chip-line">{chip && <span className="reading-chip">{chip}</span>}</div>
+        {children && <p>{children}</p>}
+      </div>
+    </article>
+  )
+}
+
+/**
+ * The panel a reading's answer is drawn in: a title that states the finding,
+ * a line saying what the drawing is, the controls that change it in the head,
+ * and what few readers ask for folded at its foot.
+ *
+ * `note` is what explains the drawing, behind the info button. The qualifier
+ * that changes how a figure is read is never here: it is a chip, on screen.
+ */
+export function ReadingPanel({
+  title,
+  sub,
+  controls,
+  note,
+  details,
+  children,
+}: {
+  title: string
+  sub?: string
+  controls?: ReactNode
+  note?: ReactNode
+  /** Label-and-value rows, folded under "Details". */
+  details?: ReactNode
+  children: ReactNode
+}) {
+  const [told, setTold] = useState(false)
+  return (
+    <section className="reading-panel">
+      <div className="reading-panel-head">
+        <div className="reading-panel-title">
+          <h3>{title}</h3>
+          {sub && <p>{sub}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {controls}
+          {note && (
+            <button
+              type="button"
+              onClick={() => setTold((v) => !v)}
+              aria-expanded={told}
+              aria-label={told ? "Hide what this assumes" : "What this assumes"}
+              title="What this assumes"
+              className="grid size-7 place-items-center rounded-md transition-colors hover:bg-[var(--s-panel-head)]"
+              style={{ color: told ? "var(--accent)" : "var(--s-text-muted)" }}
+            >
+              <Info className="size-4" />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="reading-panel-body">{children}</div>
+      {note && told && <div className="reading-note">{note}</div>}
+      {details && (
+        <details className="reading-details">
+          <summary>Details</summary>
+          <div className="reading-rows">{details}</div>
+        </details>
+      )}
+    </section>
+  )
+}
+
+/** A row of a panel's details. */
+export function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <span className="selectable">{value}</span>
+    </div>
+  )
+}
+
+/** A choice between two or three drawings of the same figures, in a panel's head. */
+export function Segmented<T extends string>({
+  label,
   value,
   options,
   onChange,
-  label,
 }: {
+  label: string
   value: T
-  options: { value: T; label: string; disabled?: boolean }[]
+  options: { value: T; label: string }[]
   onChange: (v: T) => void
-  label?: string
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      {label && <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{label}</span>}
-      <div className="flex rounded-[4px] bg-control p-px">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            disabled={o.disabled}
-            onClick={() => onChange(o.value)}
-            className={`rounded-[3px] px-2 py-0.5 text-[11px] transition-colors disabled:opacity-35 ${
-              o.value === value ? "bg-selected text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+    <div className="reading-seg" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }
 
-/**
- * Depth folded away rather than stacked. What a reading assumed matters, and
- * is still wrong at the top of the screen above the figures it qualifies.
- */
-export function Disclosure({ title, children }: { title: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="rounded-[5px] border border-border bg-sunk">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground"
-      >
-        <span className={`transition-transform ${open ? "rotate-90" : ""}`}>›</span>
-        {title}
-      </button>
-      {open && <div className="border-t border-hairline px-3 py-2.5">{children}</div>}
-    </div>
-  )
-}
-
-/**
- * A headline figure and what it is bigger or smaller THAN.
- *
- * A number with nothing beside it cannot be judged, and a reading full of them
- * invites a sentence to come and judge it -- which is how prose gets into a
- * panel. The comparison belongs on the figure, named, so no sentence is needed.
- *
- * The value takes the font's proportional figures rather than tabular ones:
- * equal-width digits are for columns that must align, and at this size they
- * make a short number look loose.
- */
-export function KpiCard({
-  label,
-  value,
-  unit,
-  delta,
-  note,
-  spark,
-}: {
-  label: string
-  value: string
-  unit?: string
-  /** Signed, against a named comparison. `goodWhen` decides the colour, never the sign alone. */
-  delta?: { pct: number; against: string; goodWhen?: "up" | "down" }
-  /**
-   * What the figure is a share OF, where the comparison is a part-to-whole
-   * rather than a change. Not every reading has a previous period to be
-   * bigger than, and inventing one to fill the slot is worse than an empty
-   * slot -- a delta against nothing is the prose problem in numeric form.
-   */
-  note?: string
-  /** Twelve points at most, the run this figure is the end of. */
-  spark?: number[]
-}) {
-  const good = delta?.goodWhen ? (delta.pct >= 0) === (delta.goodWhen === "up") : null
-  const tone = good === null ? "text-muted-foreground" : good ? "text-success" : "text-destructive-quiet"
-  return (
-    <div className="min-w-0 rounded-[5px] border border-border bg-sunk px-3 py-2">
-      <div className={EYEBROW}>{label}</div>
-      <div className="mt-0.5 flex items-baseline gap-1">
-        <span className="selectable truncate font-mono text-lg text-foreground" title={value}>
-          {value}
-        </span>
-        {unit && <span className="shrink-0 text-[11px] text-muted-foreground">{unit}</span>}
-      </div>
-      {delta && (
-        <div className={`truncate text-[11px] ${tone}`} title={`${delta.pct >= 0 ? "+" : ""}${delta.pct}% ${delta.against}`}>
-          {delta.pct >= 0 ? "+" : ""}
-          {delta.pct}% <span className="text-muted-foreground">{delta.against}</span>
-        </div>
-      )}
-      {!delta && note && (
-        <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground" title={note}>
-          {note}
-        </div>
-      )}
-      {spark && spark.length > 1 && <Spark values={spark} />}
-    </div>
-  )
-}
-
-/**
- * One figure, for a board card that has no header.
- *
- * NOT `KpiCard` WITH A DIFFERENT SIZE. That one is a card: it draws its own
- * border and its own ground, because it sits in a document beside other
- * bordered things. This one draws neither, because the board's card already
- * did -- and its label is sentence case at reading size, since on a board the
- * label is a name and not a column heading.
- */
-export function Metric({
-  label,
-  value,
-  unit,
-  note,
-  spark,
-}: {
-  label: string
-  value: string
-  unit?: string
-  note?: string
-  spark?: number[]
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-[11px] text-muted-foreground" title={label}>
-        {label}
-      </div>
-      <div className="mt-1 flex items-baseline gap-1.5">
-        <span className="selectable truncate text-[22px] font-medium leading-none tracking-tight text-foreground tabular-nums" title={value}>
-          {value}
-        </span>
-        {unit && <span className="shrink-0 text-[11px] text-muted-foreground">{unit}</span>}
-      </div>
-      {note && (
-        <div className="mt-1.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground" title={note}>
-          {note}
-        </div>
-      )}
-      {spark && spark.length > 1 && <Spark values={spark} />}
-    </div>
-  )
-}
-
-/** The shape of the run behind a figure. No axis, no label: shape only. */
-function Spark({ values }: { values: number[] }) {
-  const max = Math.max(...values) || 1
-  const min = Math.min(...values)
-  const span = max - min || 1
-  const d = values
-    .map((v, i) => `${i ? "L" : "M"}${(i / (values.length - 1)) * 60},${14 - ((v - min) / span) * 12}`)
-    .join(" ")
-  return (
-    <svg width={60} height={16} className="mt-1 block overflow-visible">
-      <path d={d} fill="none" stroke="rgb(var(--p-line-strong))" strokeWidth={1.5} strokeLinejoin="round" />
-      <circle
-        cx={60}
-        cy={14 - ((values[values.length - 1] - min) / span) * 12}
-        r={2}
-        fill="var(--color-accent)"
-      />
-    </svg>
-  )
-}
-
-export type Column<R> = {
-  key: string
-  label: string
-  /** How the cell is drawn. `bar` puts the magnitude in the row itself. */
-  kind?: "text" | "num" | "bar"
-  value: (row: R) => number | string
-  format?: (row: R) => string
-}
-
-/**
- * Named rows with several figures each, ordered by whichever the reader asks
- * for.
- *
- * A LIST OF LABEL-AND-VALUE IS NOT THIS. The difference is that the reader
- * chooses the order and can see one column against another; a fixed list can
- * only be read in the order it was written, which is what makes a long one
- * feel like a document.
- *
- * A `bar` column carries its own magnitude, so the table is also the chart and
- * nothing has to be hovered to be compared.
- */
-export function DataTable<R>({
-  rows,
-  columns,
-  sortBy,
-  maxHeight = 220,
-  rowKey,
-}: {
-  rows: R[]
-  columns: Column<R>[]
-  /** The column the table opens on, descending. */
-  sortBy?: string
-  maxHeight?: number
-  rowKey: (row: R) => string
-}) {
-  const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: sortBy ?? columns[0].key, desc: true })
-  const col = columns.find((c) => c.key === sort.key) ?? columns[0]
-  const sorted = useMemo(() => {
-    const out = [...rows].sort((a, b) => {
-      const va = col.value(a)
-      const vb = col.value(b)
-      if (typeof va === "number" && typeof vb === "number") return vb - va
-      return String(va).localeCompare(String(vb))
-    })
-    return sort.desc ? out : out.reverse()
-  }, [rows, col, sort.desc])
-
-  const barMax = useMemo(() => {
-    const bar = columns.find((c) => c.kind === "bar")
-    return bar ? Math.max(1, ...rows.map((r) => Number(bar.value(r)) || 0)) : 1
-  }, [rows, columns])
-
-  return (
-    <div className="overflow-auto" style={{ maxHeight }}>
-      <table className="w-full border-collapse">
-        <thead className="sticky top-0 z-[1] bg-sunk">
-          <tr>
-            {columns.map((c) => (
-              <th
-                key={c.key}
-                className={`border-b border-border pb-1 text-[10px] font-normal uppercase tracking-[0.08em] ${
-                  c.kind === "text" || !c.kind ? "text-left" : "text-right"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : true }))}
-                  className={`hover:text-foreground ${sort.key === c.key ? "text-foreground" : "text-muted-foreground"}`}
-                >
-                  {c.label}
-                  {sort.key === c.key ? (sort.desc ? " ↓" : " ↑") : ""}
-                </button>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((r) => (
-            <tr key={rowKey(r)} className="hover:bg-hover">
-              {columns.map((c) => {
-                const raw = c.value(r)
-                const text = c.format ? c.format(r) : typeof raw === "number" ? raw.toLocaleString() : String(raw)
-                if (c.kind === "bar") {
-                  return (
-                    <td key={c.key} className="w-[34%] py-1 pl-2">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-2 min-w-0 flex-1 rounded-[2px] bg-hover">
-                          <div
-                            className="h-full rounded-r-[3px] bg-accent"
-                            style={{ width: `${Math.max(1.5, ((Number(raw) || 0) / barMax) * 100)}%` }}
-                          />
-                        </div>
-                        <span className="shrink-0 font-mono text-[11px] tabular-nums text-foreground">{text}</span>
-                      </div>
-                    </td>
-                  )
-                }
-                return (
-                  <td
-                    key={c.key}
-                    className={`py-1 text-xs ${
-                      c.kind === "num"
-                        ? "text-right font-mono tabular-nums text-foreground"
-                        : "truncate text-muted-foreground"
-                    }`}
-                  >
-                    {text}
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+/** Where the figures came from, in one quiet line at the foot. Never a path, and nothing the page already says. */
+export function ReadingSource({ children }: { children: ReactNode }) {
+  return <footer className="reading-source">{children}</footer>
 }

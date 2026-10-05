@@ -1,85 +1,38 @@
-import { useEffect, useRef, useState } from "react"
-import { CaretDown, CaretRight, House, MagnifyingGlassMinus, MagnifyingGlassPlus, Pause, Play, Stack, Tag } from "@phosphor-icons/react"
+import { useEffect, useRef } from "react"
+import { CaretDown, CaretRight, Stack } from "../../lib/icons"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
-import { runConnection, runSolar, runTerrain, runWind } from "../../lib/analysis"
-import { BASEMAPS, type BasemapId } from "../../lib/basemap"
+import { runConnection, runGround, runSolar, runTerrain, runWind } from "../../lib/analysis"
+import { BASEMAPS, IMAGERY_TILES, type BasemapId } from "../../lib/basemap"
 import { formatLat, formatLng } from "../../lib/format"
 import { distanceKm } from "../../lib/geo"
 import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
-import { mountMap, setBearing } from "../../lib/mapEngine"
+import { mountMap } from "../../lib/mapEngine"
 import { mapView, measure } from "../../lib/mapState"
 import { setSiteCoordinate } from "../../lib/objects"
-import { findOperator, formatKeys, runOperator } from "../../lib/operators"
+import { formatKeys } from "../../lib/operators"
 import { PRODUCT_NAMES, findItem, isResult, project, renameItem } from "../../lib/project"
-import { openRunGraph } from "../../lib/screen"
 import { useStore } from "../../lib/store"
 import { SERVICE_CREDITS, SERVICES } from "../../lib/services"
-import { TOOLS, activeTool, basemap, overlays, type Overlays } from "../../lib/tools"
-import {
-  SATELLITE,
-  ageLabel,
-  clockLabel,
-  frameAt,
-  refreshRadar,
-  refreshSatellite,
-  setMoment,
-  setOpacity,
-  setPlaying,
-  setSatelliteProduct,
-  tilesFailing,
-  timelineTimes,
-  weather,
-  type Frame,
-  type LayerFrames,
-  type SatelliteProduct,
-  WIND_STOPS,
-  fieldOf,
-  refreshWind,
-  setWindHeight,
-  windField,
-  windProbe,
-} from "../../lib/weather"
-import { coordinatePrompt, lastOperation, lastOperationOpen, weatherPlateOpen, type MenuItem } from "../../lib/ui"
-import { StudioHeaderMenu, StudioHeaderPopover, StudioHeaderRule, StudioHeaderToggle } from "../studio/HeaderControls"
+import { activeTool, basemap, overlays, type Overlays } from "../../lib/tools"
+import { windProbe } from "../../lib/weather"
+import { lastOperation, lastOperationOpen } from "../../lib/ui"
 import { AreaHeader } from "../studio/StudioArea"
 import { btnPrimary } from "../ui/buttons"
 import { NumberField, TextField } from "../ui/Fields"
+import { AddressSearch } from "./AddressSearch"
 import { OverlayCallouts } from "./OverlayCallouts"
+import { WeatherTimeline } from "./WeatherTimeline"
 import { ParamFields } from "./ParamFields"
 
-const op = (name: string, label?: string): MenuItem => ({ type: "op", op: name, label })
-const sep: MenuItem = { type: "sep" }
+/*
+  THE HEADER CARRIES NO MENUS. It had View, Select, Add and Object, and every
+  entry of them is a button of the ribbon's Map tab now, in the open: a menu
+  under a ribbon that already shows its contents is the same command twice,
+  and the one that has to be opened is the one nobody reaches for. What stays
+  on the header is what is about the VIEW: where the map is, and what is drawn.
+*/
 
-const viewMenu = (): MenuItem[] => [op("FRAME_ALL"), op("FRAME_SELECTED"), sep, op("ZOOMIN"), op("ZOOMOUT"), op("NORTH"), sep, op("AREA_MAXIMIZE")]
-const selectMenu = (): MenuItem[] => [op("TOOL_SELECT", "Select tool"), op("SELECT_NONE"), sep, op("FRAME_SELECTED")]
-const addMenu = (): MenuItem[] => [
-  op("TOOL_SITE", "Site, picked on the map"),
-  { type: "action", label: "Site at coordinates…", run: () => coordinatePrompt.set(true) },
-  op("AREA_PLACE", "Area, from a published boundary…"),
-]
-const objectMenu = (): MenuItem[] => [
-  op("RENAME"),
-  op("HIDE"),
-  op("UNHIDE_ALL"),
-  op("LEGEND"),
-  op("DELETE"),
-  { type: "heading", label: "Analyze" },
-  /*
-    ONE ITEM, NOT ONE PER PRODUCT. This menu used to run three of the five
-    products straight from the map, which spent a run with none of its inputs
-    on screen -- and left the other two unreachable, so right-clicking an area
-    read as "this area cannot be asked that". Both are the same defect: a
-    request is five or six settings, and the board is where they are all
-    visible at once.
-
-    RERUN stays because it is not a request. It repeats one the project
-    already holds, with the settings that run recorded.
-  */
-  { type: "action", label: "Set up a run…", run: () => openRunGraph() },
-  op("RERUN"),
-]
-
-const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "siteLabels", label: "Names" },
   { key: "areas", label: "Areas" },
   { key: "layers", label: "Result layers" },
@@ -87,7 +40,7 @@ const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "statistics", label: "Credit and scale" },
 ]
 
-const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "weatherSatellite", label: "Clouds, GOES-East satellite" },
   { key: "weatherRadar", label: "Rain, radar" },
   { key: "weatherWind", label: "Wind, GFS model" },
@@ -96,22 +49,20 @@ const WEATHER_ITEMS: { key: keyof Overlays; label: string }[] = [
 /*
   The registers that publish themselves. They are kept apart from the grid
   store's own layers because they fail differently: the store is a database
-  this machine either reaches or does not, and these are four services on the
+  this machine either reaches or does not, and these are two services on the
   internet that can each refuse a single view.
 */
-const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const REFERENCE_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "nightLights", label: "Nighttime lights, VIIRS" },
   { key: "sigel", label: "Turbines and declared strips, SIGEL" },
-  { key: "indigenousLand", label: "Indigenous land, FUNAI" },
-  { key: "protectedAreas", label: "Protected areas, ICMBio" },
 ]
 
-const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [
+export const BASEMAP_ITEMS: { id: BasemapId; label: string }[] = [
   { id: "dark", label: "Streets, dark" },
   { id: "satellite", label: "Imagery, Sentinel-2 cloudless" },
 ]
 
-const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
+export const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "gridConcessions", label: "Where each register has data" },
   { key: "gridDemand", label: "Consumption by municipality" },
   { key: "gridMetered", label: "Plants in the record" },
@@ -120,275 +71,66 @@ const GRID_ITEMS: { key: keyof Overlays; label: string }[] = [
   { key: "gridBuses", label: "Substations" },
 ]
 
-/** A layer's toggle, with what it holds once read, or why it could not be. */
-function gridLabel(key: keyof Overlays, label: string): string {
+/**
+ * What a grid layer holds once read, or why it could not be: the note beside
+ * its name in the outliner. Empty for a layer with nothing to say yet.
+ *
+ * Each layer reads its OWN store's state. Read from the wrong one, a layer
+ * that failed every time could never say "unavailable", and looked like a
+ * layer that simply did nothing when switched on.
+ */
+export function layerNote(key: keyof Overlays): { text: string; failed?: string } {
   const plants = plantRegister.get()
   const network = networkRegister.get()
-  // Named before the shared branch below, because its state is neither of the
-  // two registers that one reads.
   if (key === "gridConcessions") {
     const reach = concessions.get()
-    if (reach.kind === "loading") return `${label} (reading…)`
-    if (reach.kind === "failed") return `${label} (unavailable)`
-    if (reach.kind !== "ready") return label
-    const drawn = reach.data.geojson.features.length
+    if (reach.kind === "loading") return { text: "reading…" }
+    if (reach.kind === "failed") return { text: "unavailable", failed: reach.message }
+    if (reach.kind !== "ready") return { text: "" }
     // A holding the load did not bring the sets for is named here rather than
     // left to look like ground outside every register.
     const missing = reach.data.undrawn.length ? `, ${reach.data.undrawn.length} not drawn` : ""
-    return `${label} · ${drawn}${missing}`
+    return { text: `${reach.data.geojson.features.length}${missing}` }
   }
-  /*
-    Named before the shared branch too, and for the same reason the reach is:
-    its state is the municipal layer's, not the network register's. Read from
-    the wrong store it could never say "(unavailable)", so a layer that failed
-    every time looked like a layer that simply did nothing when toggled.
-  */
   if (key === "gridDemand") {
     const towns = townDemand.get()
-    if (towns.kind === "loading") return `${label} (reading…)`
-    if (towns.kind === "failed") return `${label} (unavailable)`
-    if (towns.kind !== "ready") return label
-    return `${label} · ${towns.data.towns.toLocaleString()}`
+    if (towns.kind === "loading") return { text: "reading…" }
+    if (towns.kind === "failed") return { text: "unavailable", failed: towns.message }
+    return { text: towns.kind === "ready" ? towns.data.towns.toLocaleString() : "" }
   }
+  if (key !== "gridMetered" && key !== "gridRegistered" && key !== "gridLines" && key !== "gridBuses") return { text: "" }
   const state = key === "gridMetered" || key === "gridRegistered" ? plants : network
-  if (state.kind === "loading") return `${label} (reading…)`
-  if (state.kind === "failed") return `${label} (unavailable)`
-  if (plants.kind === "ready" && key === "gridMetered") return `${label} · ${plants.data.counts.metered.toLocaleString()}`
+  if (state.kind === "loading") return { text: "reading…" }
+  if (state.kind === "failed") return { text: "unavailable", failed: state.message }
+  if (plants.kind === "ready" && key === "gridMetered") return { text: plants.data.counts.metered.toLocaleString() }
   if (plants.kind === "ready" && key === "gridRegistered") {
-    return `${label} · ${(plants.data.counts.returned - plants.data.counts.metered).toLocaleString()}`
+    return { text: (plants.data.counts.returned - plants.data.counts.metered).toLocaleString() }
   }
-  if (network.kind === "ready" && key === "gridLines") return `${label} · ${network.data.counts.lines_in_service.toLocaleString()} in service`
-  if (network.kind === "ready" && key === "gridBuses") return `${label} · ${network.data.counts.substations.toLocaleString()}`
-  return label
+  if (network.kind === "ready" && key === "gridLines") return { text: `${network.data.counts.lines_in_service.toLocaleString()} in service` }
+  if (network.kind === "ready" && key === "gridBuses") return { text: network.data.counts.substations.toLocaleString() }
+  return { text: "" }
 }
 
-const overlaysMenu = (): MenuItem[] => {
-  const o = overlays.get()
-  const base = basemap.get()
-  return [
-    { type: "heading", label: "Overlays" },
-    ...OVERLAY_ITEMS.map(
-      (it): MenuItem => ({
-        type: "action",
-        label: it.label,
-        checked: o[it.key],
-        run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
-      })
-    ),
-    { type: "heading", label: "Ground" },
-    ...BASEMAP_ITEMS.map(
-      (it): MenuItem => ({
-        type: "action",
-        label: it.label,
-        checked: base === it.id,
-        run: () => basemap.set(it.id),
-      }),
-    ),
-    {
-      type: "action",
-      label: "Hillshade",
-      checked: o.hillshade,
-      run: () => overlays.set((cur) => ({ ...cur, hillshade: !cur.hillshade })),
-    },
-    { type: "heading", label: "Weather now (internet)" },
-    ...WEATHER_ITEMS.map(
-      (it): MenuItem => ({
-        type: "action",
-        label: it.label,
-        checked: o[it.key],
-        run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
-      })
-    ),
-    { type: "heading", label: "Published registers (internet)" },
-    ...REFERENCE_ITEMS.map(
-      (it): MenuItem => ({
-        type: "action",
-        label: it.label,
-        checked: o[it.key],
-        run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
-      }),
-    ),
-    { type: "heading", label: "Grid store" },
-    ...GRID_ITEMS.map(
-      (it): MenuItem => {
-        const state = it.key === "gridMetered" || it.key === "gridRegistered" ? plantRegister.get() : networkRegister.get()
-        return {
-          type: "action",
-          label: gridLabel(it.key, it.label),
-          checked: o[it.key],
-          disabled: state.kind === "failed" && !o[it.key] ? state.message : false,
-          run: () => overlays.set((cur) => ({ ...cur, [it.key]: !cur[it.key] })),
-        }
-      }
-    ),
-  ]
-}
+/*
+  THE MAP'S LAYERS ARE SWITCHED IN ONE PLACE, THE OUTLINER. They were also a
+  popover on this header and four groups of the ribbon: the same eye three
+  times, and three places to ask what is on the map. The outliner's tree holds
+  THINGS -- the project's and the map's -- and the ribbon holds verbs. The
+  ground is the exception that stays on the map, as the tile at its corner,
+  because it is chosen by looking at it.
+*/
 
 /** A plate floated over the map, as TERRA's reading cards over the globe. */
 const PLATE = "pointer-events-auto rounded-sm border shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
 const plateStyle = { background: "rgb(var(--p-ink) / 0.92)", borderColor: "rgb(var(--p-line) / 0.4)" }
 
-/** The toolbar, down the area's left edge as Blender's T region. */
-function Toolbar() {
-  const tool = useStore(activeTool)
-  return (
-    <>
-      {TOOLS.map((t) => {
-        const operator = findOperator(t.operator)
-        const IconC = operator?.icon
-        const on = t.id === tool
-        const key = operator?.keys?.[0]
-        return (
-          <button
-            key={t.id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => void runOperator(t.operator)}
-            title={`${t.label}${key ? ` (${formatKeys(key)})` : ""}\n${t.description}`}
-            className={`flex size-7 items-center justify-center transition-colors ${
-              on ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
-            }`}
-          >
-            {IconC && <IconC className="size-3.5" />}
-          </button>
-        )
-      })}
-    </>
-  )
-}
-
-/** A compass whose N follows north: dragged, it turns the map; pressed, it puts north up. */
-function Navigation() {
-  const { bearing } = useStore(mapView)
-  const drag = useRef<{ x: number; bearing: number; moved: boolean } | null>(null)
-  return (
-    <div className="pointer-events-auto flex flex-col items-center gap-1.5">
-      <button
-        type="button"
-        title="Drag to turn the map · press for north up"
-        aria-label="Compass"
-        className="relative size-11 cursor-grab rounded-full active:cursor-grabbing"
-        style={{ background: "rgb(var(--p-ink) / 0.72)", boxShadow: "inset 0 0 0 1px rgb(var(--p-line) / 0.4)" }}
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId)
-          drag.current = { x: e.clientX, bearing, moved: false }
-        }}
-        onPointerMove={(e) => {
-          const s = drag.current
-          if (!s) return
-          const dx = e.clientX - s.x
-          if (Math.abs(dx) > 2) s.moved = true
-          if (s.moved) setBearing(s.bearing - dx * 0.8)
-        }}
-        onPointerUp={() => {
-          const s = drag.current
-          drag.current = null
-          if (s && !s.moved) void runOperator("NORTH")
-        }}
-      >
-        <svg viewBox="0 0 44 44" className="absolute inset-0" aria-hidden>
-          <g style={{ transform: `rotate(${-bearing}deg)`, transformOrigin: "22px 22px" }}>
-            <path d="M22 6 L26 22 L22 20 L18 22 Z" fill="rgb(97 167 255)" />
-            <path d="M22 38 L26 22 L22 24 L18 22 Z" fill="rgb(145 145 145)" />
-            <text x="22" y="5.5" textAnchor="middle" className="fill-[rgb(221_221_221)] font-mono text-[6px]">
-              N
-            </text>
-          </g>
-        </svg>
-      </button>
-      <div className="flex flex-col overflow-hidden rounded-sm border" style={{ background: "rgb(var(--p-ink) / 0.72)", borderColor: "rgb(var(--p-line) / 0.4)" }}>
-        {[
-          { name: "ZOOMIN", icon: MagnifyingGlassPlus },
-          { name: "ZOOMOUT", icon: MagnifyingGlassMinus },
-          { name: "FRAME_ALL", icon: House },
-        ].map(({ name, icon: IconC }) => {
-          const o = findOperator(name)
-          return (
-            <button
-              key={name}
-              type="button"
-              onClick={() => void runOperator(name)}
-              title={o ? `${o.label}${o.keys?.[0] ? ` (${formatKeys(o.keys[0])})` : ""}` : name}
-              aria-label={o?.label}
-              className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
-            >
-              <IconC className="size-3.5" />
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/** A run or valid time as the hour it names, in UTC, the way model runs are called. */
-const utcHour = (iso: string) => `${iso.slice(11, 13)}Z`
-
-/**
- * The wind field's part of the plate: which height, which run and which hour
- * the field is, and what its colours mean. Modelled, and it says so.
- */
-function WindSection({ divided }: { divided: boolean }) {
-  const { height, state } = useStore(windField)
-  const field = fieldOf(state)
-  const gradient = `linear-gradient(to right, ${WIND_STOPS.map(([s, [r, g, b]]) => `rgb(${r} ${g} ${b}) ${(s / 32) * 100}%`).join(", ")})`
-  return (
-    <div className={divided ? "mt-2 border-t pt-1.5" : "mt-1.5"} style={{ borderColor: "rgb(var(--p-line) / 0.3)" }}>
-      <div className="flex items-center gap-1.5">
-        <span className="w-10 shrink-0 text-micro text-muted-foreground">Wind</span>
-        {([10, 100] as const).map((h) => (
-          <button
-            key={h}
-            type="button"
-            onClick={() => setWindHeight(h)}
-            aria-pressed={height === h}
-            title={h === 10 ? "At 10 m, the height stations measure at" : "At 100 m, near a turbine's hub"}
-            className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
-              height === h ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
-            }`}
-          >
-            {h} m
-          </button>
-        ))}
-        <span className="ml-auto telemetry text-[9px] text-muted-foreground" title="A forecast from a model run, not a measurement">
-          modelled
-        </span>
-      </div>
-      <p className="telemetry mt-1 text-micro text-foreground">
-        {field ? (
-          <>
-            valid {clockLabel(Date.parse(field.valid))}
-            <span className="text-muted-foreground">
-              {" "}
-              · GFS {field.run ? `${utcHour(field.run)} run` : "run unknown"}
-            </span>
-          </>
-        ) : state.kind === "failed" ? (
-          <span className="text-muted-foreground">unavailable</span>
-        ) : (
-          <span className="text-muted-foreground">reading…</span>
-        )}
-        {state.kind === "loading" && field && <span className="text-muted-foreground"> · updating</span>}
-      </p>
-      {state.kind === "failed" && (
-        <p className="mt-0.5 flex items-start gap-2 text-micro leading-snug text-destructive-quiet">
-          <span className="min-w-0 flex-1">{state.message}</span>
-          <button type="button" onClick={() => void refreshWind()} className="shrink-0 text-accent hover:underline">
-            Retry
-          </button>
-        </p>
-      )}
-      <div className="mt-1.5 h-1.5 w-full rounded-[1px]" style={{ background: gradient }} />
-      <div className="telemetry mt-0.5 flex justify-between text-[9px] text-muted-foreground">
-        <span>0</span>
-        <span>8</span>
-        <span>16</span>
-        <span>24</span>
-        <span>32 m/s</span>
-      </div>
-    </div>
-  )
-}
+/*
+  NO COMMAND FLOATS OVER THE MAP. It carried a tool plate, a magnifier and a
+  compass with zoom and home, and every one of them is a button of the ribbon's
+  Map tab: the same command twice, a hand's width apart. The ribbon is where
+  commands are. What is left over the map is what is ABOUT the map and belongs
+  on it: the ground's tile, the readings' plates, the credit.
+*/
 
 /** Speed and direction beside the pointer, while the wind field is drawn. */
 function WindReadout() {
@@ -408,208 +150,6 @@ function WindReadout() {
         {probe.from}
       </span>
       <span className="telemetry text-[9px] text-muted-foreground">{probe.height} m</span>
-    </div>
-  )
-}
-
-/**
- * The weather overlays' timeline: which moment is drawn, how old each layer's
- * frame is, and where the layers come from. Only while one is on.
- *
- * THE AGE IS WRITTEN, NOT IMPLIED. The satellite is published about forty
- * minutes late and the radar about ten, so "now" on this map is two different
- * moments, and each layer says its own.
- *
- * RETRACTED, IT STILL SAYS THE HOUR. The plate folds to its heading to give the
- * map back, and the layers stay drawn, so the heading keeps each layer's hour
- * beside it: what is on the map is never left without its time.
- */
-function WeatherPlate() {
-  const o = useStore(overlays)
-  const w = useStore(weather)
-  const wind = fieldOf(useStore(windField).state)
-  const open = useStore(weatherPlateOpen)
-  const [, tick] = useState(0)
-  const times = timelineTimes(w, o.weatherSatellite, o.weatherRadar)
-  const index = w.at === null ? times.length - 1 : Math.max(0, times.findIndex((t) => t >= w.at!))
-
-  // Ages are relative to the clock, so they are redrawn as it moves.
-  useEffect(() => {
-    const timer = window.setInterval(() => tick((n) => n + 1), 30_000)
-    return () => window.clearInterval(timer)
-  }, [])
-
-  useEffect(() => {
-    if (!w.playing) return
-    const timer = window.setInterval(() => {
-      const s = weather.get()
-      const all = timelineTimes(s, overlays.get().weatherSatellite, overlays.get().weatherRadar)
-      if (!all.length) return
-      const at = s.at === null ? all[all.length - 1] : s.at
-      const i = all.findIndex((t) => t > at)
-      setMoment(i < 0 ? all[0] : all[i])
-    }, 700)
-    return () => window.clearInterval(timer)
-  }, [w.playing])
-
-  if (!o.weatherSatellite && !o.weatherRadar && !o.weatherWind) return null
-  const observed = o.weatherSatellite || o.weatherRadar
-  const sat = frameAt(w.satellite, w.at)
-  const radar = frameAt(w.radar, w.at)
-  const layerLine = (label: string, state: LayerFrames, frame: Frame | null, retry: () => void) => (
-    <div className="flex items-baseline gap-2">
-      <span className="w-10 shrink-0 text-micro text-muted-foreground">{label}</span>
-      {frame ? (
-        <span className="telemetry min-w-0 flex-1 truncate text-micro text-foreground">
-          {clockLabel(frame.time)} <span className="text-muted-foreground">· {ageLabel(frame.time)}</span>
-        </span>
-      ) : (
-        <span className="min-w-0 flex-1 truncate text-micro text-muted-foreground">{state.kind === "failed" ? "unavailable" : "reading…"}</span>
-      )}
-      {state.kind === "failed" && (
-        <button type="button" onClick={retry} title={state.message} className="shrink-0 text-micro text-accent hover:underline">
-          Retry
-        </button>
-      )}
-    </div>
-  )
-
-  const hours = [
-    o.weatherSatellite && `Clouds ${sat ? clockLabel(sat.time) : "–"}`,
-    o.weatherRadar && `Rain ${radar ? clockLabel(radar.time) : "–"}`,
-    o.weatherWind && `Wind ${wind ? clockLabel(Date.parse(wind.valid)) : "–"}`,
-  ].filter(Boolean)
-
-  return (
-    <div className={`${PLATE} w-72 overflow-hidden`} style={plateStyle}>
-      <button
-        type="button"
-        onClick={() => weatherPlateOpen.set(!open)}
-        aria-expanded={open}
-        title={open ? "Retract" : "Expand"}
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-hover"
-      >
-        {open ? <CaretDown className="size-2.5 shrink-0 text-muted-foreground" /> : <CaretRight className="size-2.5 shrink-0 text-muted-foreground" />}
-        <span className={`eyebrow !text-[9px] ${open ? "min-w-0 flex-1 truncate" : "shrink-0"}`}>Weather now</span>
-        {open
-          ? observed && (
-              <span className="telemetry text-[9px] text-muted-foreground" title="Measured by satellite and radar, not modelled">
-                observed
-              </span>
-            )
-          : (
-              <span className="telemetry min-w-0 flex-1 truncate text-right text-[9px] text-muted-foreground">{hours.join(" · ")}</span>
-            )}
-      </button>
-      {open && (
-        <div className="px-2.5 pb-2">
-          {observed && (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setPlaying(!w.playing)}
-                disabled={times.length < 2}
-                aria-label={w.playing ? "Pause" : "Play the last two hours"}
-                title={w.playing ? "Pause" : "Play the last two hours"}
-                className="grid size-6 shrink-0 place-items-center rounded-sm bg-selected text-foreground hover:bg-hover disabled:opacity-40"
-              >
-                {w.playing ? <Pause className="size-3" weight="fill" /> : <Play className="size-3" weight="fill" />}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(0, times.length - 1)}
-                value={Math.max(0, index)}
-                disabled={times.length < 2}
-                aria-label="Moment shown"
-                onKeyDown={(e) => e.stopPropagation()}
-                onChange={(e) => {
-                  const i = Number(e.target.value)
-                  setPlaying(false)
-                  setMoment(i >= times.length - 1 ? null : times[i])
-                }}
-                className="min-w-0 flex-1 accent-[rgb(var(--p-accent))]"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setPlaying(false)
-                  setMoment(null)
-                }}
-                disabled={w.at === null}
-                className="shrink-0 text-micro text-muted-foreground hover:text-foreground disabled:opacity-40"
-              >
-                Latest
-              </button>
-            </div>
-          )}
-          <div className={observed ? "mt-1.5 flex flex-col gap-0.5" : "hidden"}>
-            {o.weatherSatellite && layerLine("Clouds", w.satellite, sat, () => void refreshSatellite())}
-            {o.weatherRadar && layerLine("Rain", w.radar, radar, () => void refreshRadar())}
-          </div>
-          {o.weatherSatellite && (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              {(Object.keys(SATELLITE) as SatelliteProduct[]).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setSatelliteProduct(p)}
-                  aria-pressed={w.product === p}
-                  title={p === "geocolor" ? "True colour by day, infrared by night" : "Infrared day and night: clouds read the same at any hour"}
-                  className={`rounded-sm px-1.5 py-px text-micro transition-colors ${
-                    w.product === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
-                  }`}
-                >
-                  {SATELLITE[p].label}
-                </button>
-              ))}
-              <input
-                type="range"
-                min={0.2}
-                max={1}
-                step={0.05}
-                value={w.satelliteOpacity}
-                aria-label="Cloud layer opacity"
-                title="Cloud layer opacity"
-                onKeyDown={(e) => e.stopPropagation()}
-                onChange={(e) => setOpacity("satellite", Number(e.target.value))}
-                className="ml-auto w-16 accent-[rgb(var(--p-accent))]"
-              />
-            </div>
-          )}
-          {(["satellite", "radar"] as const).some((l) => (l === "satellite" ? o.weatherSatellite : o.weatherRadar) && tilesFailing(w, l)) && (
-            <p className="mt-1.5 text-micro leading-snug" style={{ color: "var(--warning)" }}>
-              {o.weatherRadar && tilesFailing(w, "radar")
-                ? "Radar tiles are being refused. RainViewer limits requests from one address; the radar comes back once the limit resets, usually within a minute."
-                : "Satellite tiles are not loading. The connection or NASA GIBS may be down; the map keeps what it has."}
-            </p>
-          )}
-          {o.weatherRadar && (
-            <p className="mt-1.5 text-micro leading-snug text-muted-foreground">
-              Radar reaches where Brazil's radars do: dense in the South and Southeast, sparse inland in the Northeast. No colour where there is no
-              radar is not no rain.
-            </p>
-          )}
-          {o.weatherWind && <WindSection divided={observed} />}
-          <p className="mt-1.5 flex flex-wrap gap-x-1.5 text-[9px] text-muted-foreground">
-            {o.weatherSatellite && (
-              <button type="button" onClick={() => BrowserOpenURL("https://earthdata.nasa.gov/gibs")} className="hover:text-foreground hover:underline">
-                NASA GIBS · NOAA GOES-East
-              </button>
-            )}
-            {o.weatherRadar && (
-              <button type="button" onClick={() => BrowserOpenURL("https://www.rainviewer.com")} className="hover:text-foreground hover:underline">
-                RainViewer
-              </button>
-            )}
-            {o.weatherWind && (
-              <button type="button" onClick={() => BrowserOpenURL("https://www.unidata.ucar.edu/software/tds/")} className="hover:text-foreground hover:underline">
-                NOAA GFS · UCAR THREDDS
-              </button>
-            )}
-          </p>
-        </div>
-      )}
     </div>
   )
 }
@@ -646,9 +186,13 @@ function RedoPlate() {
   const again = async () => {
     if (!isResult(target) || !source) return
     const id =
-      target.kind === "terrain" || target.kind === "connection"
+      target.kind === "terrain" || target.kind === "connection" || target.kind === "ground"
         ? source.kind === "area" &&
-          (await (target.kind === "terrain" ? runTerrain(source, target.id) : runConnection(source, target.id)))
+          (await (target.kind === "terrain"
+            ? runTerrain(source, target.id)
+            : target.kind === "ground"
+              ? runGround(source, target.id)
+              : runConnection(source, target.id)))
         : source.kind === "site" && (await (target.kind === "solar" ? runSolar(source, target.id) : runWind(source, target.id)))
     if (id) lastOperation.set({ ...last, target: id })
   }
@@ -705,6 +249,77 @@ function RedoPlate() {
   )
 }
 
+/** The imagery tile holding a point, at a whole zoom the service carries. */
+function imageryTile(lng: number, lat: number, zoom: number): string {
+  const z = Math.max(1, Math.min(BASEMAPS.satellite.maxZoom, Math.floor(zoom)))
+  const n = 2 ** z
+  const rad = (Math.max(-85, Math.min(85, lat)) * Math.PI) / 180
+  const x = Math.floor((((lng + 180) / 360) % 1) * n)
+  const y = Math.floor(((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * n)
+  return IMAGERY_TILES.replace("{z}", String(z)).replace("{y}", String(y)).replace("{x}", String(x))
+}
+
+/** The street ground in small: its own inks, and no place in particular. */
+function StreetsSwatch() {
+  return (
+    <svg viewBox="0 0 64 64" className="absolute inset-0 size-full" aria-hidden>
+      <rect width="64" height="64" fill="#171717" />
+      <path d="M-2 46 C 14 40, 22 52, 40 44 S 60 30, 66 34 L 66 66 L -2 66 Z" fill="#0a0a0a" />
+      <g fill="none" stroke="#373737" strokeWidth="1">
+        <path d="M8 -2 L 14 30 L 6 44" />
+        <path d="M30 -2 L 26 18 L 34 40" />
+        <path d="M-2 22 L 26 18 L 66 26" />
+        <path d="M44 -2 L 48 22 L 40 44" />
+      </g>
+      <path d="M-2 10 C 20 16, 40 4, 66 12" fill="none" stroke="#525252" strokeWidth="2" />
+    </svg>
+  )
+}
+
+/**
+ * The ground, switched from the map itself: a tile at the map's corner that
+ * shows the OTHER ground and takes the map to it when pressed.
+ *
+ * IT SHOWS WHERE IT LEADS, NOT WHERE THE MAP IS. A switch that pictured the
+ * ground in use would have to be read as a state and then inverted; pictured
+ * as its destination it is read as a door. The imagery's picture is the tile
+ * under the map's centre, so it is a preview of this place. The street
+ * ground is drawn, since a vector map has no tile to borrow.
+ */
+function BasemapSwitch() {
+  const ground = useStore(basemap)
+  const { lng, lat, zoom } = useStore(mapView)
+  const to: BasemapId = ground === "dark" ? "satellite" : "dark"
+  const label = to === "satellite" ? "Imagery" : "Streets"
+  return (
+    <button
+      type="button"
+      onClick={() => basemap.set(to)}
+      title={`Switch the ground to ${BASEMAP_ITEMS.find((b) => b.id === to)?.label ?? label}`}
+      aria-label={`Switch the ground to ${label}`}
+      className="pointer-events-auto relative size-16 shrink-0 overflow-hidden rounded-md border-2 shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-[filter] hover:brightness-125"
+      style={{ borderColor: "rgb(var(--p-text) / 0.85)", background: "var(--s-field)" }}
+    >
+      {to === "satellite" ? (
+        <span
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url("${imageryTile(lng, lat, zoom)}")` }}
+          aria-hidden
+        />
+      ) : (
+        <StreetsSwatch />
+      )}
+      <span
+        className="absolute inset-x-0 bottom-0 flex items-center gap-1 px-1.5 pb-1 pt-3 text-meta text-white"
+        style={{ background: "linear-gradient(to top, rgb(0 0 0 / 0.75), transparent)" }}
+      >
+        <Stack className="size-3 shrink-0" />
+        {label}
+      </span>
+    </button>
+  )
+}
+
 const ENGINE_CREDIT = { label: "MapLibre", href: "https://maplibre.org" }
 
 /**
@@ -745,7 +360,6 @@ function Foot() {
 
 export function MapEditor() {
   const container = useRef<HTMLDivElement>(null)
-  const o = useStore(overlays)
   const view = useStore(mapView)
 
   useEffect(() => {
@@ -757,33 +371,11 @@ export function MapEditor() {
   return (
     <>
       <AreaHeader
-        menus={
-          <>
-            <StudioHeaderMenu label="View" items={viewMenu} />
-            <StudioHeaderMenu label="Select" items={selectMenu} />
-            <StudioHeaderMenu label="Add" items={addMenu} />
-            <StudioHeaderMenu label="Object" items={objectMenu} />
-          </>
-        }
         centre={
           <span className="telemetry header-label text-[9px] text-muted-foreground">
             {formatLat(view.lat, 3)} {formatLng(view.lng, 3)}
           </span>
         }
-        options={
-          <>
-            <StudioHeaderToggle
-              icon={Tag}
-              label="Names"
-              on={o.siteLabels}
-              onToggle={() => overlays.set((c) => ({ ...c, siteLabels: !c.siteLabels }))}
-              title="Draw the names of sites and areas"
-            />
-            <StudioHeaderRule />
-            <StudioHeaderPopover icon={Stack} label="Overlays" items={overlaysMenu} align="end" />
-          </>
-        }
-        toolbar={<Toolbar />}
       />
       <div className="relative min-h-0 flex-1" style={{ background: "var(--s-field)" }}>
         {/*
@@ -795,22 +387,19 @@ export function MapEditor() {
         <OverlayCallouts />
         <div className="pointer-events-none absolute inset-0">
           <WindReadout />
-          <div className="absolute right-2 top-2">
-            <Navigation />
-          </div>
-          {/* Clear of the floating tool plate, which now sits at this corner. */}
-          <div className="absolute left-12 top-2 flex flex-col items-start gap-2">
+          {/* The address field, while Locate has it open, and the measure's figure while that tool is on. */}
+          <div className="absolute left-1.5 top-1.5 flex flex-col items-start gap-2">
+            <AddressSearch />
             <MeasurePlate />
           </div>
-          <div className="absolute bottom-7 right-2">
-            <WeatherPlate />
-          </div>
-          <div className="absolute bottom-7 left-2">
+          <div className="absolute bottom-7 left-2 flex items-end gap-2">
+            <BasemapSwitch />
             <RedoPlate />
           </div>
           <Foot />
         </div>
       </div>
+      <WeatherTimeline />
     </>
   )
 }

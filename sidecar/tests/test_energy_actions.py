@@ -145,6 +145,7 @@ def test_the_parameter_defaults_are_the_ones_the_actions_apply(capsys):
             'yield_ceiling_kwh_kwp': demand.DEFAULT_CEILING_KWH_KWP,
             'cell_km': demand.CELL_KM,
         },
+        'ground': {'slope_max_deg': 5.0, 'hand_min_m': 5.0},
     }
 
 

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { MagnifyingGlass, X } from "@phosphor-icons/react"
+import { MagnifyingGlass, X } from "../../lib/icons"
 import { errorMessage } from "../../lib/errors"
 import { frameItem } from "../../lib/mapEngine"
 import { addArea, addSite, validLonLat } from "../../lib/objects"
 import { catalogue, outline, search, type Boundary } from "../../lib/places"
 import { note } from "../../lib/reports"
+import { artSrc, operatorArt } from "../../lib/art"
 import { formatKeys, pollOperator, runOperator, searchOperators, usePollTick } from "../../lib/operators"
 import { useStore } from "../../lib/store"
 import { confirmRequest, coordinatePrompt, lastOperation, operatorSearch, placePrompt } from "../../lib/ui"
@@ -192,7 +193,7 @@ function PlaceDialogBody() {
   const [all, setAll] = useState<Boundary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
-  const [busy, setBusy] = useState<number | null>(null)
+  const [busy, setBusy] = useState<number | string | null>(null)
   const close = () => placePrompt.set(false)
 
   useEffect(() => {
@@ -360,7 +361,13 @@ function OperatorSearchBody() {
                 onClick={() => run(i)}
                 className={`flex items-center gap-2 px-3 py-[5px] text-meta ${on ? "bg-accent-dim" : ""} ${disabled ? "text-muted-foreground/50" : "text-foreground"}`}
               >
-                <span className="flex size-3 shrink-0 items-center justify-center">{IconC && <IconC className="size-3 text-muted-foreground" />}</span>
+                <span className="flex size-3 shrink-0 items-center justify-center">
+                  {artSrc(operatorArt(op.name)) ? (
+                    <img src={artSrc(operatorArt(op.name))} alt="" draggable={false} className={`size-3.5 max-w-none ${disabled ? "opacity-40 grayscale" : ""}`} />
+                  ) : (
+                    IconC && <IconC className="size-3 text-muted-foreground" />
+                  )}
+                </span>
                 <span className="shrink-0 text-muted-foreground">{op.menu} ›</span>
                 <span className="min-w-0 flex-1 truncate">{op.label}</span>
                 {disabled && on && <span className="max-w-[45%] truncate text-[9px] text-warning">{poll}</span>}

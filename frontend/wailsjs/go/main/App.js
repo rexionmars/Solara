@@ -18,6 +18,10 @@ export function AnalyzeSolarTerrain(arg1) {
   return window['go']['main']['App']['AnalyzeSolarTerrain'](arg1);
 }
 
+export function AnalyzeUsableGround(arg1) {
+  return window['go']['main']['App']['AnalyzeUsableGround'](arg1);
+}
+
 export function AnalyzeWindResource(arg1) {
   return window['go']['main']['App']['AnalyzeWindResource'](arg1);
 }
@@ -32,6 +36,10 @@ export function ClearAvatar() {
 
 export function CurrentUser() {
   return window['go']['main']['App']['CurrentUser']();
+}
+
+export function DisconnectGridStore() {
+  return window['go']['main']['App']['DisconnectGridStore']();
 }
 
 export function ExportResultFile(arg1, arg2) {
@@ -62,6 +70,10 @@ export function GridPlants() {
   return window['go']['main']['App']['GridPlants']();
 }
 
+export function GridStoreConnection() {
+  return window['go']['main']['App']['GridStoreConnection']();
+}
+
 export function GridTownDemand() {
   return window['go']['main']['App']['GridTownDemand']();
 }
@@ -84,6 +96,10 @@ export function OpenProject(arg1) {
 
 export function ParameterDefaults() {
   return window['go']['main']['App']['ParameterDefaults']();
+}
+
+export function ParseGridStoreURL(arg1) {
+  return window['go']['main']['App']['ParseGridStoreURL'](arg1);
 }
 
 export function Ping() {
@@ -118,14 +134,46 @@ export function SetGridStore(arg1) {
   return window['go']['main']['App']['SetGridStore'](arg1);
 }
 
+export function SetGridStoreConnection(arg1) {
+  return window['go']['main']['App']['SetGridStoreConnection'](arg1);
+}
+
 export function SetProjectDirty(arg1) {
   return window['go']['main']['App']['SetProjectDirty'](arg1);
+}
+
+export function StoreBoundary(arg1) {
+  return window['go']['main']['App']['StoreBoundary'](arg1);
+}
+
+export function StoreBoundaryList() {
+  return window['go']['main']['App']['StoreBoundaryList']();
+}
+
+export function TestGridStore(arg1) {
+  return window['go']['main']['App']['TestGridStore'](arg1);
 }
 
 export function UpdateDisplayName(arg1) {
   return window['go']['main']['App']['UpdateDisplayName'](arg1);
 }
 
-export function WindField(arg1) {
-  return window['go']['main']['App']['WindField'](arg1);
+export function WindField(arg1, arg2) {
+  return window['go']['main']['App']['WindField'](arg1, arg2);
+}
+
+export function WorldBoundary(arg1, arg2, arg3) {
+  return window['go']['main']['App']['WorldBoundary'](arg1, arg2, arg3);
+}
+
+export function WorldCountries() {
+  return window['go']['main']['App']['WorldCountries']();
+}
+
+export function WorldLevels(arg1) {
+  return window['go']['main']['App']['WorldLevels'](arg1);
+}
+
+export function WorldPlaces(arg1, arg2) {
+  return window['go']['main']['App']['WorldPlaces'](arg1, arg2);
 }

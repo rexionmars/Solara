@@ -1,4 +1,4 @@
-import { ChartBar, Fan, Graph, MapTrifold, Mountains, PlugsConnected, Scroll, SlidersHorizontal, Sun, Table, TerminalWindow, TreeView, type Icon } from "@phosphor-icons/react"
+import { ChartBar, CheckSquare, Fan, Graph, MapTrifold, Mountains, PlugsConnected, Scroll, SlidersHorizontal, Sun, Table, TerminalWindow, TreeView, type Icon } from "./icons"
 
 /**
  * What an area can be, named once, as TERRA's studioEditors names its own.
@@ -8,19 +8,20 @@ import { ChartBar, Fan, Graph, MapTrifold, Mountains, PlugsConnected, Scroll, Sl
  * the switch from an id to a component lives where the props are.
  */
 
-export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain" | "connection" | "demand"
+export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain" | "connection" | "demand" | "ground"
 
 /**
  * What kind of work a thing is FOR. The workspace bar and the type menu group
  * by the same subjects, so a reader who has learnt one has learnt the other.
  */
-export type StudioGroup = "board" | "solar" | "wind" | "grid"
+export type StudioGroup = "board" | "solar" | "wind" | "grid" | "ground"
 
 export const STUDIO_GROUPS: readonly { id: StudioGroup; label: string }[] = [
   { id: "board", label: "Board" },
   { id: "solar", label: "Solar" },
   { id: "wind", label: "Wind" },
   { id: "grid", label: "Grid" },
+  { id: "ground", label: "Ground" },
 ]
 
 export type EditorMeta = {
@@ -152,6 +153,15 @@ export const EDITORS: readonly EditorMeta[] = [
     minRem: 22,
     minRowRem: 14,
     hint: "What an area already draws from the network, and what it already puts back",
+  },
+  {
+    id: "ground",
+    group: "ground",
+    label: "Usable ground",
+    icon: CheckSquare,
+    minRem: 22,
+    minRowRem: 14,
+    hint: "How much of an area a plant could stand on, and what excludes the rest",
   },
 ]
 

@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react"
-import { Database, Gear, Info, Keyboard, User } from "@phosphor-icons/react"
+import { Database, Gear, Info, Keyboard, User } from "../../lib/icons"
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BRAND_TAGLINE, RELEASE_NAME } from "../../lib/brand"
 import { defaults, loadDefaults } from "../../lib/defaults"
 import { formatKeys, OPERATORS, type Scope } from "../../lib/operators"
-import { CONNECTION_FIELDS, SOLAR_FIELDS, TERRAIN_FIELDS, WIND_FIELDS, seasonLabel } from "../../lib/params"
-import { checkGridStore, chooseGridStore, dsnSourceLabel, forgetLayers, gridStore, storeReport } from "../../lib/grid"
+import { CONNECTION_FIELDS, GROUND_FIELDS, SOLAR_FIELDS, TERRAIN_FIELDS, WIND_FIELDS, seasonLabel } from "../../lib/params"
+import { checkGridStore, dsnSourceLabel, gridStore, storeReport } from "../../lib/grid"
 import { sidecar } from "../../lib/sidecarStatus"
 import { useStore } from "../../lib/store"
 import { preferences, type PreferencesSection } from "../../lib/ui"
 import { AccountDocument } from "../account/AccountDocument"
-import { btnGhostDense, btnPrimary, fieldInput } from "../ui/buttons"
+import { StoreConnectionForm, StoreHoldings } from "../energy/StoreConnection"
+import { btnGhostDense, fieldInput } from "../ui/buttons"
 import { Figure, OperatorButton, PanelSection } from "../ui/Fields"
 import { DialogHead, ModalShell } from "./Dialogs"
 
@@ -55,6 +56,7 @@ function EngineSection() {
             { title: "Wind screening", fields: WIND_FIELDS },
             { title: "Solar terrain", fields: TERRAIN_FIELDS },
             { title: "Grid connection", fields: CONNECTION_FIELDS },
+            { title: "Usable ground", fields: GROUND_FIELDS },
           ].map((g) => (
             <div key={g.title} className="pt-1">
               <p className="eyebrow !text-[9px] pb-0.5 !text-foreground">{g.title}</p>
@@ -80,19 +82,11 @@ function GridSection() {
   const s = useStore(gridStore)
   const engine = useStore(sidecar)
   const report = storeReport(s)
-  const [draft, setDraft] = useState<string | null>(null)
   useEffect(() => {
     if (engine.kind === "ready" && gridStore.get().kind === "unknown") void checkGridStore()
   }, [engine.kind])
   const checking = s.kind === "checking"
   const c = report?.coverage
-  const save = async (dsn: string) => {
-    if (await chooseGridStore(dsn)) {
-      setDraft(null)
-      // The layers were read from the store that was chosen before.
-      forgetLayers()
-    }
-  }
 
   return (
     <>
@@ -112,53 +106,23 @@ function GridSection() {
           label="Status"
           value={
             <span style={{ color: report ? (report.reachable ? "var(--success)" : "var(--destructive-quiet)") : undefined }}>
-              {checking ? "checking" : report ? (report.reachable ? "reachable" : "unreachable") : s.kind === "failed" ? "not checked" : "unknown"}
+              {checking ? "checking" : report ? (report.reachable ? "connected" : report.dsn_source === "none" ? "not connected" : report.coverage?.store?.profile === "none" ? "not a store" : "unreachable") : s.kind === "failed" ? "not checked" : "unknown"}
             </span>
           }
         />
-        {report && <Figure label="Connection" value={report.dsn} />}
-        {report && <Figure label="Chosen by" value={dsnSourceLabel(report.dsn_source)} />}
+        {report?.dsn && <Figure label="Connection" value={report.dsn} />}
+        {report?.dsn && <Figure label="Chosen by" value={dsnSourceLabel(report.dsn_source)} />}
         {report?.unreachable && <p className="selectable whitespace-pre-wrap text-meta text-destructive-quiet">{report.unreachable}</p>}
         {s.kind === "failed" && <p className="selectable whitespace-pre-wrap text-meta text-destructive-quiet">{s.message}</p>}
       </PanelSection>
 
-      <PanelSection title="Choose a store">
-        {report?.dsn_source === "TERRA_BR_DSN" && (
-          <p className="text-meta leading-relaxed" style={{ color: "var(--warning)" }}>
-            TERRA_BR_DSN is set in this application's environment, and it is what is read. A store chosen here is kept for when it is not.
-          </p>
-        )}
-        <input
-          // Never prefilled with a masked password: saving "***" back would replace the real one.
-          value={draft ?? (report?.dsn_source === "chosen" && !report.dsn.includes("***") ? report.dsn : "")}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === "Enter" && draft !== null) void save(draft)
-          }}
-          placeholder="postgresql:///terra_br"
-          aria-label="Grid store connection"
-          spellCheck={false}
-          className={`${fieldInput} telemetry`}
-        />
-        <p className="text-meta leading-relaxed text-muted-foreground">
-          A PostgreSQL connection string. Empty is the default: the local socket, database terra_br, your own role. A password is kept in a
-          file only you can read, and never shown.
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          <button type="button" className={btnPrimary} disabled={checking || draft === null} onClick={() => draft !== null && void save(draft)}>
-            Check and save
-          </button>
-          {report?.dsn_source === "chosen" && (
-            <button type="button" className={btnGhostDense} disabled={checking} onClick={() => void save("")}>
-              Use the default
-            </button>
-          )}
-        </div>
+      <PanelSection title="Connection">
+        <StoreConnectionForm />
       </PanelSection>
 
       {report?.reachable && c && (
         <PanelSection title="What it holds">
+          <StoreHoldings />
           <Figure label="Plants registered" value={c.plants.registered.toLocaleString()} />
           <Figure label="Located" value={c.plants.with_geometry.toLocaleString()} />
           <Figure label="Substations" value={c.network.substations.toLocaleString()} />

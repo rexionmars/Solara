@@ -3,6 +3,7 @@ import {
   AnalyzeGridDemand,
   AnalyzeSolarResource,
   AnalyzeSolarTerrain,
+  AnalyzeUsableGround,
   AnalyzeWindResource,
   CancelRun,
 } from "../../wailsjs/go/main/App"
@@ -11,7 +12,8 @@ import { EventsOn } from "../../wailsjs/runtime/runtime"
 import { errorMessage } from "./errors"
 import { formatLat, formatLng } from "./format"
 import { polygonAreaKm2 } from "./geo"
-import { setLegendShown } from "./mapState"
+import { arrived, setLegendShown } from "./mapState"
+import { unitLabel } from "./energyFormat"
 import { seasonLabel, windSettingsError } from "./params"
 import {
   PRODUCT_NAMES,
@@ -124,11 +126,13 @@ async function run(
     running.set(null)
     lastFailure.set(null)
     // A new layer arrives with its legend up, taken over from the one it replaces.
-    if (product === "terrain") {
+    if (product === "terrain" || product === "ground") {
       setLegendShown(id, true)
       if (replace) setLegendShown(replace, false)
     }
     const result = project.get().data.results.find((r) => r.id === id)
+    // Where the result is, is on the map: brought into view only if none of it is there (mapEngine.ts).
+    if (result) arrived.set(id)
     if (result) info(summary(result), { label: "Show", run: () => showResult(id, product) })
     return id
   } catch (e) {
@@ -146,6 +150,7 @@ async function run(
 const siteLabel = (s: SiteObject) => `at ${s.name} (${formatLat(s.lat, 4)} ${formatLng(s.lon, 4)})`
 
 export function runSolar(site: SiteObject, replace?: string): Promise<string | null> {
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
   const p = project.get().data.settings.solar
   const at = { lon: site.lon, lat: site.lat }
   return run(
@@ -176,6 +181,7 @@ export function runSolar(site: SiteObject, replace?: string): Promise<string | n
 }
 
 export async function runWind(site: SiteObject, replace?: string): Promise<string | null> {
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
   const p = project.get().data.settings.wind
   const problem = windSettingsError(p)
   if (problem) {
@@ -215,6 +221,7 @@ export async function runWind(site: SiteObject, replace?: string): Promise<strin
 }
 
 export function runTerrain(area: AreaObject, replace?: string): Promise<string | null> {
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
   const p = project.get().data.settings.terrain
   const polygon = area.polygon
   return run(
@@ -235,13 +242,14 @@ export function runTerrain(area: AreaObject, replace?: string): Promise<string |
     (r) =>
       r.kind === "terrain"
         ? `Solar terrain over ${area.name}: ${seasonLabel(r.data.season).toLowerCase()}, mean ` +
-          `${r.data.poa_mean.toFixed(r.data.scale.decimals)} ${r.data.unit}, spread ${r.data.poa_std_pct.toFixed(1)}%.`
+          `${r.data.poa_mean.toFixed(r.data.scale.decimals)} ${unitLabel(r.data.unit)}, spread ${r.data.poa_std_pct.toFixed(1)}%.`
         : "",
     replace
   )
 }
 
 export function runConnection(area: AreaObject, replace?: string): Promise<string | null> {
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
   const p = project.get().data.settings.connection
   const polygon = area.polygon
   return run(
@@ -280,6 +288,7 @@ export function runConnection(area: AreaObject, replace?: string): Promise<strin
  * the figure on screen is never audited against a number nobody chose.
  */
 export function runDemand(area: AreaObject, replace?: string): Promise<string | null> {
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
   const p = project.get().data.settings.demand
   const polygon = area.polygon
   return run(
@@ -318,4 +327,37 @@ export async function cancelRun(): Promise<void> {
   if (!running.get()) return
   const stopped = await CancelRun()
   if (!stopped) info("Nothing was running.")
+}
+
+/**
+ * How much of the area a plant could stand on.
+ *
+ * A rule is sent only when the project carries one: absent, the sidecar
+ * applies its default and the reading states the rule that was applied.
+ */
+export function runGround(area: AreaObject, replace?: string): Promise<string | null> {
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
+  const p = project.get().data.settings.ground
+  const polygon = area.polygon
+  return run(
+    "ground",
+    area,
+    `over ${area.name} (${polygonAreaKm2(polygon).toFixed(2)} km²)`,
+    async () => ({
+      kind: "ground" as const,
+      polygon,
+      params: { ...p },
+      opacity: 0.7,
+      data: await AnalyzeUsableGround(
+        energy.UsableGroundRequest.createFrom({ area: polygon, slope_max_deg: p.slopeMaxDeg, hand_min_m: p.handMinM })
+      ),
+    }),
+    (r) =>
+      r.kind === "ground"
+        ? `Usable ground over ${area.name}: ${r.data.usable_km2.toFixed(1)} km², ${r.data.usable_pct.toFixed(1)}% of the area` +
+          `${r.data.usable_of_land_pct != null ? ` and ${r.data.usable_of_land_pct.toFixed(1)}% of its land` : ""}, ` +
+          `at ${r.data.rules.slope_max_deg}° and ${r.data.rules.hand_min_m} m; the flood rule is a lower bound.`
+        : "",
+    replace
+  )
 }

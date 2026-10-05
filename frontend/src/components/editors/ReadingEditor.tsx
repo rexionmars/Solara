@@ -1,21 +1,23 @@
 import { useState } from "react"
-import { ChartBar, Fan, Graph, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "@phosphor-icons/react"
-import { runOperator } from "../../lib/operators"
+import { ChartBar, CheckSquare, Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "../../lib/icons"
+import { formatMoment } from "../../lib/format"
+import { RUN_OPERATOR, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
-import { areaStates, openRunGraph, setAreaState } from "../../lib/screen"
-import { select, useActiveItem } from "../../lib/selection"
+import { areaStates, setAreaState } from "../../lib/screen"
+import { activeArea, activeSite, select, useActiveItem } from "../../lib/selection"
 import { useStore } from "../../lib/store"
 import type { MenuItem } from "../../lib/ui"
 import { SolarBody } from "../energy/SolarDocument"
 import { TerrainBody } from "../energy/TerrainDocument"
 import { WindBody } from "../energy/WindDocument"
 import { ConnectionBody } from "../energy/ConnectionDocument"
-import { DemandBoard } from "../energy/DemandBoard"
-import type { Place } from "../studio/Board"
+import { DemandBody } from "../energy/DemandDocument"
+import { GroundBody } from "../energy/GroundDocument"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AreaHeader } from "../studio/StudioArea"
-import { btnPrimary } from "../ui/buttons"
+import { OperatorButton } from "../ui/Fields"
+import { RunInputs } from "./RunInputs"
 
 /**
  * A product's reading, as TERRA's Solar result and Wind screening editors:
@@ -26,7 +28,7 @@ import { btnPrimary } from "../ui/buttons"
  * newest in the project.
  */
 
-const ICON: Record<Product, Icon> = { solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar }
+const ICON: Record<Product, Icon> = { solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar, ground: CheckSquare }
 
 function shown(d: ProjectData, product: Product, pinned: string | undefined, active: AnyItem | null): ResultObject | null {
   const pin = pinned ? findItem(d, pinned) : null
@@ -52,38 +54,12 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
   const [picker, setPicker] = useState(false)
   const all = d.results.filter((r) => r.kind === product)
 
-  /*
-    Where the reader has dragged each card, per result: two runs of the same
-    product are two boards, because comparing them means arranging them
-    differently. Kept in the area's state, so it is this window's arrangement
-    and not the project's -- another window reading the same result is free to
-    lay it out its own way.
-  */
-  const boards = (useStore(areaStates)[areaId]?.boards ?? {}) as Record<string, Record<string, Place>>
-  const moveCard = (resultId: string, cardId: string, place: Place) =>
-    setAreaState(areaId, {
-      boards: { ...boards, [resultId]: { ...boards[resultId], [cardId]: place } },
-    })
-  const resetBoard = (resultId: string) => {
-    const { [resultId]: _dropped, ...rest } = boards
-    setAreaState(areaId, { boards: rest })
-  }
-
   // Operators act on the active item; one started from this header acts on the reading on screen.
   const onShown = (name: string) => {
     if (!result) return
     select(result.id)
     void runOperator(name)
   }
-
-  /*
-    A READING IS EITHER A DOCUMENT OR A BOARD, and the reading says which.
-    A document is scrolled inside a measured column; a board owns the whole
-    area and is panned. Wrapping a board in the document's scroller would give
-    it a height of zero, so the two are laid out by different branches rather
-    than by one container that tries to serve both.
-  */
-  const boarded = result?.kind === "demand"
 
   // A value rather than a component declared here, which would remount the reading on every render.
   const body = !result ? null : result.kind === "solar" ? (
@@ -94,14 +70,10 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
     <TerrainBody terrain={result.data} area={result.polygon} />
   ) : result.kind === "connection" ? (
     <ConnectionBody connection={result.data} area={result.polygon} />
+  ) : result.kind === "ground" ? (
+    <GroundBody ground={result.data} area={result.polygon} />
   ) : (
-    <DemandBoard
-      demand={result.data}
-      area={result.polygon}
-      places={boards[result.id]}
-      onMove={(id, place) => moveCard(result.id, id, place)}
-      onReset={() => resetBoard(result.id)}
-    />
+    <DemandBody demand={result.data} area={result.polygon} />
   )
 
   return (
@@ -119,7 +91,7 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
                   onClick={t.onClick}
                   icon={pinned ? PushPin : undefined}
                   // The source, not the result's name: the area header already says which product this is.
-                  label={result ? `${findItem(d, result.sourceId)?.name ?? "deleted source"} · ${result.createdAt.slice(5, 16).replace("T", " ")}` : "No result"}
+                  label={result ? `${findItem(d, result.sourceId)?.name ?? "deleted source"} · ${formatMoment(result.createdAt, true)}` : "No result"}
                   showLabel
                   open={picker}
                   title="Which result this area reads"
@@ -144,7 +116,7 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
                       key={r.id}
                       icon={staleReason(d, r) ? Warning : undefined}
                       label={`${r.name} · ${findItem(d, r.sourceId)?.name ?? "deleted"}`}
-                      note={r.createdAt.slice(5, 16).replace("T", " ")}
+                      note={formatMoment(r.createdAt, true)}
                       checked={pinned === r.id}
                       title="Pin this area to this result"
                       onSelect={() => {
@@ -178,41 +150,25 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
         <div className="panel-scroll @container h-full min-h-0 overflow-y-auto">
           <Empty product={product} />
         </div>
-      ) : boarded ? (
-        // The board fills the area and is never scrolled. The staleness notice
-        // floats over it, centred at the top, because a board has no "above".
-        <div className="relative h-full min-h-0">
-          {body}
+      ) : (
+        // A reading lays itself out on the page of its own finish (primitives.tsx, ReadingPage).
+        <div className="reading panel-scroll h-full min-h-0 overflow-y-auto">
           {stale && (
-            <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
-              <StaleNotice stale={stale} onRerun={() => onShown("RERUN")} floating />
+            <div className="mx-auto max-w-[900px] px-6 pt-5">
+              <StaleNotice stale={stale} onRerun={() => onShown("RERUN")} />
             </div>
           )}
-        </div>
-      ) : (
-        <div className="panel-scroll @container h-full min-h-0 overflow-y-auto">
-          <div className="mx-auto max-w-4xl px-6 pb-12 pt-5">
-            {stale && (
-              <div className="mb-4">
-                <StaleNotice stale={stale} onRerun={() => onShown("RERUN")} />
-              </div>
-            )}
-            {body}
-          </div>
+          {body}
         </div>
       )}
     </>
   )
 }
 
-/** The source moved after the run. Said once, in the same words on either layout. */
-function StaleNotice({ stale, onRerun, floating }: { stale: string; onRerun: () => void; floating?: boolean }) {
+/** The source moved after the run. */
+function StaleNotice({ stale, onRerun }: { stale: string; onRerun: () => void }) {
   return (
-    <div
-      className={`pointer-events-auto flex items-center gap-2 rounded-md px-3 py-2 text-body ${floating ? "border border-white/[0.07] shadow-lg backdrop-blur" : ""}`}
-      style={{ background: floating ? "rgb(52 46 18 / 0.92)" : "rgb(213 190 75 / 0.12)", color: "var(--warning)" }}
-      role="status"
-    >
+    <div className="flex items-center gap-2 rounded-md px-3 py-2 text-body" style={{ background: "rgb(213 190 75 / 0.12)", color: "var(--warning)" }} role="status">
       <Warning className="size-3.5 shrink-0" weight="fill" />
       <span className="flex-1">{stale}. The figures describe the source as it was when computed.</span>
       <button type="button" onClick={onRerun} className="shrink-0 rounded-sm px-1.5 py-0.5 text-meta hover:bg-hover">
@@ -223,23 +179,26 @@ function StaleNotice({ stale, onRerun, floating }: { stale: string; onRerun: () 
 }
 
 /*
-  WHAT AN EMPTY READING SAYS, AND WHAT IT MUST NOT DO.
+  WHAT AN EMPTY READING SAYS.
 
-  It says what the product is, in the one sentence PRODUCT_SUMMARY holds, and
-  it sends the reader to the run graph. It does NOT run anything.
+  What the product is, in the one sentence PRODUCT_SUMMARY holds, and what a
+  run of it would read over the site or area that is active: the same rows
+  the product's card in Properties lists, each with its value and its state.
 
-  A RUN IS SET UP IN ONE PLACE. The graph shows every input of a request at
-  once, each with the state of its own wire, which is what makes the request
-  legible before it is spent. A button here ran the same product with none of
-  that on screen, so the reader pressed without seeing the ground, the
-  register or the settings it would use -- and a second place to press is a
-  second place for the two to disagree. The canvas exists to stop that, so
-  this screen points at it instead of competing with it.
+  IT RUNS, BECAUSE IT NO LONGER RUNS BLIND. A button here once spent a run
+  with none of its inputs on screen, and was taken away for it. With the
+  ground, the register and the settings listed above it, the button is the
+  one in Properties under another roof; the settings themselves are edited
+  there, where the selection's values live.
 */
 
-function Empty({ product }: { product: Product }) {
+export function Empty({ product }: { product: Product }) {
   const IconC = ICON[product]
-  const on = isAreaProduct(product) ? "an area" : "a site"
+  // Redrawn with the selection and the project; the source is the one operators act on.
+  useActiveItem()
+  useStore(project)
+  const wanted = isAreaProduct(product) ? "area" : "site"
+  const source = wanted === "area" ? activeArea() : activeSite()
   return (
     <div className="mx-auto flex max-w-md flex-col gap-3 px-6 py-16">
       <div className="flex items-center gap-2">
@@ -247,14 +206,15 @@ function Empty({ product }: { product: Product }) {
         <p className="eyebrow">{PRODUCT_NAMES[product]}</p>
       </div>
       <p className="text-body leading-relaxed">{PRODUCT_SUMMARY[product]}</p>
-      <p className="text-meta leading-relaxed text-muted-foreground">
-        No reading yet. A run is set up in the run graph, where {on} and every setting it reads are on one board; what it
-        produces is read back here, and stays in the project to be compared.
-      </p>
-      <button type="button" onClick={() => openRunGraph(product)} className={`${btnPrimary} self-start`}>
-        <Graph className="size-3.5" />
-        Set up a run
-      </button>
+      <div className="rounded-sm border px-2.5 py-2" style={{ borderColor: "var(--hairline)" }}>
+        <RunInputs product={product} source={source} />
+      </div>
+      {!source && (
+        <p className="text-meta leading-relaxed text-muted-foreground">
+          Select {wanted === "area" ? "an area" : "a site"} in the Outliner or on the map; its settings are in Properties.
+        </p>
+      )}
+      <OperatorButton name={RUN_OPERATOR[product]} label={`Run ${PRODUCT_NAMES[product].toLowerCase()}`} primary className="self-start" />
     </div>
   )
 }

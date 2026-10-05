@@ -6,12 +6,11 @@ import type { Overlays } from "./tools"
  * services rather than from the local store.
  *
  * WHY THESE ARE RASTER AND NOT FEATURES. Every one of them is asked for as a
- * picture: a WMS GetMap, or ArcGIS's export, over the tile the map is about to
- * draw. The alternative is to pull the whole layer as GeoJSON, which for the
- * indigenous land alone is several megabytes of polygon that the reader can
- * neither click nor query any more usefully than they can read it. A picture
- * also crosses the webview without a CORS negotiation, which a government
- * geoserver is not obliged to grant.
+ * picture: a map tile, or ArcGIS's export, over the tile the map is about to
+ * draw. The alternative is to pull the whole layer as GeoJSON, which is
+ * megabytes of geometry that the reader can neither click nor query any more
+ * usefully than they can read it. A picture also crosses the webview without
+ * a CORS negotiation, which a government geoserver is not obliged to grant.
  *
  * The cost of that choice is honest and worth stating: these layers cannot be
  * picked. They say where something is, not what it is. When one of them needs
@@ -19,7 +18,7 @@ import type { Overlays } from "./tools"
  * grid store, not a bigger raster.
  */
 
-export type ServiceKey = "nightLights" | "sigel" | "indigenousLand" | "protectedAreas"
+export type ServiceKey = "nightLights" | "sigel"
 
 export type ServiceLayer = {
   key: ServiceKey & keyof Overlays
@@ -67,29 +66,7 @@ export function nightLightsDate(now = new Date()): string {
   return d.toISOString().slice(0, 10)
 }
 
-// ---- The WMS services --------------------------------------------------------------------
-
-/**
- * A GetMap over the tile MapLibre is about to draw. `{bbox-epsg-3857}` is
- * filled in per tile, so the service is asked for exactly the ground on
- * screen. 512 px tiles rather than 256: it is a quarter of the requests to a
- * service that owes this application nothing.
- */
-function wms(base: string, layers: string): string {
-  const q = new URLSearchParams({
-    service: "WMS",
-    version: "1.3.0",
-    request: "GetMap",
-    layers,
-    styles: "",
-    crs: "EPSG:3857",
-    width: "512",
-    height: "512",
-    format: "image/png",
-    transparent: "true",
-  })
-  return `${base}?${q.toString()}&bbox={bbox-epsg-3857}`
-}
+// ---- The services ------------------------------------------------------------------------
 
 export const SERVICES: ServiceLayer[] = [
   {
@@ -126,37 +103,12 @@ export const SERVICES: ServiceLayer[] = [
     opacity: 0.9,
     anchor: "ground",
   },
-  {
-    /*
-      Indigenous land, from FUNAI's own geoserver. `tis_poligonais` and not
-      `terras_indigenas`: the latter is a group the service will not render.
-    */
-    key: "indigenousLand",
-    id: "svc-indigenous-land",
-    label: "Indigenous land (FUNAI)",
-    tiles: () => wms("https://geoserver.funai.gov.br/geoserver/ows", "Funai:tis_poligonais"),
-    tileSize: 512,
-    opacity: 0.75,
-    anchor: "ground",
-  },
-  {
-    /** Federal protected areas, from ICMBio through the INDE catalogue. */
-    key: "protectedAreas",
-    id: "svc-protected-areas",
-    label: "Protected areas (ICMBio)",
-    tiles: () => wms("https://geoservicos.inde.gov.br/geoserver/ICMBio/ows", "limiteucsfederais_a"),
-    tileSize: 512,
-    opacity: 0.75,
-    anchor: "ground",
-  },
 ]
 
 /** The credit each service is owed, shown at the foot while its layer is drawn. */
 export const SERVICE_CREDITS: Record<ServiceKey, { label: string; href: string }> = {
   nightLights: { label: "NASA GIBS / Black Marble", href: "https://www.earthdata.nasa.gov/data/projects/black-marble" },
   sigel: { label: "SIGEL / ANEEL", href: "https://sigel.aneel.gov.br" },
-  indigenousLand: { label: "FUNAI", href: "https://www.gov.br/funai" },
-  protectedAreas: { label: "ICMBio", href: "https://www.gov.br/icmbio" },
 }
 
 /**

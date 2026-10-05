@@ -1,5 +1,5 @@
 import type { energy } from "../../wailsjs/go/models"
-import { commit, project, type ConnectionParams, type DemandParams, type Settings, type SolarParams, type TerrainParams, type WindParams } from "./project"
+import { commit, project, type ConnectionParams, type DemandParams, type GroundParams, type Settings, type SolarParams, type TerrainParams, type WindParams } from "./project"
 
 /**
  * The analysis settings as fields: label, unit, and what the sidecar accepts.
@@ -235,5 +235,33 @@ export const DEMAND_FIELDS: NumberField<keyof DemandParams>[] = [
     step: 0.25,
     description: "Side of the cell the density layer is drawn on; a very large area is drawn coarser and says so",
     defaultOf: (d) => d.demand?.cell_km,
+  },
+]
+
+/**
+ * The two rules usable ground is judged by. Both are the reader's: nothing
+ * fixes them but the plant in mind, so they are fields and not constants.
+ */
+export const GROUND_FIELDS: NumberField<keyof GroundParams>[] = [
+  {
+    key: "slopeMaxDeg",
+    label: "Maximum Slope",
+    unit: "°",
+    min: 0,
+    exclusiveMin: true,
+    max: 90,
+    step: 0.5,
+    description: "Ground steeper than this is excluded. About 5° suits single-axis trackers; fixed structures take more",
+    defaultOf: (d) => d.ground?.slope_max_deg,
+  },
+  {
+    key: "handMinM",
+    label: "Minimum Height",
+    unit: "m",
+    min: 0,
+    step: 0.5,
+    description:
+      "Ground closer than this above its nearest drainage (HAND) is excluded as liable to flood. Zero switches the rule off",
+    defaultOf: (d) => d.ground?.hand_min_m,
   },
 ]

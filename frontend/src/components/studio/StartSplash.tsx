@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react"
-import { Crosshair, FolderSimple, MagnifyingGlass, type Icon } from "@phosphor-icons/react"
+import { Crosshair, FolderSimple, MagnifyingGlass, type Icon } from "../../lib/icons"
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { RELEASE_NAME } from "../../lib/brand"
+import { artSrc, operatorArt } from "../../lib/art"
 import { findOperator, formatKeys, runOperator } from "../../lib/operators"
 import { project } from "../../lib/project"
 import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"
@@ -15,12 +16,15 @@ const RECENT_SHOWN = 5
 
 function Row({
   icon: IconC,
+  art,
   label,
   hint,
   title,
   onSelect,
 }: {
   icon?: Icon
+  /** The drawing that stands in for the glyph, where Breeze has one (lib/art.ts). */
+  art?: string
   label: string
   hint?: string
   title?: string
@@ -33,7 +37,9 @@ function Row({
       onClick={onSelect}
       className="group flex h-7 w-full min-w-0 items-center gap-2.5 rounded-sm px-1.5 text-left text-body text-foreground/90 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
-      {IconC ? (
+      {artSrc(art) ? (
+        <img src={artSrc(art)} alt="" draggable={false} className="size-4 shrink-0" />
+      ) : IconC ? (
         <IconC className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
       ) : (
         <span className="size-4 shrink-0" />
@@ -103,6 +109,7 @@ export function StartSplash() {
     return (
       <Row
         icon={op?.icon}
+        art={operatorArt(name)}
         label={label}
         hint={key ? formatKeys(key) : undefined}
         title={title ?? op?.description}
@@ -152,6 +159,7 @@ export function StartSplash() {
             )}
             <Row
               icon={Crosshair}
+              art="coordinates"
               label="Site at coordinates…"
               title="Add a site from a latitude and a longitude"
               onSelect={act(() => coordinatePrompt.set(true))}
@@ -163,14 +171,14 @@ export function StartSplash() {
               recent
                 .slice(0, RECENT_SHOWN)
                 .map((path) => (
-                  <Row key={path} icon={FolderSimple} label={nameFromPath(path)} title={path} onSelect={act(() => openProject(path))} />
+                  <Row key={path} icon={FolderSimple} art="folder" label={nameFromPath(path)} title={path} onSelect={act(() => openProject(path))} />
                 ))
             ) : (
               <p className="px-1.5 py-1.5 text-meta leading-relaxed text-muted-foreground">
                 No projects opened yet. A saved project is listed here.
               </p>
             )}
-            <Row icon={MagnifyingGlass} label="More…" title="Open a project file" onSelect={act(() => runOperator("OPEN"))} />
+            <Row icon={MagnifyingGlass} art="locate" label="More…" title="Open a project file" onSelect={act(() => runOperator("OPEN"))} />
           </section>
         </div>
 

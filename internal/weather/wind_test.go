@@ -32,7 +32,7 @@ func TestDecodeWindField_RefusesAGridThatDoesNotMatchItsShape(t *testing.T) {
 }
 
 func TestFetchWindField_RefusesAnUnreadHeightBeforeStartingTheSidecar(t *testing.T) {
-	_, err := FetchWindField(context.Background(), nil, 50, "")
+	_, err := FetchWindField(context.Background(), nil, 50, nil, "")
 	if err == nil || !strings.Contains(err.Error(), "50 m") {
 		t.Fatalf("got %v", err)
 	}

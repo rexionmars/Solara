@@ -45,3 +45,22 @@ export const patternFactor = (v: number) => v.toFixed(2)
 
 /** Mean of the cube of the speed, compared with the fitted one beside it. */
 export const meanCubeM3S3 = (v: number) => `${v.toFixed(1)} m³/s³`
+
+/**
+ * A unit as it is written, whatever the result carries: a result computed
+ * before the engine wrote "kWh/m² per year" holds "kWh/m2/year", and it is
+ * read as what it meant.
+ */
+export const unitLabel = (unit: string) => unit.replace(/m2\b/g, "m²").replace(/\/year\b/g, " per year")
+
+/**
+ * A whole number as a reading writes it: four digits stand alone (1991), five
+ * or more are grouped by a thin space (310 464), never by a comma or a point
+ * that another language reads as the decimal mark.
+ */
+export const grouped = (n: number) => {
+  const digits = Math.round(Math.abs(n)).toString()
+  const body = digits.length < 5 ? digits : digits.replace(/\B(?=(\d{3})+$)/g, "\u202f")
+  return n < 0 ? `−${body}` : body
+}
+

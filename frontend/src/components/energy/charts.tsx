@@ -240,6 +240,8 @@ export type Series = {
   values: number[]
   /** A wash under the line, at a tenth of the hue. One series may carry it; several should not. */
   fill?: boolean
+  /** No direct label on this series: where two extremes fall on one month their labels collide, and the value is still in the readout and the table. */
+  unlabelled?: boolean
 }
 
 /**
@@ -338,7 +340,7 @@ export function AreaChart({
             {label !== "none" &&
               series.map((s) => {
                 const i = label === "end" ? s.values.length - 1 : s.values.indexOf(Math.max(...s.values))
-                if (i < 0) return null
+                if (i < 0 || s.unlabelled) return null
                 const anchor = px(i) > width - 60 ? "end" : "start"
                 return (
                   <g key={`${s.key}-lab`}>
@@ -679,6 +681,458 @@ export function Scatter({
             : []),
         ]}
       />
+    </div>
+  )
+}
+
+// ------------------------------------------------------------- the rule curve
+
+/**
+ * A share against a threshold the reader typed: what the answer would have
+ * been had the rule been set elsewhere, with the rule that was applied marked
+ * on it.
+ *
+ * NOT `AreaChart`, which spaces its categories evenly. The thresholds here are
+ * numbers and not evenly spaced, so they are placed on a true axis: drawn as
+ * categories, the step from 20 to 30 would be as wide as the step from 1 to 2
+ * and the curve would bend where the ground does not.
+ *
+ * The share axis starts at zero and ends at a hundred, since it is a share of
+ * one fixed ground and the height of the line is the claim. The applied rule
+ * carries the one direct label; every other point is in the table twin.
+ */
+export function RuleCurve({
+  points,
+  at,
+  xUnit,
+  xLabel,
+  yLabel,
+  color = SERIES.drawn,
+  height = 132,
+}: {
+  points: { x: number; y: number }[]
+  /** The threshold that was applied. */
+  at: number
+  xUnit: string
+  xLabel: string
+  yLabel: string
+  color?: string
+  height?: number
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const [table, setTable] = useState(false)
+  const sorted = useMemo(() => [...points].sort((a, b) => a.x - b.x), [points])
+  const fmt = (v: number) => `${v.toFixed(1)}%`
+  // A degree sign is set against its number; every other unit takes a space.
+  const xv = (v: number) => `${Number(v.toFixed(2))}${xUnit === "°" ? "" : " "}${xUnit}`
+
+  if (table) {
+    return (
+      <div>
+        <TwinTable head={[xLabel, yLabel]} rows={sorted.map((p) => [xv(p.x), fmt(p.y)])} />
+        <div className="mt-1 flex justify-end">
+          <TableToggle on onClick={() => setTable(false)} />
+        </div>
+      </div>
+    )
+  }
+
+  const gutter = 34
+  const axisBand = 30
+  const padTop = 14
+  const xMax = Math.max(...sorted.map((p) => p.x), at) || 1
+  const xTicks = niceTicks(xMax, 5).filter((t) => t <= xMax + 1e-9)
+  const yTicks = [0, 25, 50, 75, 100]
+  const plotW = Math.max(0, width - gutter - 12)
+  const px = (v: number) => gutter + (v / xMax) * plotW
+  const py = (v: number) => padTop + (height - padTop) * (1 - v / 100)
+  const line = sorted.map((p, i) => `${i ? "L" : "M"}${px(p.x)},${py(p.y)}`).join(" ")
+  const applied = sorted.find((p) => p.x === at)
+  // Where the curve climbs to the right the label goes under the point, clear of the line.
+  const next = applied ? sorted[sorted.indexOf(applied) + 1] : undefined
+  const below = !!applied && !!next && next.y > applied.y
+  const shown = hover !== null ? sorted[hover] : null
+
+  return (
+    <div>
+      <div ref={ref} className="relative w-full">
+        {width > 0 && (
+          <svg width={width} height={height + axisBand} className="block overflow-visible" role="img" aria-label={`${yLabel} against ${xLabel}`}>
+            {yTicks.map((t) => (
+              <g key={t}>
+                <line x1={gutter} x2={gutter + plotW} y1={py(t)} y2={py(t)} stroke={GRID} strokeWidth={1} />
+                <text x={gutter - 6} y={py(t) + 3} textAnchor="end" className={AXIS_TEXT}>
+                  {t}
+                </text>
+              </g>
+            ))}
+            <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            {sorted.map((p) => (
+              <circle key={p.x} cx={px(p.x)} cy={py(p.y)} r={2} fill={color} />
+            ))}
+
+            {/* The rule that was applied: a dashed rule, because here a threshold is exactly the claim. */}
+            <line x1={px(at)} x2={px(at)} y1={padTop - 4} y2={height} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
+            {applied && (
+              <g>
+                <circle cx={px(at)} cy={py(applied.y)} r={4} fill={color} stroke={SURFACE} strokeWidth={2} />
+                <text
+                  x={px(at) + (px(at) > width - 110 ? -8 : 8)}
+                  y={below ? py(applied.y) + 16 : Math.max(10, py(applied.y) - 8)}
+                  textAnchor={px(at) > width - 110 ? "end" : "start"}
+                  className="text-[10px] tabular-nums fill-[var(--foreground)]"
+                >
+                  {fmt(applied.y)} at {xv(at)}
+                </text>
+              </g>
+            )}
+
+            {xTicks.map((t) => (
+              <text key={t} x={px(t)} y={height + 12} textAnchor="middle" className={AXIS_TEXT}>
+                {t}
+              </text>
+            ))}
+            <text x={gutter + plotW / 2} y={height + 26} textAnchor="middle" className={AXIS_TEXT}>
+              {xLabel} ({xUnit})
+            </text>
+            <text x={gutter - 6} y={8} textAnchor="end" className={AXIS_TEXT}>
+              %
+            </text>
+
+            {sorted.map((p, i) => {
+              const left = i ? (px(sorted[i - 1].x) + px(p.x)) / 2 : gutter
+              const right = i < sorted.length - 1 ? (px(p.x) + px(sorted[i + 1].x)) / 2 : gutter + plotW
+              return (
+                <rect
+                  key={`hit-${p.x}`}
+                  x={left}
+                  y={0}
+                  width={Math.max(1, right - left)}
+                  height={height}
+                  fill="transparent"
+                  onPointerEnter={() => setHover(i)}
+                  onPointerLeave={() => setHover(null)}
+                  tabIndex={0}
+                  onFocus={() => setHover(i)}
+                  onBlur={() => setHover(null)}
+                />
+              )
+            })}
+          </svg>
+        )}
+        {shown && <Tooltip x={px(shown.x)} y={py(shown.y)} width={width} title={`${xLabel} ${xv(shown.x)}`} rows={[{ label: yLabel, value: fmt(shown.y), color }]} />}
+      </div>
+      <div className="flex justify-end">
+        <TableToggle on={false} onClick={() => setTable(true)} />
+      </div>
+    </div>
+  )
+}
+
+// ------------------------------------------------------- the spread of a layer
+
+/** Round values a reader can hold, inside [lo, hi]: 1700, 1800, 1900 rather than the layer's own ends. */
+function ticksWithin(lo: number, hi: number, count = 4): number[] {
+  const span = hi - lo
+  if (!(span > 0)) return []
+  const rough = span / count
+  const mag = 10 ** Math.floor(Math.log10(rough))
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((v) => v >= rough) ?? 10 * mag
+  const out: number[] = []
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(Number(v.toFixed(10)))
+  return out
+}
+
+/**
+ * How the cells of a layer are spread between its minimum and its maximum.
+ *
+ * THE ANSWER A LAYER'S READING GIVES. A mean, a minimum and a maximum say
+ * where a layer ends and where it balances; whether the ground is one
+ * population or two, and how much of it sits near either end, is only in the
+ * shape.
+ *
+ * THE BARS ARE ONE TONE AND THE LAYER'S RAMP IS A RULER UNDER THE AXIS, on the
+ * axis's own scale. Bars in the ramp's colours made the dark end of a dark
+ * ramp vanish into the page; the ruler says the same thing -- the ground at
+ * this value is this colour on the map -- without the bars paying for it.
+ *
+ * A LONG LOW TAIL IS ONE BAR, SET APART. The engine counts the stretch below
+ * the second percentile once (`overflow`) so the intervals show the shape of
+ * where the area is; here it is a bar of its own to the left of the axis, a
+ * gap away, named "below N" and said in words -- how much of the area, and
+ * that it runs down to the lowest cell. The ruler has a piece under it too,
+ * so the whole of the layer's ramp is still on the page.
+ *
+ * No figure is repeated from the cards above: the mean is a named line and
+ * the ruler's ends are named, not numbered.
+ */
+export function Histogram({
+  edges,
+  counts,
+  areaKm2,
+  mean,
+  unit,
+  decimals = 0,
+  overflow,
+  stops,
+  domain,
+  mode = "share",
+  height = 170,
+}: {
+  /** One more than `counts`: the first and last are the layer's minimum and maximum. */
+  edges: number[]
+  counts: number[]
+  /** The ground in each interval, where a cell's area is known. */
+  areaKm2?: number[] | null
+  mean: number
+  unit: string
+  decimals?: number
+  /** The cells below the first interval, counted once, and the layer's lowest value. */
+  overflow?: { below: number; cells: number; areaKm2?: number | null; lowest: number } | null
+  /** The layer's ramp, low to high, and the domain it was drawn over. */
+  stops: readonly string[]
+  domain: [number, number]
+  /** What the height of a bar is: its share of the area, or the ground itself. */
+  mode?: "share" | "area"
+  height?: number
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const id = useId()
+  const total = counts.reduce((n, c) => n + c, 0) + (overflow?.cells ?? 0) || 1
+  const share = counts.map((c) => (100 * c) / total)
+  const byArea = mode === "area" && !!areaKm2
+  const tall = byArea ? areaKm2! : share
+  const tailShare = overflow ? (100 * overflow.cells) / total : 0
+  const tailTall = overflow ? (byArea ? (overflow.areaKm2 ?? 0) : tailShare) : 0
+  const fx = (v: number) => v.toFixed(decimals)
+  const km2 = (v: number) => `${v.toFixed(v < 10 ? 2 : 1)} km²`
+
+  const left = 44
+  const right = 12
+  const top = 30
+  const base = top + height
+  const lo = edges[0]
+  const hi = edges[edges.length - 1]
+  const span = hi - lo || 1
+  const yTicks = niceTicks(Math.max(...tall, tailTall), 4)
+  const yMax = yTicks[yTicks.length - 1] || 1
+  // The overflow's bar and the gap that sets it apart take their room from the left of the plot.
+  const tailW = overflow ? 30 : 0
+  const tailGap = overflow ? 16 : 0
+  const axisX = left + tailW + tailGap
+  const plotW = Math.max(0, width - axisX - right)
+  const px = (v: number) => axisX + ((v - lo) / span) * plotW
+  const py = (v: number) => base - (v / yMax) * height
+  const xTicks = ticksWithin(lo, hi).filter((t) => px(t) > axisX + 24 && px(t) < axisX + plotW - 24)
+  const meanX = px(mean)
+
+  // The ruler: the ramp over its own domain, cut to the stretch of the axis the layer covers.
+  const [d0, d1] = domain
+  const rampX0 = px(Math.max(lo, d0))
+  const rampX1 = px(Math.min(hi, d1))
+  const stopAt = (v: number) => (d1 > d0 ? (v - d0) / (d1 - d0) : 0)
+  const t0 = stopAt(Math.max(lo, d0))
+  const t1 = stopAt(Math.min(hi, d1))
+  const tailT0 = overflow ? stopAt(Math.max(overflow.lowest, d0)) : 0
+  const ramp = (from: number, to: number) =>
+    stops.map((c, i) => {
+      const t = stops.length > 1 ? i / (stops.length - 1) : 0
+      return to > from ? <stop key={i} offset={Math.min(1, Math.max(0, (t - from) / (to - from)))} stopColor={c} /> : null
+    })
+  const tailH = tailTall > 0 ? Math.max(1, base - py(tailTall)) : 0
+  // The words over the tail sit clear of it and of the low bars beside it.
+  const lowBars = Math.max(tailH, ...tall.slice(0, Math.ceil(tall.length / 3)).map((v) => base - py(v)))
+
+  return (
+    <div ref={ref} className="reading-chart relative w-full">
+      {width > 0 && (
+        <svg
+          width={width}
+          height={base + 62}
+          className="block overflow-visible"
+          role="img"
+          aria-label={`${byArea ? "Area" : "Share of the area"} by ${unit}, from ${fx(lo)} to ${fx(hi)}`}
+        >
+          <defs>
+            <linearGradient id={id} x1="0" x2="1" y1="0" y2="0">
+              {ramp(t0, t1)}
+            </linearGradient>
+            <linearGradient id={`${id}-tail`} x1="0" x2="1" y1="0" y2="0">
+              {ramp(tailT0, t0)}
+            </linearGradient>
+          </defs>
+          <text x={left} y={14}>
+            {byArea ? "Area (km²)" : "Share of the area (%)"}
+          </text>
+          <text x={axisX + plotW} y={14} textAnchor="end">
+            {unit}
+          </text>
+          {yTicks.map((t) => (
+            <g key={t}>
+              <line x1={left} x2={axisX + plotW} y1={py(t)} y2={py(t)} stroke="var(--s-line-soft)" strokeWidth={1} />
+              <text x={left - 8} y={py(t) + 4} textAnchor="end">
+                {t}
+              </text>
+            </g>
+          ))}
+          {counts.map((_, i) => {
+            const x0 = px(edges[i])
+            const w = Math.max(1, px(edges[i + 1]) - x0 - 2)
+            const h = tall[i] > 0 ? Math.max(1, base - py(tall[i])) : 0
+            return (
+              <rect
+                key={i}
+                x={x0 + 1}
+                y={base - h}
+                width={w}
+                height={h}
+                rx={h > 4 ? 2 : 0}
+                fill="#d9d9d9"
+                opacity={hover === null || hover === i ? 1 : 0.5}
+              />
+            )
+          })}
+          <line x1={axisX} x2={axisX + plotW} y1={base} y2={base} stroke="var(--s-line)" strokeWidth={1} />
+          {overflow && (
+            <g>
+              <rect x={left + 1} y={base - tailH} width={tailW - 2} height={tailH} rx={tailH > 4 ? 2 : 0} fill="#d9d9d9" opacity={hover === null || hover === -1 ? 1 : 0.5} />
+              <line x1={left} x2={left + tailW} y1={base} y2={base} stroke="var(--s-line)" strokeWidth={1} />
+              <text x={left} y={base + 17}>
+                below {fx(overflow.below)}
+              </text>
+              <text x={left} y={base - lowBars - 10}>
+                {tailShare.toFixed(tailShare < 10 ? 1 : 0)}% of the area lies below {fx(overflow.below)}, down to the lowest cell
+              </text>
+            </g>
+          )}
+          {xTicks.map((t) => (
+            <g key={t}>
+              <line x1={px(t)} x2={px(t)} y1={base} y2={base + 4} stroke="var(--s-line)" strokeWidth={1} />
+              <text x={px(t)} y={base + 17} textAnchor="middle">
+                {fx(t)}
+              </text>
+            </g>
+          ))}
+          <line x1={meanX} x2={meanX} y1={top - 8} y2={base} stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="4 3" />
+          <text x={meanX + (meanX < axisX + 60 ? 8 : -8)} y={top - 2} textAnchor={meanX < axisX + 60 ? "start" : "end"} className="strong">
+            Mean
+          </text>
+          {/* The layer's colour ramp, on the axis's own scale. */}
+          <rect x={rampX0} y={base + 28} width={Math.max(0, rampX1 - rampX0)} height={7} rx={3.5} fill={`url(#${CSS.escape(id)})`} stroke="var(--s-line)" strokeWidth={1} />
+          {overflow && <rect x={left} y={base + 28} width={tailW} height={7} rx={3.5} fill={`url(#${CSS.escape(`${id}-tail`)})`} stroke="var(--s-line)" strokeWidth={1} />}
+          <text x={left} y={base + 52}>
+            lowest cell
+          </text>
+          <text x={axisX + plotW} y={base + 52} textAnchor="end">
+            colour on the map · highest cell
+          </text>
+          {overflow && (
+            <rect
+              x={left}
+              y={top}
+              width={tailW}
+              height={height}
+              fill="transparent"
+              onPointerEnter={() => setHover(-1)}
+              onPointerLeave={() => setHover(null)}
+              tabIndex={0}
+              onFocus={() => setHover(-1)}
+              onBlur={() => setHover(null)}
+            />
+          )}
+          {counts.map((_, i) => (
+            <rect
+              key={`hit-${i}`}
+              x={px(edges[i])}
+              y={top}
+              width={Math.max(1, px(edges[i + 1]) - px(edges[i]))}
+              height={height}
+              fill="transparent"
+              onPointerEnter={() => setHover(i)}
+              onPointerLeave={() => setHover(null)}
+              tabIndex={0}
+              onFocus={() => setHover(i)}
+              onBlur={() => setHover(null)}
+            />
+          ))}
+        </svg>
+      )}
+      {hover !== null && hover >= 0 && (
+        <Tooltip
+          x={px((edges[hover] + edges[hover + 1]) / 2)}
+          y={py(tall[hover])}
+          width={width}
+          title={`${fx(edges[hover])} – ${fx(edges[hover + 1])}`}
+          rows={[
+            { label: "Share of the area", value: `${share[hover].toFixed(share[hover] < 1 ? 2 : 1)}%` },
+            areaKm2 ? { label: "Ground", value: km2(areaKm2[hover]) } : { label: "Cells", value: counts[hover].toLocaleString() },
+          ]}
+        />
+      )}
+      {hover === -1 && overflow && (
+        <Tooltip
+          x={left + tailW / 2}
+          y={py(tailTall)}
+          width={width}
+          title={`${fx(overflow.lowest)} – ${fx(overflow.below)}`}
+          rows={[
+            { label: "Share of the area", value: `${tailShare.toFixed(tailShare < 1 ? 2 : 1)}%` },
+            overflow.areaKm2 != null ? { label: "Ground", value: km2(overflow.areaKm2) } : { label: "Cells", value: overflow.cells.toLocaleString() },
+          ]}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------- the share of a whole
+
+/**
+ * One ground split into named parts: a single bar a hundred percent long, and
+ * a row per part under it that is the bar's legend and its table at once.
+ *
+ * The colours are the caller's, because here they are the map's: the part
+ * that is orange in this bar is the ground that is orange on the layer. Every
+ * part is named on its row, so the hue is never the only thing telling two
+ * apart.
+ *
+ * A ROW CARRIES THE PART'S SIZE AND NOT ITS SHARE. The share is the length of
+ * its stretch of the bar, and the shares a reading leads with are its
+ * indicators'; written again on every row they were the same numbers twice.
+ * The share is still in each stretch's tooltip, for the reader who wants one.
+ */
+export function ShareBar({
+  parts,
+  unit,
+}: {
+  parts: { key: string; label: string; color: string; value: number; pct: number }[]
+  unit: string
+}) {
+  return (
+    <div className="flex flex-col gap-3 pt-2">
+      {/* A gap between two parts, never a stroke over them. */}
+      <div className="flex h-3.5 w-full gap-[2px]" role="img" aria-label={parts.map((p) => `${p.label} ${p.pct.toFixed(1)}%`).join(", ")}>
+        {parts
+          .filter((p) => p.pct > 0)
+          .map((p) => (
+            <span key={p.key} className="h-full min-w-[2px] rounded-[3px]" style={{ width: `${p.pct}%`, background: p.color }} title={`${p.label}: ${p.pct.toFixed(1)}% of the area`} />
+          ))}
+      </div>
+      <div className="reading-two" style={{ rowGap: 0 }}>
+        {parts.map((p) => (
+          <div key={p.key} className="flex items-baseline justify-between gap-3 border-t py-[5px] text-[12px]" style={{ borderColor: "var(--s-line-soft)" }}>
+            <span className="flex min-w-0 items-baseline gap-2" style={{ color: "var(--s-text-muted)" }}>
+              <span className="size-2.5 shrink-0 translate-y-px rounded-[2px]" style={{ background: p.color }} aria-hidden />
+              {p.label}
+            </span>
+            <span className="selectable shrink-0 tabular-nums">
+              {p.value.toFixed(1)} {unit}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

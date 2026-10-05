@@ -24,7 +24,7 @@ import { ContextMenuHost, StudioSurface } from "./Popover"
 import { Settings } from "./Settings"
 import { StartSplash } from "./StartSplash"
 import { StudioArea } from "./StudioArea"
-import { WorkspaceTabs } from "../shell/WorkspaceTabs"
+import { Ribbon } from "../shell/Ribbon"
 import { TitleBar } from "./TitleBar"
 import { Toasts } from "./Toasts"
 
@@ -57,6 +57,7 @@ function Editor({ areaId, editor }: { areaId: string; editor: EditorId }): React
     case "terrain":
     case "connection":
     case "demand":
+    case "ground":
       return <ReadingEditor areaId={areaId} product={editor} />
   }
 }
@@ -134,9 +135,9 @@ export function Studio() {
     <div className="app-shell-enter flex h-full flex-col" style={{ background: "var(--s-app)" }}>
       <TitleBar />
       <StudioSurface.Provider value={surface}>
-        {/* The arrangements, thin, between the window's band and the work. */}
-        <WorkspaceTabs />
-        <div ref={setSurface} className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-app)" }}>
+        {/* The commands by kind, in tabs, between the window's band and the work. */}
+        <Ribbon />
+        <div ref={setSurface} className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-gutter)" }}>
           {size.w > 0 &&
             (maximized
               ? renderArea({

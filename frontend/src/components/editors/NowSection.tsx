@@ -1,4 +1,4 @@
-import { ArrowsClockwise } from "@phosphor-icons/react"
+import { ArrowsClockwise } from "../../lib/icons"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { project, resultsOf } from "../../lib/project"
 import { useStore } from "../../lib/store"

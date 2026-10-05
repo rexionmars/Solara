@@ -34,6 +34,11 @@ type App struct {
 	userMu sync.RWMutex
 	user   *store.User
 
+	// Whether the grid store was connected in THIS session. A saved
+	// connection is only what the Grid store card is filled in with; nothing
+	// is read from it until the reader presses Connect. See app_grid.go.
+	gridConnected atomic.Bool
+
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time

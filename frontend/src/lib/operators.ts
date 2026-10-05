@@ -1,11 +1,12 @@
-import { ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "@phosphor-icons/react"
+import { CheckSquare, ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "./icons"
 import { Quit, WindowIsFullscreen, WindowFullscreen, WindowUnfullscreen } from "../../wailsjs/runtime/runtime"
 import { account, logout } from "./account"
-import { cancelRun, runConnection, runDemand, runSolar, runTerrain, runWind, running } from "./analysis"
+import { cancelRun, runConnection, runDemand, runGround, runSolar, runTerrain, runWind, running } from "./analysis"
 import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
-import { checkGridStore, storeReachable } from "./grid"
+import { productBlocked } from "./capabilities"
+import { checkGridStore } from "./grid"
 import { cancelGesture, frameAll, frameItem, resetNorth, zoomIn, zoomOut } from "./mapEngine"
 import { legendsShown, mapMounted, setLegendShown } from "./mapState"
 import { addSite, validLonLat } from "./objects"
@@ -40,7 +41,7 @@ import { SetProjectDirty } from "../../wailsjs/go/main/App"
 import { checkSidecar, sidecar } from "./sidecarStatus"
 import { createStore, useStore } from "./store"
 import { activeTool, mapRegions, setTool } from "./tools"
-import { lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen } from "./ui"
+import { addressSearchOpen, lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen, toggleRibbon } from "./ui"
 
 /**
  * Every action the application performs, in one registry, as Blender's
@@ -110,15 +111,19 @@ const needSite = () => (activeSite() ? true : "Select a site first (Place Site t
 const needArea = () => (activeArea() ? true : "Select an area first (Draw Area tool, D)")
 const needItem = () => (activeItem() ? true : "Nothing is selected")
 const needResult = () => (isResult(activeItem()) ? true : "Select a result first")
-const needTerrainResult = () => (activeItem()?.kind === "terrain" ? true : "Select a solar terrain result first")
+/** A result with a GeoTIFF behind its layer: the terrain's irradiation, or the usable ground's classes. */
+const needRasterResult = () => {
+  const k = activeItem()?.kind
+  return k === "terrain" || k === "ground" ? true : "Select a solar terrain or usable ground result first"
+}
 
 // ---- Run helpers ---------------------------------------------------------------
 
 /** The operator that runs each product. */
-export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION", demand: "DEMAND" }
+export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION", demand: "DEMAND", ground: "GROUND" }
 
-const needGridStore = (): true | string =>
-  storeReachable() ? true : "The grid store is not reachable (Studio › Settings › Grid store says why)"
+/** That the connected store can answer this product, or why it cannot (capabilities.ts). */
+const needStoreFor = (product: Product) => (): true | string => productBlocked(product) ?? true
 
 /**
  * Which function runs each product. A total record rather than a chain of
@@ -129,6 +134,7 @@ const RUN_AREA: Record<AreaResult["kind"], (a: AreaObject) => Promise<string | n
   terrain: runTerrain,
   connection: runConnection,
   demand: runDemand,
+  ground: runGround,
 }
 const RUN_SITE: Record<Exclude<Product, AreaResult["kind"]>, (s: SiteObject) => Promise<string | null>> = {
   solar: runSolar,
@@ -240,14 +246,14 @@ export const OPERATORS: Operator[] = [
   {
     name: "EXPORT_GEOTIFF",
     aliases: [],
-    label: "Terrain layer as GeoTIFF…",
-    description: "Save the active solar terrain result's float32 GeoTIFF",
+    label: "Layer as GeoTIFF…",
+    description: "Save the GeoTIFF behind the active result's layer: solar terrain as float32, usable ground as its classes",
     icon: Download,
     menu: "Studio › Export",
-    poll: needTerrainResult,
+    poll: needRasterResult,
     run: () => {
       const r = activeItem()
-      if (r?.kind === "terrain") return exportGeoTiff(r)
+      if (r?.kind === "terrain" || r?.kind === "ground") return exportGeoTiff(r)
     },
   },
   {
@@ -255,14 +261,14 @@ export const OPERATORS: Operator[] = [
     aliases: [],
     label: "Comparison table as CSV…",
     description: "Export every result of one product as a CSV table",
-    usage: "EXPORT_TABLE solar|wind|terrain|connection",
+    usage: "EXPORT_TABLE solar|wind|terrain|connection|demand|ground",
     icon: FileArrowDown,
     menu: "Studio › Export",
     poll: () => (project.get().data.results.length ? true : "There are no results yet"),
     run: (args) => {
       const product = (args[0]?.toLowerCase() ?? activeProductForTable()) as Product
       if (!(product in PRODUCT_NAMES)) {
-        fail("Usage: EXPORT_TABLE solar|wind|terrain|connection")
+        fail("Usage: EXPORT_TABLE solar|wind|terrain|connection|demand|ground")
         return
       }
       return exportTableCsv(product)
@@ -379,14 +385,14 @@ export const OPERATORS: Operator[] = [
     name: "LEGEND",
     aliases: [],
     label: "Legend on the map",
-    description: "Draw or remove the active terrain layer's legend, tied to the layer on the map",
+    description: "Draw or remove the active terrain or usable ground layer's legend, tied to the layer on the map",
     icon: Swatches,
     menu: "Map › Object",
     scope: "objects",
-    poll: needTerrainResult,
+    poll: needRasterResult,
     run: () => {
       const item = activeItem()
-      if (item?.kind === "terrain") setLegendShown(item.id, !legendsShown.get().has(item.id))
+      if (item?.kind === "terrain" || item?.kind === "ground") setLegendShown(item.id, !legendsShown.get().has(item.id))
     },
   },
   {
@@ -530,6 +536,18 @@ export const OPERATORS: Operator[] = [
     poll: needMap,
     run: () => setTool("measure"),
   },
+  {
+    name: "LOCATE",
+    aliases: ["FIND", "ADDRESS"],
+    label: "Locate",
+    description: "Find an address or a place by name and take the map to it",
+    icon: MagnifyingGlass,
+    menu: "Map › View",
+    keys: ["Mod+F"],
+    quiet: true,
+    poll: needMap,
+    run: () => addressSearchOpen.set(true),
+  },
 
   // View
   {
@@ -656,7 +674,7 @@ export const OPERATORS: Operator[] = [
     description: "Where the active area could join the transmission network, read from the grid store (ONS, ANEEL)",
     icon: PlugsConnected,
     menu: "Analyze",
-    poll: all(needArea, notRunning, engineUp, needGridStore),
+    poll: all(needArea, notRunning, engineUp, needStoreFor("connection")),
     run: () => runProduct("connection"),
   },
   {
@@ -671,8 +689,19 @@ export const OPERATORS: Operator[] = [
       "What the active area already draws from the network and already puts back, read from the BDGD register in the grid store",
     icon: ChartBar,
     menu: "Analyze",
-    poll: all(needArea, notRunning, engineUp, needGridStore),
+    poll: all(needArea, notRunning, engineUp, needStoreFor("demand")),
     run: () => runProduct("demand"),
+  },
+  {
+    name: "GROUND",
+    aliases: ["USABLE", "UG"],
+    label: "Usable ground",
+    description:
+      "How much of the active area a plant could stand on, by slope and by height above the drainage (Copernicus DEM)",
+    icon: CheckSquare,
+    menu: "Analyze",
+    poll: all(needArea, notRunning, engineUp),
+    run: () => runProduct("ground"),
   },
   {
     name: "GRID_STORE",
@@ -774,6 +803,17 @@ export const OPERATORS: Operator[] = [
     menu: "Studio",
     quiet: true,
     run: () => resetWorkspace(),
+  },
+  {
+    name: "TOGGLE_RIBBON",
+    aliases: ["RIBBON"],
+    label: "Ribbon",
+    description: "Show or fold the ribbon of commands under the workspace tabs",
+    menu: "Studio",
+    keys: ["Ctrl+F1"],
+    inFields: true,
+    quiet: true,
+    run: () => toggleRibbon(),
   },
   {
     name: "FULLSCREEN",

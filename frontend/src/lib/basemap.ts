@@ -70,6 +70,9 @@ export const IMAGERY_LAYER = "imagery"
 export const TERRAIN_SOURCE = "terrarium"
 export const HILLSHADE_LAYER = "hillshade"
 
+/** Row before column, as the service's WMTS path has them. The basemap switch asks it for one tile as its preview. */
+export const IMAGERY_TILES = "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
+
 const IMAGERY_CREDIT =
   '<a href="https://s2maps.eu" target="_blank">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2016)'
 const TERRAIN_CREDIT =
@@ -167,7 +170,7 @@ export const BASEMAP_STYLE: StyleSpecification = {
     */
     [IMAGERY_SOURCE]: {
       type: "raster",
-      tiles: ["https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"],
+      tiles: [IMAGERY_TILES],
       tileSize: 256,
       // Sentinel-2 is 10 m, which is z14. Past it the tiles are stretched
       // rather than fetched: there is no more detail to ask a free service for.

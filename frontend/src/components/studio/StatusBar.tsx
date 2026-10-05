@@ -1,3 +1,4 @@
+import { gridStore, storeReport } from "../../lib/grid"
 import { mapMounted, mapView } from "../../lib/mapState"
 import { formatKeys } from "../../lib/operators"
 import { project } from "../../lib/project"
@@ -48,6 +49,7 @@ export function StatusBar() {
   const view = useStore(mapView)
   const d = useStore(project).data
   const { id } = useStore(selection)
+  const held = storeReport(useStore(gridStore))
 
   const bindings: [string, string][] =
     editor === "map"
@@ -79,6 +81,21 @@ export function StatusBar() {
       </span>
 
       <span className="flex-1" />
+
+      {/* Which store the map's layers and the grid readings are read from, said
+          wherever the reader is: data on the map with nothing naming its source
+          is data nobody can account for. */}
+      <span className="telemetry flex shrink-0 items-center gap-1.5 text-[9px] text-muted-foreground" title={held?.reachable ? held.dsn : "Connect one in Settings › Grid store"}>
+        <span className={`size-1.5 rounded-full ${held?.reachable ? "bg-success" : "bg-muted-foreground/50"}`} />
+        {held?.reachable ? (
+          <span className="max-w-[22rem] truncate">
+            store <span className="text-foreground">{held.coverage?.store?.name ?? held.dsn}</span>
+          </span>
+        ) : (
+          <span>no store connected</span>
+        )}
+      </span>
+      <span className="h-3 w-px shrink-0 self-center border-l" style={{ borderColor: "var(--hairline)" }} />
 
       <span className="telemetry flex shrink-0 items-center gap-2 text-[9px] text-muted-foreground">
         <span>

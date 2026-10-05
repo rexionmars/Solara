@@ -1,23 +1,19 @@
 import { useEffect, useState } from "react"
-import { Minus, SignIn, Square, X } from "@phosphor-icons/react"
+import { Minus, SignIn, Square, X } from "../../lib/icons"
 import { Environment, Quit, WindowMinimise, WindowToggleMaximise } from "../../../wailsjs/runtime/runtime"
 import { account } from "../../lib/account"
 import { BRAND_TAGLINE } from "../../lib/brand"
-import { formatLat, formatLng } from "../../lib/format"
-import { cursor, mapView } from "../../lib/mapState"
 import { useStore } from "../../lib/store"
 import { preferences } from "../../lib/ui"
 import { Avatar } from "../account/Avatar"
 
 /**
  * The window's own band, as TERRA's TitleBar: the wordmark clear of the
- * traffic lights, the map's position where it is useful, and the account.
+ * traffic lights, and the account.
  * The empty space moves the window.
  */
 export function TitleBar() {
   const { user, loaded } = useStore(account)
-  const view = useStore(mapView)
-  const pointer = useStore(cursor)
   const [onMac, setOnMac] = useState(true)
 
   // Asked of the runtime rather than of the user agent: Wails reports the platform it was built for.
@@ -30,8 +26,6 @@ export function TitleBar() {
       cancelled = true
     }
   }, [])
-
-  const at = pointer ? { lat: pointer.lat, lng: pointer.lng } : view
 
   return (
     <header
@@ -52,18 +46,6 @@ export function TitleBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="telemetry hidden items-center gap-4 text-[11px] text-muted-foreground lg:flex" title={pointer ? "Under the pointer (WGS 84)" : "Centre of the map (WGS 84)"}>
-          <span>
-            LAT <span className="text-foreground">{formatLat(at.lat, 4)}</span>
-          </span>
-          <span>
-            LON <span className="text-foreground">{formatLng(at.lng, 4)}</span>
-          </span>
-          <span>
-            Z <span className="text-foreground">{view.zoom.toFixed(1)}</span>
-          </span>
-        </div>
-
         {loaded && (
           <button
             type="button"

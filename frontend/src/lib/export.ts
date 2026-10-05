@@ -1,6 +1,6 @@
 import { ExportResultFile, RevealInFileManager, SaveTextFile } from "../../wailsjs/go/main/App"
 import { errorMessage } from "./errors"
-import { PRODUCT_NAMES, isAreaResult, project, type Product, type ResultObject, type TerrainResult } from "./project"
+import { PRODUCT_NAMES, isAreaResult, project, type GroundResult, type Product, type ResultObject, type TerrainResult } from "./project"
 import { fail, info } from "./reports"
 import { toCsv } from "./table"
 
@@ -42,7 +42,7 @@ export function exportTableCsv(product: Product): Promise<void> {
   return saveText(`${fileSafe(PRODUCT_NAMES[product])}.csv`, "CSV", "*.csv", toCsv(product, d, rows))
 }
 
-export async function exportGeoTiff(r: TerrainResult): Promise<void> {
+export async function exportGeoTiff(r: TerrainResult | GroundResult): Promise<void> {
   try {
     const path = await ExportResultFile(r.data.raster_tif, `${fileSafe(r.name)}.tif`)
     if (path) info(`Exported "${path}".`, { label: "Reveal", run: () => void reveal(path) })

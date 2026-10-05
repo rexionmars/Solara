@@ -141,17 +141,25 @@ def parse(content: bytes, height_m: int) -> dict:
     }
 
 
-def fetch(height_m: int, cache_dir: Path | None, now: dt.datetime | None = None) -> dict:
+def fetch(height_m: int, cache_dir: Path | None, now: dt.datetime | None = None, region=REGION) -> dict:
+    """
+    The field over `region` (west, south, east, north). GFS is global; the
+    region is only how much of it is asked for, and South America is the
+    default because it is where this was first drawn, not a limit of the model.
+    """
     now = now or dt.datetime.now(dt.UTC)
     hour = now.replace(minute=0, second=0, microsecond=0)
-    cached = cache_dir / f'gfs-wind-{height_m}m-{hour:%Y%m%dT%H}.nc' if cache_dir else None
+    # The default region keeps the name it always had, so a cache written
+    # before regions existed is still this hour's field.
+    where = '' if tuple(region) == REGION else '-' + '_'.join(f'{v:g}' for v in region)
+    cached = cache_dir / f'gfs-wind-{height_m}m{where}-{hour:%Y%m%dT%H}.nc' if cache_dir else None
     if cached and cached.exists() and time.time() - cached.stat().st_mtime < CACHE_MAX_AGE_S:
         try:
             return parse(cached.read_bytes(), height_m)
         except Exception:
             cached.unlink(missing_ok=True)
 
-    url = subset_url(height_m, hour)
+    url = subset_url(height_m, hour, region=region)
     try:
         with urllib.request.urlopen(url, timeout=TIMEOUT_S) as fh:
             content = fh.read()

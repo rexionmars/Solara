@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CaretDown, Cube, FloppyDisk, FolderOpen, FolderSimple, Plus, Stack } from "@phosphor-icons/react"
+import { CaretDown, Cube, FloppyDisk, FolderOpen, FolderSimple, Plus, Stack } from "../../lib/icons"
 import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
 import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"
@@ -72,12 +72,13 @@ export function WorkspaceBar() {
         <StudioMenuGroup label="Export">
           <OperatorMenuItem name="EXPORT_CSV" label="Active result as CSV…" onDone={done} />
           <OperatorMenuItem name="EXPORT_JSON" label="Active result as JSON…" onDone={done} />
-          <OperatorMenuItem name="EXPORT_GEOTIFF" label="Terrain layer as GeoTIFF…" onDone={done} />
+          <OperatorMenuItem name="EXPORT_GEOTIFF" label="Layer as GeoTIFF…" onDone={done} />
           {exportTable("solar")}
           {exportTable("wind")}
           {exportTable("terrain")}
           {exportTable("connection")}
           {exportTable("demand")}
+          {exportTable("ground")}
         </StudioMenuGroup>
         <StudioMenuRule />
         <OperatorMenuItem name="UNDO" onDone={done} />
@@ -121,7 +122,7 @@ export function WorkspaceBar() {
                 style={
                   isCurrent
                     ? // The ground of the AREA BELOW: the entrance and the work it opens are one surface.
-                      { background: "var(--s-panel)", borderTopLeftRadius: 3, borderTopRightRadius: 3 }
+                      { background: "var(--s-band-tab)", borderTopLeftRadius: 3, borderTopRightRadius: 3 }
                     : undefined
                 }
               >

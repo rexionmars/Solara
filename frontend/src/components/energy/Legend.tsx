@@ -1,4 +1,5 @@
 import type { energy } from "../../../wailsjs/go/models"
+import { groundClassLabel } from "../../lib/ground"
 
 /**
  * What the ramp's endpoints are the endpoints OF.
@@ -49,6 +50,29 @@ export function Legend({ scale, unit, title }: { scale: energy.RenderScale; unit
       <div className="text-[10px] leading-snug text-muted-foreground">
         {unit} · {basisNote(scale)}
       </div>
+    </div>
+  )
+}
+
+/**
+ * The classes a categorical layer was drawn in, each with the share of the
+ * measured ground it holds.
+ *
+ * Colour and name together on every row: the four classes are told apart by
+ * hue on the map, and a legend that left the name to a tooltip would leave a
+ * reader who cannot separate two of the hues with nothing.
+ */
+export function ClassLegend({ classes, title }: { classes: energy.GroundClass[]; title?: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {title && <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{title}</div>}
+      {classes.map((c) => (
+        <div key={c.key} className="flex items-center gap-1.5 text-[10px] leading-tight">
+          <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: c.colour }} aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-foreground">{groundClassLabel(c.key)}</span>
+          <span className="shrink-0 font-mono tabular-nums text-muted-foreground">{c.pct.toFixed(1)}%</span>
+        </div>
+      ))}
     </div>
   )
 }

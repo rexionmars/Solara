@@ -96,3 +96,55 @@ def test_the_scale_is_rounded_and_carries_what_it_was_drawn_on():
 
     assert out['scale']['min'] == 1.2346
     assert out['scale']['shared_with'] == ['summer']
+
+
+def test_a_layer_without_a_tail_is_counted_from_its_minimum_to_its_maximum():
+    """
+    The reading draws this in place of the minimum and the maximum, so the
+    ends of the intervals have to be those two figures, and no cell may fall
+    outside an interval.
+    """
+    values = np.linspace(1900.0, 2000.0, 101)
+
+    out = poa.summarise(values, np.zeros(101), valid_of((101,)), cell_km2=0.25)
+    d = out['distribution']
+
+    assert d['overflow'] is None
+    assert d['edges'][0] == out['poa_min'] == 1900.0
+    assert d['edges'][-1] == out['poa_max'] == 2000.0
+    assert len(d['cells']) == poa.DISTRIBUTION_BINS == len(d['edges']) - 1
+    assert sum(d['cells']) == 101
+    assert sum(d['area_km2']) == pytest.approx(101 * 0.25)
+
+
+def test_a_long_low_tail_is_one_interval_and_the_rest_keeps_its_shape():
+    """
+    A few shaded cells far below everything else used to spend nearly every
+    interval on themselves and leave the rest of the area in one bar.
+    """
+    plain = np.linspace(1950.0, 2010.0, 990)
+    gully = np.linspace(1660.0, 1700.0, 10)
+    values = np.concatenate([gully, plain])
+
+    out = poa.summarise(values, np.zeros(1000), valid_of((1000,)), cell_km2=0.001)
+    d = out['distribution']
+
+    # The minimum is still the layer's own; the intervals start above the tail.
+    assert out['poa_min'] == 1660.0
+    assert d['overflow']['below'] == d['edges'][0] > 1700.0
+    assert d['overflow']['cells'] == 20  # the second percentile of a thousand cells
+    assert d['edges'][-1] == 2010.0
+    assert d['overflow']['cells'] + sum(d['cells']) == 1000
+    assert d['overflow']['area_km2'] + sum(d['area_km2']) == pytest.approx(1.0)
+    # The plain is spread over the intervals instead of filling one of them.
+    assert max(d['cells']) < 100
+
+
+def test_a_layer_of_one_value_is_one_interval_and_an_unknown_cell_has_no_area():
+    out = poa.summarise(np.full((2, 2), 5.0), np.ones((2, 2)), valid_of((2, 2)))
+    d = out['distribution']
+
+    assert d['cells'] == [4]
+    assert d['edges'] == [5.0, 5.0]
+    assert d['area_km2'] is None
+    assert d['overflow'] is None

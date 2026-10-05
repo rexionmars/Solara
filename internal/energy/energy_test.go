@@ -89,6 +89,24 @@ func TestTerrainPayload_SendsTheAreaAndOmitsUnsetFields(t *testing.T) {
 	}
 }
 
+// A zero height above the drainage is a rule, not an omission: it switches the
+// flood rule off, and must reach the sidecar as zero.
+func TestGroundPayload_OmitsUnsetRulesAndKeepsAZero(t *testing.T) {
+	got := keys(groundPayload(UsableGroundRequest{Area: square()}, "/work"))
+	want := []string{"action", "polygon_geojson", "work_dir"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("keys %v, want %v", got, want)
+	}
+	zero := 0.0
+	p := groundPayload(UsableGroundRequest{Area: square(), HandMinM: &zero}, "/work")
+	if v, ok := p["hand_min_m"]; !ok || v != 0.0 {
+		t.Fatalf("hand_min_m = %v (set %v), want 0", v, ok)
+	}
+	if p["action"] != "usable_ground" {
+		t.Fatalf("action %v", p["action"])
+	}
+}
+
 // A null the sidecar sends for a quantity with no answer must stay null, not
 // become a measured zero.
 func TestWindAnalysis_KeepsANullRoughness(t *testing.T) {
@@ -99,5 +117,26 @@ func TestWindAnalysis_KeepsANullRoughness(t *testing.T) {
 	}
 	if w.DataQuality.Shear.ImpliedRoughnessLengthM != nil {
 		t.Fatal("null roughness decoded as a value")
+	}
+}
+
+// A result computed before the distribution was counted has no such field, and
+// one whose cell area is unknown carries the intervals with a null area. Both
+// have to decode, and the first must stay absent rather than become empty.
+func TestSolarTerrainAnalysis_CarriesTheDistributionWhenThereIsOne(t *testing.T) {
+	var with SolarTerrainAnalysis
+	if err := json.Unmarshal([]byte(`{"poa_min":1,"poa_max":3,"distribution":{"edges":[1,2,3],"cells":[4,6],"area_km2":null}}`), &with); err != nil {
+		t.Fatal(err)
+	}
+	if with.Distribution == nil || len(with.Distribution.Cells) != 2 || len(with.Distribution.Edges) != 3 || with.Distribution.AreaKm2 != nil {
+		t.Fatalf("distribution %+v", with.Distribution)
+	}
+
+	var without SolarTerrainAnalysis
+	if err := json.Unmarshal([]byte(`{"poa_min":1,"poa_max":3}`), &without); err != nil {
+		t.Fatal(err)
+	}
+	if without.Distribution != nil {
+		t.Fatalf("an old result grew a distribution: %+v", without.Distribution)
 	}
 }

@@ -1,4 +1,4 @@
-import { Info, Warning, WarningOctagon, X } from "@phosphor-icons/react"
+import { Info, Warning, WarningOctagon, X } from "../../lib/icons"
 import { running } from "../../lib/analysis"
 import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, project } from "../../lib/project"

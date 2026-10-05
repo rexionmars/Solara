@@ -7,11 +7,13 @@ The queries are in Python, in sidecar/terra_energy_engine/grid; this package
 owns which database they are pointed at, what each action is sent and the shape
 of what comes back. Go never opens the database itself.
 
-WHICH DATABASE, in order: TERRA_BR_DSN, then the one chosen in Settings, then
-postgresql:///terra_br. TERRA reads the same variable and has the same
-default, so both applications find one store without being told. When the
-variable is set, no DSN is sent with a request, so the variable stays in charge
-of every process the sidecar starts.
+WHICH DATABASE, in order: TERRA_BR_DSN, then the one connected on the Grid store
+card. With neither there is NO store, and every read is refused with
+ErrNoStore: nothing is read from a database nobody pointed the application at.
+TERRA falls back to postgresql:///terra_br on its own; here that default is
+only what the card's empty fields stand for, and takes a Connect to become the
+store. When the variable is set, no DSN is sent with a request, so the variable
+stays in charge of every process the sidecar starts.
 */
 package grid
 
@@ -32,20 +34,25 @@ import (
 const (
 	// EnvDSN names the variable that points every grid product at a store.
 	EnvDSN = "TERRA_BR_DSN"
-	// DefaultDSN is the local socket with the user's own role.
+	// DefaultDSN is the local socket with the user's own role: what a
+	// connection with every field left empty stands for.
 	DefaultDSN = "postgresql:///terra_br"
 
-	SourceEnv     = "TERRA_BR_DSN"
-	SourceChosen  = "chosen"
-	SourceDefault = "default"
+	SourceEnv    = "TERRA_BR_DSN"
+	SourceChosen = "chosen"
+	SourceNone   = "none"
 
 	configFile = "grid.json"
 )
 
+// ErrNoStore is what every read answers while no store is connected.
+var ErrNoStore = errors.New("no grid store is connected; connect one on the Grid store card")
+
 // Resolve decides which DSN a request carries and where it came from. send is
-// empty when nothing should be sent: the variable is set, or nothing was chosen
-// and the sidecar's own default applies. shown is the DSN the store is actually
-// read from, unredacted.
+// empty when nothing should be sent: the variable is set, and the sidecar reads
+// it itself. shown is the DSN the store is actually read from, unredacted.
+// With no variable and nothing chosen the source is SourceNone and there is no
+// store to read.
 func Resolve(chosen string) (send, source, shown string) {
 	if env := os.Getenv(EnvDSN); env != "" {
 		return "", SourceEnv, env
@@ -53,7 +60,16 @@ func Resolve(chosen string) (send, source, shown string) {
 	if chosen = strings.TrimSpace(chosen); chosen != "" {
 		return chosen, SourceChosen, chosen
 	}
-	return "", SourceDefault, DefaultDSN
+	return "", SourceNone, ""
+}
+
+// target is the DSN a read is sent with, or ErrNoStore.
+func target(chosen string) (string, error) {
+	send, source, _ := Resolve(chosen)
+	if source == SourceNone {
+		return "", ErrNoStore
+	}
+	return send, nil
 }
 
 // Config is what the application remembers about the store.
@@ -123,6 +139,19 @@ func payload(action, dsn string) map[string]any {
 // a store that did not answer is reported with the sidecar's reason.
 func Inspect(ctx context.Context, r *sidecar.Runner, chosen string) *StoreReport {
 	send, source, shown := Resolve(chosen)
+	if source == SourceNone {
+		return &StoreReport{DSNSource: source, Unreachable: ErrNoStore.Error()}
+	}
+	return inspect(ctx, r, send, source, shown)
+}
+
+// Try checks dsn itself, whatever the variable says and whatever is saved: the
+// answer to "would this one work", asked before anything is changed.
+func Try(ctx context.Context, r *sidecar.Runner, dsn string) *StoreReport {
+	return inspect(ctx, r, dsn, SourceChosen, dsn)
+}
+
+func inspect(ctx context.Context, r *sidecar.Runner, send, source, shown string) *StoreReport {
 	report := &StoreReport{DSN: RedactDSN(shown), DSNSource: source}
 	raw, err := r.Read(ctx, payload("grid_coverage", send))
 	if err != nil {
@@ -136,14 +165,74 @@ func Inspect(ctx context.Context, r *sidecar.Runner, chosen string) *StoreReport
 		report.Unreachable = "the store answered with something that is not its coverage"
 		return report
 	}
-	report.Reachable = true
 	report.Coverage = wrapped.Coverage
+	// A database that opens and is not a store is not one a reading can be
+	// asked of, so it is not reachable as a store; the reason is its own.
+	if info := wrapped.Coverage.Store; info != nil && info.Profile == ProfileNone {
+		report.Unreachable = "connected, but this database is not a Solara store"
+		if len(info.Problems) > 0 {
+			report.Unreachable = info.Problems[0]
+		}
+		return report
+	}
+	report.Reachable = true
 	return report
+}
+
+// Boundaries lists the named grounds of a contract store, without shapes.
+func Boundaries(ctx context.Context, r *sidecar.Runner, chosen string) (*BoundaryList, error) {
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := r.Read(ctx, payload("store_boundaries", send))
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		List *BoundaryList `json:"store_boundaries"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil || wrapped.List == nil {
+		return nil, errors.New("the sidecar returned no boundary list")
+	}
+	if wrapped.List.Levels == nil {
+		wrapped.List.Levels = []BoundaryLevel{}
+	}
+	if wrapped.List.Places == nil {
+		wrapped.List.Places = []BoundaryPlace{}
+	}
+	return wrapped.List, nil
+}
+
+// Boundary reads one boundary of a contract store with its outline.
+func Boundary(ctx context.Context, r *sidecar.Runner, id, chosen string) (*BoundaryShape, error) {
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
+	p := payload("store_boundaries", send)
+	p["id"] = id
+	raw, err := r.Read(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Reply struct {
+			Boundary *BoundaryShape `json:"boundary"`
+		} `json:"store_boundaries"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil || wrapped.Reply.Boundary == nil {
+		return nil, errors.New("the sidecar returned no boundary")
+	}
+	return wrapped.Reply.Boundary, nil
 }
 
 // Plants reads the whole plant register as a layer.
 func Plants(ctx context.Context, r *sidecar.Runner, chosen string) (*PlantsLayer, error) {
-	send, _, _ := Resolve(chosen)
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := r.Read(ctx, payload("grid_plants", send))
 	if err != nil {
 		return nil, err
@@ -162,7 +251,10 @@ func Plants(ctx context.Context, r *sidecar.Runner, chosen string) (*PlantsLayer
 
 // Network reads the whole transmission register as a layer.
 func Network(ctx context.Context, r *sidecar.Runner, chosen string) (*NetworkLayer, error) {
-	send, _, _ := Resolve(chosen)
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := r.Read(ctx, payload("grid_network", send))
 	if err != nil {
 		return nil, err
@@ -198,7 +290,10 @@ func AnalyzeConnection(ctx context.Context, r *sidecar.Runner, req ConnectionReq
 	if req.SearchRadiusKM != nil && *req.SearchRadiusKM <= 0 {
 		return nil, fmt.Errorf("the search radius must be greater than zero, got %g km", *req.SearchRadiusKM)
 	}
-	send, _, _ := Resolve(chosen)
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := r.Run(ctx, connectionPayload(req, send), onProgress)
 	if err != nil {
 		return nil, err
@@ -287,7 +382,10 @@ func AnalyzeDemand(ctx context.Context, r *sidecar.Runner, req DemandRequest, ch
 	if req.CellKM != nil && *req.CellKM <= 0 {
 		return nil, fmt.Errorf("the layer's cell must be greater than zero, got %g km", *req.CellKM)
 	}
-	send, _, _ := Resolve(chosen)
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := r.Run(ctx, demandPayload(req, send, workDir), onProgress)
 	if err != nil {
 		return nil, err
@@ -338,7 +436,10 @@ func normalizeDemand(a *DemandAnalysis) {
 // register read rather than an analysis: it runs outside the one-at-a-time
 // rule, so the map keeps its layers while a reading is in flight.
 func TownDemand(ctx context.Context, r *sidecar.Runner, chosen string) (*TownDemandLayer, error) {
-	send, _, _ := Resolve(chosen)
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := r.Read(ctx, payload("demand_towns", send))
 	if err != nil {
 		return nil, err
@@ -369,7 +470,10 @@ func DemandReach(ctx context.Context, r *sidecar.Runner, area energy.Polygon, ch
 	if err := area.Validate(); err != nil {
 		return nil, err
 	}
-	send, _, _ := Resolve(chosen)
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
 	p := payload("demand_reach", send)
 	p["polygon_geojson"] = area
 	raw, err := r.Read(ctx, p)
@@ -398,7 +502,10 @@ func DemandReach(ctx context.Context, r *sidecar.Runner, area energy.Polygon, ch
 // Like TownDemand it takes no area: it answers before any ground is chosen,
 // which is the only moment the answer is useful.
 func Concessions(ctx context.Context, r *sidecar.Runner, chosen string) (*ConcessionLayer, error) {
-	send, _, _ := Resolve(chosen)
+	send, err := target(chosen)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := r.Read(ctx, payload("grid_concessions", send))
 	if err != nil {
 		return nil, err

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { CaretRight, X } from "@phosphor-icons/react"
+import { CaretRight, X } from "../../lib/icons"
 import { Marker } from "maplibre-gl"
 import type { energy } from "../../../wailsjs/go/models"
 import { currentMap } from "../../lib/mapEngine"
 import { legendsShown, mapLoaded, pickedGrid, type PickedGrid } from "../../lib/mapState"
 import { seasonLabel } from "../../lib/params"
-import { findItem, project, type TerrainResult } from "../../lib/project"
+import { groundRules } from "../../lib/ground"
+import { findItem, project, type GroundResult, type TerrainResult } from "../../lib/project"
+import { ClassLegend } from "../energy/Legend"
 import { useStore } from "../../lib/store"
 import { overlays } from "../../lib/tools"
 
@@ -56,7 +58,10 @@ export type Caption = {
   subject: string
   area: string
   detail?: string
-  body: { kind: "ramp"; scale: energy.RenderScale } | { kind: "stats"; rows: { label: string; value: string }[]; note?: string }
+  body:
+    | { kind: "ramp"; scale: energy.RenderScale }
+    | { kind: "classes"; classes: energy.GroundClass[] }
+    | { kind: "stats"; rows: { label: string; value: string }[]; note?: string }
   /** Drawn as a close button; a legend is closed from where it was asked for instead. */
   onClose?: () => void
 }
@@ -68,7 +73,16 @@ function basisShort(scale: energy.RenderScale): string {
   return "own range, relative contrast"
 }
 
-function captionOf(d: ReturnType<typeof project.get>["data"], r: TerrainResult): Caption {
+function captionOf(d: ReturnType<typeof project.get>["data"], r: TerrainResult | GroundResult): Caption {
+  if (r.kind === "ground") {
+    return {
+      subject: "Usable ground",
+      area: findItem(d, r.sourceId)?.name ?? r.name,
+      // The flood rule's standing travels with the legend: the blue on the map is a lower bound.
+      detail: [groundRules(r.data), "flood is a lower bound", r.data.dem_source, `opacity ${Math.round(r.opacity * 100)}%`].join(" · "),
+      body: { kind: "classes", classes: r.data.classes },
+    }
+  }
   const t = r.data
   return {
     subject: "Solar terrain",
@@ -188,7 +202,7 @@ function useCaptions(): { key: string; at: [number, number]; caption: Caption }[
   const pick = picked ? [{ key: `picked:${picked.kind}`, at: picked.at, caption: pickedCaption(picked) }] : []
   if (!o.legend || !o.layers) return pick
   const legends = d.results
-    .filter((r): r is TerrainResult => r.kind === "terrain" && !r.hidden && !findItem(d, r.sourceId)?.hidden && shown.has(r.id))
+    .filter((r): r is TerrainResult | GroundResult => (r.kind === "terrain" || r.kind === "ground") && !r.hidden && !findItem(d, r.sourceId)?.hidden && shown.has(r.id))
     .map((r) => {
       const e = r.data.extent
       return { key: r.id, at: [(e.lon_min + e.lon_max) / 2, (e.lat_min + e.lat_max) / 2] as [number, number], caption: captionOf(d, r) }
@@ -465,7 +479,13 @@ function CalloutBody({ id, caption }: { id: string; caption: Caption }) {
         </div>
         <Disclosed text={caption.area} className="text-emphasis italic text-foreground" />
         {caption.detail && <Disclosed text={caption.detail} className="telemetry text-micro text-muted-foreground" />}
-        {caption.body.kind === "ramp" ? <Ramp scale={caption.body.scale} /> : <Stats rows={caption.body.rows} note={caption.body.note} />}
+        {caption.body.kind === "ramp" ? (
+          <Ramp scale={caption.body.scale} />
+        ) : caption.body.kind === "classes" ? (
+          <ClassLegend classes={caption.body.classes} />
+        ) : (
+          <Stats rows={caption.body.rows} note={caption.body.note} />
+        )}
       </div>
     </div>
   )

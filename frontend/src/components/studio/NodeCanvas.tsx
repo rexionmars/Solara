@@ -6,10 +6,14 @@ import {
   CaretRight,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
+  Plus,
   TreeStructure,
+  X,
   type Icon,
-} from "@phosphor-icons/react"
+} from "../../lib/icons"
 import { NODE_W, type Place } from "../../lib/runGraph"
+import type { InputState } from "../../lib/runValue"
+import { openContextMenu } from "../../lib/ui"
 
 /**
  * A node editor, as Blender's: nodes with a header and rows, a socket on the
@@ -34,7 +38,23 @@ import { NODE_W, type Place } from "../../lib/runGraph"
  *   wheel                zoom about the pointer
  *   A · Alt+A            select all · select none
  *   H                    fold what is selected, or unfold it
+ *   X · Delete           take what is selected off the board
+ *   Shift+A              put a card that was taken off back, under the pointer
+ *   pull a socket        a wire, from a card that can send one onto another card
+ *   press a wire         selects it, where it is one the reader may cut; X cuts it
  *   Home · .             frame everything · frame what is selected
+ *
+ * THE PORTS THAT PULL ARE THE ONES THE CALLER SAYS CAN, AND ONLY THOSE. A node
+ * marked `connectable` has an output socket that can be pulled onto another
+ * node, and an edge marked `removable` can be selected and cut; whether a pair
+ * means anything is the caller's to say. Every other socket is a mark that
+ * takes no pointer: a socket that looked draggable and refused would promise a
+ * freedom that does not exist.
+ *
+ * A CARD TAKEN OFF IS NOT A VALUE TAKEN AWAY. The socket its wire landed on
+ * stays where it was, hollow, as an unconnected socket does in Blender: what
+ * that input is now is for whoever draws the canvas to write on its row. The
+ * card itself goes to the foot of the list, which is where it is put back from.
  *
  * THE CHROME FLOATS AND THE BOARD DOES NOT STOP AT IT. A list of the nodes at
  * one side, a pill of tabs at the foot, the zoom at the other corner: rounded,
@@ -49,7 +69,7 @@ import { NODE_W, type Place } from "../../lib/runGraph"
  * what any particular board is about.
  */
 
-export type EdgeState = "missing" | "pending" | "reading" | "read" | "failed"
+export type EdgeState = InputState
 
 /** The fixed geometry that places sockets without measuring rows. */
 const HEAD_H = 26
@@ -89,6 +109,8 @@ export interface CanvasNode {
   output?: CanvasSocket
   inputs?: readonly CanvasSocket[]
   children?: React.ReactNode
+  /** Whether this node's output socket can be pulled onto another node. */
+  connectable?: boolean
 }
 
 export interface CanvasEdge {
@@ -98,6 +120,25 @@ export interface CanvasEdge {
   socket: string
   colour: string
   state: EdgeState
+  /** A wire the reader may cut: pressed, it is selected, and X or Delete takes it away through onDisconnect. */
+  removable?: boolean
+}
+
+/** A card that was taken off the board: enough of it to name it where it can be put back. */
+export interface CanvasRemoved {
+  id: string
+  title: string
+  head: string
+}
+
+/** What the editor may ask of the board from outside a gesture: its header's menus are not on it. */
+export interface CanvasApi {
+  frame: () => void
+  /** The selected cards, and the selected wire as "from>to". */
+  picked: () => readonly string[]
+  wire: () => string | null
+  /** What X does: cuts the selected wire, or takes the selected cards off. */
+  remove: () => void
 }
 
 /** One group in the list down the side: a band of the board, named. */
@@ -218,6 +259,12 @@ export function NodeCanvas({
   edges,
   onMove,
   onMeasure,
+  onRemove,
+  onRestore,
+  removed,
+  onConnect,
+  onDisconnect,
+  api,
   sections,
   tabs,
 }: {
@@ -225,6 +272,17 @@ export function NodeCanvas({
   edges: readonly CanvasEdge[]
   onMove: (id: string, place: Place) => void
   onMeasure?: (id: string, h: number) => void
+  /** Take these cards off the board. Without it nothing on the board can be removed. */
+  onRemove?: (ids: readonly string[]) => void
+  /** Put one back: where it was, or at the given place. */
+  onRestore?: (id: string, place?: Place) => void
+  /** The cards taken off, for the list and the Add menu to put back. */
+  removed?: readonly CanvasRemoved[]
+  /** A socket was pulled onto a node. The caller says whether that pair means anything. */
+  onConnect?: (from: string, to: string) => void
+  /** A removable wire was selected and cut. */
+  onDisconnect?: (from: string, to: string) => void
+  api?: React.RefObject<CanvasApi | null>
   /** The bands of the board, for the list down the side. Without them there is no list. */
   sections?: readonly CanvasSection[]
   /** What the pill at the foot can show under the board, beside the board itself. */
@@ -232,6 +290,8 @@ export function NodeCanvas({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [view, setView] = useState<View>({ x: FIT_PAD, y: FIT_PAD, z: 1 })
+  const viewRef = useRef(view)
+  viewRef.current = view
   // Once the reader has panned, zoomed or moved a node, the view is theirs and is not refitted.
   const touched = useRef(false)
   const placesRef = useRef(nodes)
@@ -248,6 +308,24 @@ export function NodeCanvas({
   // Whose keys these are: the board under the pointer, as the window's keymap decides its own scope.
   const over = useRef(false)
   const space = useRef(false)
+  // Where the pointer is, for a menu opened from the keyboard to open under it.
+  const pointer = useRef({ x: 0, y: 0 })
+  // Set by a removal or a return, so the board is not taken for a different one.
+  const edited = useRef(false)
+  const removeRef = useRef(onRemove)
+  removeRef.current = onRemove
+  const restoreRef = useRef(onRestore)
+  restoreRef.current = onRestore
+  const removedRef = useRef(removed)
+  removedRef.current = removed
+  const disconnectRef = useRef(onDisconnect)
+  disconnectRef.current = onDisconnect
+  // The selected wire, as "from>to": one at a time, and never together with cards.
+  const [wire, setWire] = useState<string | null>(null)
+  const wireRef = useRef(wire)
+  wireRef.current = wire
+  // The line being pulled, in board units. State, because nothing else draws it.
+  const [pulling, setPulling] = useState<{ from: string; x: number; y: number } | null>(null)
 
   const openTab = tabs?.find((t) => t.id === tab) ?? null
 
@@ -311,6 +389,13 @@ export function NodeCanvas({
   // A different graph is a different board: fitted afresh, and nothing carried over.
   const shape = nodes.map((n) => n.id).join(",")
   useLayoutEffect(() => {
+    if (edited.current) {
+      // A card taken off or put back is the same board: the view stays where the reader left it.
+      edited.current = false
+      const here = new Set(placesRef.current.map((n) => n.id))
+      setPicked((prev) => ([...prev].every((id) => here.has(id)) ? prev : new Set([...prev].filter((id) => here.has(id)))))
+      return
+    }
     touched.current = false
     setPicked(NONE)
     fit()
@@ -370,6 +455,9 @@ export function NodeCanvas({
     const host = hostRef.current
     if (!host) return
     const onWheel = (e: WheelEvent) => {
+      // A list inside a card that has more than it shows takes the wheel; everywhere else it is the zoom.
+      const list = (e.target as HTMLElement | null)?.closest?.(".panel-scroll")
+      if (list && host.contains(list) && list.scrollHeight > list.clientHeight) return
       e.preventDefault()
       touched.current = true
       const rect = host.getBoundingClientRect()
@@ -411,6 +499,70 @@ export function NodeCanvas({
     })
   }, [])
 
+  const remove = useCallback((ids: readonly string[]) => {
+    const take = removeRef.current
+    if (!take || !ids.length) return
+    edited.current = true
+    touched.current = true
+    take(ids)
+  }, [])
+
+  const restore = useCallback((id: string, place?: Place) => {
+    const put = restoreRef.current
+    if (!put) return
+    edited.current = true
+    touched.current = true
+    put(id, place)
+    setPicked(new Set([id]))
+  }, [])
+
+  /** A selected wire is what X is about; with none, the selected cards are. */
+  const removeSelection = useCallback(() => {
+    if (wireRef.current && disconnectRef.current) {
+      const [from, to] = wireRef.current.split(">")
+      disconnectRef.current(from, to)
+      setWire(null)
+      return true
+    }
+    if (!pickedRef.current.size || !removeRef.current) return false
+    remove([...pickedRef.current])
+    return true
+  }, [remove])
+
+  useEffect(() => {
+    if (!api) return
+    api.current = {
+      frame: () => {
+        touched.current = false
+        frame()
+      },
+      picked: () => [...pickedRef.current],
+      wire: () => wireRef.current,
+      remove: () => void removeSelection(),
+    }
+    return () => {
+      api.current = null
+    }
+  }, [api, frame, removeSelection])
+
+  /** Blender's Add menu: what is not on the board, put under the pointer when chosen. */
+  const openAdd = useCallback(() => {
+    const host = hostRef.current
+    if (!host || !restoreRef.current) return
+    const at = pointer.current
+    const rect = host.getBoundingClientRect()
+    const v = viewRef.current
+    const place = { x: (at.x - rect.left - v.x) / v.z - NODE_W / 2, y: (at.y - rect.top - v.y) / v.z - HEAD_H / 2 }
+    const gone = removedRef.current ?? []
+    openContextMenu(
+      { clientX: at.x, clientY: at.y },
+      gone.length
+        ? gone.map((n) => ({ type: "action" as const, label: n.title, run: () => restore(n.id, place) }))
+        : [{ type: "action" as const, label: "Every card is on the board", run: () => {}, disabled: "Nothing has been taken off this board" }],
+      "Add"
+    )
+  }, [restore])
+
   useEffect(() => {
     const letter = (e: KeyboardEvent) => (e.code.startsWith("Key") ? e.code.slice(3) : e.code)
     const onKey = (e: KeyboardEvent) => {
@@ -434,10 +586,17 @@ export function NodeCanvas({
       switch (key) {
         case "A":
           e.preventDefault()
-          setPicked(e.altKey ? NONE : new Set(all))
+          if (e.shiftKey) openAdd()
+          else setPicked(e.altKey ? NONE : new Set(all))
+          return
+        case "X":
+        case "Delete":
+        case "Backspace":
+          if (removeSelection()) e.preventDefault()
           return
         case "Escape":
           setPicked(NONE)
+          setWire(null)
           return
         case "H":
           if (!sel.size) return
@@ -476,7 +635,7 @@ export function NodeCanvas({
       window.removeEventListener("keydown", onKey)
       window.removeEventListener("keyup", onUp)
     }
-  }, [frame, toggleFold, zoomBy])
+  }, [frame, toggleFold, zoomBy, removeSelection, openAdd])
 
   // ---- Dragging: the ground, a box, or a node and everything with it --------------------
 
@@ -484,6 +643,7 @@ export function NodeCanvas({
     | { kind: "pan"; startX: number; startY: number; from: View }
     | { kind: "node"; startX: number; startY: number; from: Map<string, Place> }
     | { kind: "box"; startX: number; startY: number; base: ReadonlySet<string> }
+    | { kind: "link"; from: string }
     | null
   >(null)
   const [panning, setPanning] = useState(false)
@@ -530,9 +690,31 @@ export function NodeCanvas({
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
+  /** Board units for a pointer, which is what a pulled wire is drawn and dropped in. */
+  const atBoard = (e: React.PointerEvent) => {
+    const rect = hostRef.current?.getBoundingClientRect()
+    return rect ? { x: (e.clientX - rect.left - view.x) / view.z, y: (e.clientY - rect.top - view.y) / view.z } : null
+  }
+
+  const beginLink = (e: React.PointerEvent, id: string) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    e.preventDefault()
+    touched.current = true
+    drag.current = { kind: "link", from: id }
+    const at = atBoard(e)
+    if (at) setPulling({ from: id, ...at })
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
+    if (d.kind === "link") {
+      const at = atBoard(e)
+      if (at) setPulling({ from: d.from, ...at })
+      return
+    }
     const dx = e.clientX - d.startX
     const dy = e.clientY - d.startY
     if (d.kind === "pan") {
@@ -567,14 +749,28 @@ export function NodeCanvas({
     setPicked(new Set([...d.base, ...hits]))
   }
 
-  const endDrag = () => {
+  // A pulled wire ends on the card under the pointer, or nowhere; the caller decides what the pair means.
+  const endDrag = (e?: React.PointerEvent) => {
+    const d = drag.current
+    if (d?.kind === "link" && e) {
+      const at = atBoard(e)
+      const onto = at
+        ? placesRef.current.find((n) => {
+            const b = boxOf(n, foldedRef.current)
+            return n.id !== d.from && at.x >= b.x && at.x <= b.x + b.w && at.y >= b.y && at.y <= b.y + b.h
+          })
+        : undefined
+      if (onto) onConnect?.(d.from, onto.id)
+    }
     drag.current = null
     setPanning(false)
     setMarquee(null)
+    setPulling(null)
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]))
-  const missingInto = new Set(edges.filter((e) => e.state === "missing").map((e) => `${e.to}>${e.socket}`))
+  // An input is hollow where nothing reaches it: its wire is missing, or the card it came from is off the board.
+  const wiredInto = new Set(edges.filter((e) => e.state !== "missing" && byId.has(e.from)).map((e) => `${e.to}>${e.socket}`))
 
   // ---- The chrome: a list, a drawer and two pills, floating on the board ----------------
 
@@ -637,6 +833,26 @@ export function NodeCanvas({
             })}
           </div>
         ))}
+        {!!removed?.length && onRestore && (
+          <div>
+            <div className="flex h-5 items-center px-1.5 pt-1">
+              <span className="truncate text-[9px] uppercase tracking-wide text-muted-foreground">Removed</span>
+            </div>
+            {removed.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => restore(n.id)}
+                title={`Put ${n.title} back on the board`}
+                className="group flex h-[22px] w-full items-center gap-1 rounded-full pl-6 pr-2 text-left hover:bg-hover"
+              >
+                <span aria-hidden className="size-2 shrink-0 rounded-full opacity-40" style={{ background: n.head }} />
+                <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground/60 group-hover:text-foreground">{n.title}</span>
+                <Plus className="size-2.5 shrink-0 text-muted-foreground" weight="bold" />
+              </button>
+            ))}
+          </div>
+        )}
     </div>
     </aside>
   )
@@ -654,6 +870,9 @@ export function NodeCanvas({
       onPointerEnter={() => {
         over.current = true
       }}
+      onPointerMove={(e) => {
+        pointer.current = { x: e.clientX, y: e.clientY }
+      }}
       onPointerLeave={() => {
         over.current = false
         space.current = false
@@ -661,10 +880,20 @@ export function NodeCanvas({
     >
       <div
         ref={hostRef}
+        onPointerDownCapture={(e) => {
+          setWire(null)
+          // A press anywhere but in a field leaves the field. A card's fields
+          // keep the keyboard while one is focused, so without this a reader
+          // who had typed in a card could select cards and wires and then find
+          // X and Delete doing nothing, the keys still going to the field.
+          const focused = document.activeElement
+          const fields = "input, textarea, select"
+          if (focused instanceof HTMLElement && focused.matches(fields) && !(e.target as HTMLElement).closest(fields)) focused.blur()
+        }}
         onPointerDown={beginGround}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerCancel={() => endDrag()}
         className="app-no-drag absolute inset-0 touch-none select-none overflow-hidden"
         style={{
           background: "var(--s-field)",
@@ -687,7 +916,9 @@ export function NodeCanvas({
               const y2 = inputY(b, index, folded.has(b.id))
               const d = wirePath(x1, y1, x2, y2)
               const st = edge.state
-              const stroke = st === "failed" ? "var(--node-wire-failed)" : st === "missing" ? "rgb(var(--p-line-strong))" : edge.colour
+              const key = `${edge.from}>${edge.to}`
+              const selected = wire === key
+              const stroke = selected ? "rgb(var(--p-accent))" : st === "failed" ? "var(--node-wire-failed)" : st === "missing" ? "rgb(var(--p-line-strong))" : edge.colour
               return (
                 <g key={`${edge.from}-${edge.to}-${edge.socket}`}>
                   {st !== "missing" && <path d={d} fill="none" stroke="rgb(0 0 0 / 0.45)" strokeWidth={4} />}
@@ -695,14 +926,44 @@ export function NodeCanvas({
                     d={d}
                     fill="none"
                     stroke={stroke}
-                    strokeWidth={st === "missing" ? 1.5 : 2}
+                    strokeWidth={selected ? 3 : st === "missing" ? 1.5 : 2}
                     strokeOpacity={st === "pending" ? 0.5 : st === "missing" ? 0.6 : 1}
                     strokeDasharray={st === "missing" ? "3 4" : st === "reading" ? "8 4" : undefined}
                     className={st === "reading" ? "wire-flow" : undefined}
                   />
+                  {edge.removable && onDisconnect && (
+                    // What a press lands on: the same curve, wide and invisible.
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return
+                        e.stopPropagation()
+                        setPicked(NONE)
+                        setWire(key)
+                      }}
+                    >
+                      <title>Press to select; X or Delete cuts it</title>
+                    </path>
+                  )}
                 </g>
               )
             })}
+            {/* The line being pulled: dashed, as a wire that carries nothing is, until it lands. */}
+            {pulling && byId.get(pulling.from) && (
+              <line
+                x1={byId.get(pulling.from)!.place.x + NODE_W}
+                y1={outputY(byId.get(pulling.from)!, folded.has(pulling.from))}
+                x2={pulling.x}
+                y2={pulling.y}
+                stroke="rgb(var(--p-accent))"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
+            )}
           </svg>
 
           {nodes.map((n) => {
@@ -729,8 +990,8 @@ export function NodeCanvas({
                   onPointerDown={(e) => beginNode(e, n.id)}
                   onPointerMove={onPointerMove}
                   onPointerUp={endDrag}
-                  onPointerCancel={endDrag}
-                  className={`relative flex items-center gap-1 pl-1 pr-2 text-body text-foreground ${isFolded ? "rounded-md" : "rounded-t-md"}`}
+                  onPointerCancel={() => endDrag()}
+                  className={`relative flex items-center gap-1 pl-1 pr-1.5 text-body text-foreground ${isFolded ? "rounded-md" : "rounded-t-md"}`}
                   style={{ height: HEAD_H, background: n.head }}
                 >
                   <button
@@ -744,6 +1005,18 @@ export function NodeCanvas({
                     {isFolded ? <CaretRight className="size-2.5" weight="bold" /> : <CaretDown className="size-2.5" weight="bold" />}
                   </button>
                   <span className="min-w-0 flex-1 cursor-grab truncate active:cursor-grabbing">{n.title}</span>
+                  {onRemove && (
+                    <button
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => remove([n.id])}
+                      aria-label={`Remove ${n.title}`}
+                      title="Take this card off the board (X)"
+                      className="grid size-4 shrink-0 place-items-center rounded-sm text-foreground/60 hover:bg-hover hover:text-foreground"
+                    >
+                      <X className="size-2.5" weight="bold" />
+                    </button>
+                  )}
                   {isFolded && n.output && <Socket colour={n.output.colour} side="right" />}
                   {isFolded && !!n.inputs?.length && <Socket colour={n.inputs[0].colour} side="left" />}
                 </div>
@@ -755,12 +1028,32 @@ export function NodeCanvas({
                         <span className="min-w-0 truncate text-foreground" title={n.output.label}>
                           {n.output.label}
                         </span>
-                        <Socket colour={n.output.colour} side="right" />
+                        {n.connectable && onConnect ? (
+                          // The one socket that takes a pointer: pulled onto another card.
+                          <span
+                            role="button"
+                            aria-label={`Connect ${n.title}`}
+                            title="Pull onto a card to wire it"
+                            onPointerDown={(e) => beginLink(e, n.id)}
+                            onPointerMove={onPointerMove}
+                            onPointerUp={endDrag}
+                            onPointerCancel={() => endDrag()}
+                            className="absolute top-1/2 z-10 grid cursor-crosshair place-items-center"
+                            style={{ width: 16, height: 16, marginTop: -8, right: -8 }}
+                          >
+                            <span
+                              className="rounded-full transition-transform hover:scale-125"
+                              style={{ width: SOCKET, height: SOCKET, background: n.output.colour, boxShadow: "0 0 0 1px rgb(0 0 0 / 0.55)" }}
+                            />
+                          </span>
+                        ) : (
+                          <Socket colour={n.output.colour} side="right" />
+                        )}
                       </div>
                     )}
                     {n.inputs?.map((s) => (
                       <div key={s.id} className="relative flex items-center gap-2 px-2.5 text-meta" style={{ height: ROW_H }}>
-                        <Socket colour={s.colour} side="left" hollow={missingInto.has(`${n.id}>${s.id}`)} />
+                        <Socket colour={s.colour} side="left" hollow={!wiredInto.has(`${n.id}>${s.id}`)} />
                         <span className="min-w-0 flex-1 truncate text-foreground">{s.label}</span>
                         {s.note && (
                           <span className="shrink-0 text-micro" style={{ color: s.noteColour ?? "var(--muted-foreground)" }}>
@@ -847,7 +1140,7 @@ export function NodeCanvas({
         <button
           type="button"
           aria-pressed={!tab}
-          title="The board — drag the ground to select, Space or Alt to pan, A all, H fold, Home frames"
+          title="The board — drag the ground to select, Space or Alt to pan, A all, H fold, X remove, Shift+A add, Home frames"
           onClick={() => setTab(null)}
           className={pill(!tab)}
           style={!tab ? raised : undefined}

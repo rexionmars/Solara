@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import type { Icon } from "@phosphor-icons/react"
+import type { Icon } from "../../lib/icons"
+import { artSrc, operatorArt } from "../../lib/art"
 import { formatKeys, pollOperator, runOperator, findOperator, usePollTick } from "../../lib/operators"
 import { useStore } from "../../lib/store"
 import { contextMenu, type MenuItem } from "../../lib/ui"
@@ -164,6 +165,7 @@ export function StudioPopover({
 /** One row of a popover: a glyph, a label, and a trailing note where Blender puts a shortcut. */
 export function StudioMenuItem({
   icon: IconC,
+  art,
   label,
   note,
   checked,
@@ -173,6 +175,8 @@ export function StudioMenuItem({
   title,
 }: {
   icon?: Icon
+  /** The drawing that stands in for the glyph, where Breeze has one (lib/art.ts). */
+  art?: string
   label: string
   note?: string
   checked?: boolean
@@ -200,6 +204,8 @@ export function StudioMenuItem({
       <span className="flex size-3 shrink-0 items-center justify-center">
         {checked ? (
           <span className="size-1.5 rounded-[1px] bg-accent" aria-hidden />
+        ) : artSrc(art) ? (
+          <img src={artSrc(art)} alt="" draggable={false} className={`size-3.5 max-w-none ${disabled ? "opacity-40 grayscale" : ""}`} />
         ) : IconC ? (
           <IconC className="size-3 text-muted-foreground" />
         ) : null}
@@ -247,6 +253,7 @@ export function OperatorMenuItem({
   return (
     <StudioMenuItem
       icon={op.icon}
+      art={operatorArt(op.name)}
       label={label ?? op.label}
       note={op.keys?.[0] ? formatKeys(op.keys[0]) : undefined}
       disabled={poll !== true}

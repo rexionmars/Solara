@@ -1,4 +1,6 @@
+import { formatMoment, formatMomentIso } from "./format"
 import { polygonAreaKm2 } from "./geo"
+import { unitLabel } from "./energyFormat"
 import { seasonLabel } from "./params"
 import { findItem, staleReason, type Product, type ProjectData, type ResultObject } from "./project"
 
@@ -14,6 +16,12 @@ export type Column = {
   /** A number to sort and export by, or text. */
   value: (r: ResultObject, d: ProjectData) => number | string | null
   decimals?: number
+  /**
+   * What a file is given in place of `value`, where the screen's form would
+   * lose something on the way out: a moment shown in local time is exported
+   * with its offset.
+   */
+  exported?: (r: ResultObject, d: ProjectData) => number | string | null
 }
 
 const common: Column[] = [
@@ -22,7 +30,7 @@ const common: Column[] = [
 ]
 
 const trailing: Column[] = [
-  { key: "created", label: "Computed", value: (r) => r.createdAt.replace("T", " ").slice(0, 16) },
+  { key: "created", label: "Computed", value: (r) => formatMoment(r.createdAt), exported: (r) => formatMomentIso(r.createdAt) },
   { key: "stale", label: "Status", value: (r, d) => staleReason(d, r) ?? "current" },
 ]
 
@@ -103,7 +111,7 @@ export const COLUMNS: Record<Product, Column[]> = {
     { key: "mean", label: "Mean", decimals: 2, value: (r) => (r.kind === "terrain" ? r.data.poa_mean : null) },
     { key: "min", label: "Minimum", decimals: 2, value: (r) => (r.kind === "terrain" ? r.data.poa_min : null) },
     { key: "max", label: "Maximum", decimals: 2, value: (r) => (r.kind === "terrain" ? r.data.poa_max : null) },
-    { key: "unit", label: "Unit", value: (r) => (r.kind === "terrain" ? r.data.unit : null) },
+    { key: "unit", label: "Unit", value: (r) => (r.kind === "terrain" ? unitLabel(r.data.unit) : null) },
     { key: "spread", label: "Spread", unit: "%", decimals: 1, value: (r) => (r.kind === "terrain" ? r.data.poa_std_pct : null) },
     { key: "slope", label: "Mean Slope", unit: "°", decimals: 1, value: (r) => (r.kind === "terrain" ? r.data.slope_mean_deg : null) },
     ...trailing,
@@ -194,6 +202,39 @@ export const COLUMNS: Record<Product, Column[]> = {
     },
     ...trailing,
   ],
+  ground: [
+    ...common,
+    { key: "area", label: "Measured", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.area_km2 : null) },
+    { key: "water", label: "Permanent Water", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.water_km2 : null) },
+    { key: "land", label: "Land", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.land_km2 : null) },
+    { key: "usable", label: "Usable", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.usable_km2 : null) },
+    { key: "usablePct", label: "Usable, Of Area", unit: "%", decimals: 1, value: (r) => (r.kind === "ground" ? r.data.usable_pct : null) },
+    {
+      key: "usableOfLand",
+      label: "Usable, Of Land",
+      unit: "%",
+      decimals: 1,
+      value: (r) => (r.kind === "ground" ? (r.data.usable_of_land_pct ?? null) : null),
+    },
+    {
+      key: "bySlope",
+      label: "Slope, Of Land",
+      unit: "%",
+      decimals: 1,
+      value: (r) => (r.kind === "ground" ? (r.data.excluded_by_slope_pct ?? null) : null),
+    },
+    {
+      key: "byFlood",
+      // A lower bound, as the reading says: the elevation model is not read over the watershed upstream.
+      label: "Flood, Of Land, At Least",
+      unit: "%",
+      decimals: 1,
+      value: (r) => (r.kind === "ground" ? (r.data.excluded_by_flood_pct ?? null) : null),
+    },
+    { key: "slopeMax", label: "Slope Rule", unit: "°", decimals: 1, value: (r) => (r.kind === "ground" ? r.data.rules.slope_max_deg : null) },
+    { key: "handMin", label: "Flood Rule", unit: "m", decimals: 1, value: (r) => (r.kind === "ground" ? r.data.rules.hand_min_m : null) },
+    ...trailing,
+  ],
 }
 
 export function formatCell(c: Column, v: number | string | null): string {
@@ -213,7 +254,7 @@ export function toCsv(product: Product, d: ProjectData, rows: ResultObject[]): s
   const body = rows.map((r) =>
     cols
       .map((c) => {
-        const v = c.value(r, d)
+        const v = (c.exported ?? c.value)(r, d)
         return csvField(v === null ? "" : String(v))
       })
       .join(",")

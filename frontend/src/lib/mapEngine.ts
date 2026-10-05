@@ -5,7 +5,7 @@ import { BASEMAP_FIRST_LABEL, BASEMAP_STYLE, applyGround } from "./basemap"
 import { ACTIVE, AREA, HAIRLINE, REACH, SITE, SITE_OUTLINE } from "./colors"
 import { bounds, distanceKm, ringCentre } from "./geo"
 import { clipFeatures, mapGraph, resolveRegion } from "./mapGraph"
-import { beginStep, findItem, isResult, mutate, project, type AnyItem, type DemandResult, type Polygon, type TerrainResult } from "./project"
+import { beginStep, findItem, isResult, mutate, project, type AnyItem, type DemandResult, type GroundResult, type Polygon, type TerrainResult } from "./project"
 import { runOperator } from "./operators"
 import { note } from "./reports"
 import { select, selection } from "./selection"
@@ -15,15 +15,19 @@ import {
   loadNetwork,
   loadPlants,
   concessions,
+  gridStore,
   loadConcessions,
   loadTownDemand,
   networkRegister,
   plantRegister,
+  storeInfo,
   townDemand,
   type ConcessionLayer,
   type TownDemandLayer,
 } from "./grid"
-import { HOME_VIEW, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
+import { layerAvailable } from "./capabilities"
+import { graphCuts, graphLinks, mapScoped, storeFeeds } from "./graphLinks"
+import { HOME_VIEW, arrived, rememberView, restoreView, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
 import {
   RADAR_MAXZOOM,
   SATELLITE,
@@ -33,6 +37,8 @@ import {
   refreshRadar,
   refreshSatellite,
   refreshWind,
+  windRegion,
+  windRegionRead,
   weather,
   windAt,
   windDirection,
@@ -132,18 +138,18 @@ const terrainLayerId = (r: OverlayResult) => TERRAIN_PREFIX + r.id
  * demand layer. They share one sync because they share one rule -- newest on
  * top, all of them under the areas -- and two copies of it drifted in TERRA.
  */
-type OverlayResult = TerrainResult | DemandResult
+type OverlayResult = TerrainResult | DemandResult | GroundResult
 
 /** Where the layer is and what it covers, whichever product drew it. */
 function overlayOf(r: OverlayResult) {
-  return r.kind === "terrain" ? r.data : r.data.density
+  return r.kind === "demand" ? r.data.density : r.data
 }
 
 function create(container: HTMLDivElement): void {
   const m = new MapLibreMap({
     container,
     style: BASEMAP_STYLE,
-    ...HOME_VIEW,
+    ...restoreView(),
     // The credit is drawn at the editor's foot instead, as TERRA draws it: a
     // licensing obligation rather than map chrome, with links that open.
     attributionControl: false,
@@ -163,6 +169,15 @@ function create(container: HTMLDivElement): void {
   }
   m.on("move", onMove)
   onMove()
+  m.on("moveend", () => {
+    const c = m.getCenter()
+    rememberView(c.lng, c.lat, m.getZoom())
+    // The wind is read over a window of the model; a map moved out of it asks for the next.
+    if (overlays.get().weatherWind) {
+      const state = windField.get().state
+      if (state.kind !== "loading" && windRegion(c.lng, c.lat).join(",") !== windRegionRead()) void refreshWind()
+    }
+  })
   m.on("mouseout", () => {
     cursor.set(null)
     windProbe.set(null)
@@ -182,6 +197,9 @@ function create(container: HTMLDivElement): void {
     // once, so without a subscription the layer only appears when something
     // unrelated happens to re-sync the map.
     concessions.subscribe(syncGrid)
+    gridStore.subscribe(syncGrid)
+    graphLinks.subscribe(syncGrid)
+    graphCuts.subscribe(syncGrid)
     townDemand.subscribe(syncGrid)
     // The map graph is what says which layer is scoped to what; a change to it
     // is a change to what is drawn.
@@ -190,6 +208,11 @@ function create(container: HTMLDivElement): void {
     windField.subscribe(syncWind)
     measure.subscribe(syncMeasure)
     activeTool.subscribe(syncTool)
+    arrived.subscribe(() => {
+      const id = arrived.get()
+      const result = id ? findItem(project.get().data, id) : null
+      if (result) frameIfUnseen(result)
+    })
     syncTool()
   })
 
@@ -368,6 +391,10 @@ function addGridLayers(m: MapLibreMap): void {
       type: "circle",
       source: GRID_BUSES,
       layout: hidden,
+      // Seen from far off, only the stations of the transmission network: a
+      // country's distribution substations are thousands of dots that close
+      // into one white mass over it. Closer in, every station is drawn.
+      filter: ["step", ["zoom"], [">=", ["coalesce", ["get", "kv"], 0], 200], 6, true],
       paint: {
         "circle-radius": [
           "interpolate",
@@ -446,6 +473,8 @@ function addGridLayers(m: MapLibreMap): void {
  * that quietly draws nothing.
  */
 function scopeRegion(): Polygon | null {
+  // A Region or Layer card cut from the Map scopes nothing.
+  if (!mapScoped()) return null
   return resolveRegion(mapGraph.get().region, project.get().data.areas)?.polygon ?? null
 }
 
@@ -454,7 +483,22 @@ function scopeRegion(): Polygon | null {
 function syncGrid(): void {
   const m = map
   if (!m || !m.getLayer(LINE_LAYER)) return
-  const o = overlays.get()
+  const asked = overlays.get()
+  // A layer the connected store cannot answer for is not asked of it, even if
+  // it was left switched on over a store that could: it is off every menu
+  // there, and asking would only fail where nobody is looking.
+  // And none of the store's layers is drawn while its card is cut from the
+  // Map's in the run graph: the wire is the reader's, and it does what it shows.
+  const fed = storeFeeds("mapdraw")
+  const o = {
+    ...asked,
+    gridConcessions: fed && asked.gridConcessions && layerAvailable("gridConcessions"),
+    gridDemand: fed && asked.gridDemand && layerAvailable("gridDemand"),
+    gridMetered: fed && asked.gridMetered && layerAvailable("gridMetered"),
+    gridRegistered: fed && asked.gridRegistered,
+    gridLines: fed && asked.gridLines,
+    gridBuses: fed && asked.gridBuses,
+  }
   const show = (id: string, on: boolean) => m.setLayoutProperty(id, "visibility", on ? "visible" : "none")
   show(CONCESSION_FILL, o.gridConcessions)
   show(CONCESSION_LINE, o.gridConcessions)
@@ -469,6 +513,10 @@ function syncGrid(): void {
     reachSource.setData(clipFeatures(reach.data.geojson, region))
     loadedReach = reach.data
     loadedReachRegion = region
+  }
+  if (reach.kind !== "ready" && loadedReach) {
+    reachSource?.setData(empty())
+    loadedReach = null
   }
 
   show(TOWN_FILL, o.gridDemand)
@@ -920,7 +968,7 @@ function syncTerrain(m: MapLibreMap): void {
   const wanted = overlays.get().layers
     ? d.results.filter(
         (r): r is OverlayResult =>
-          (r.kind === "terrain" || r.kind === "demand") &&
+          (r.kind === "terrain" || r.kind === "demand" || r.kind === "ground") &&
           !r.hidden &&
           !findItem(d, r.sourceId)?.hidden &&
           // A demand reading over ground the register does not reach drew
@@ -1213,7 +1261,11 @@ function frame(points: number[][]): boolean {
   return withMap((m) => {
     const b = bounds(points)
     if (!b) {
-      m.flyTo({ ...HOME_VIEW, bearing: 0, pitch: 0 })
+      // Nothing of the project to frame: the ground the connected store
+      // holds, and with no store the world.
+      const held = storeInfo()?.extent
+      if (held?.length === 4) m.fitBounds([held[0], held[1], held[2], held[3]], { padding: 40, duration: 700 })
+      else m.flyTo({ ...HOME_VIEW, bearing: 0, pitch: 0 })
       return
     }
     if (b[0] === b[2] && b[1] === b[3]) {
@@ -1224,7 +1276,7 @@ function frame(points: number[][]): boolean {
   })
 }
 
-/** Frame every visible object, or the whole of Brazil when there is none (Home). */
+/** Frame every visible object, or what the store holds when there is none (Home). */
 export function frameAll(): boolean {
   const d = project.get().data
   const points = [
@@ -1245,9 +1297,44 @@ export function frameItem(item: AnyItem): boolean {
   const target = isResult(item) ? findItem(d, item.sourceId) : item
   if (target?.kind === "site") return frame([[target.lon, target.lat]])
   if (target?.kind === "area") return frame(target.polygon.coordinates[0])
-  if (item.kind === "terrain" || item.kind === "connection") return frame(item.polygon.coordinates[0])
+  if (item.kind === "terrain" || item.kind === "connection" || item.kind === "demand" || item.kind === "ground") return frame(item.polygon.coordinates[0])
   if (item.kind === "solar" || item.kind === "wind") return frame([[item.site.lon, item.site.lat]])
   return false
+}
+
+/**
+ * Frame an object only when it cannot be seen: none of it is on screen, or
+ * all of it is a speck on it.
+ *
+ * For the end of a run: the reading says how much and the map says where, so
+ * a result whose ground is off the map has to be brought to it. So has one
+ * the map shows as a dot -- a municipality on a view of the continent is in
+ * the view and tells the reader nothing. Ground that fills a part of the view
+ * is left as the reader framed it: they may be looking at one corner of it on
+ * purpose.
+ */
+function frameIfUnseen(item: AnyItem): boolean {
+  if (!map) return false
+  const d = project.get().data
+  const target = isResult(item) ? (findItem(d, item.sourceId) ?? item) : item
+  const points =
+    target.kind === "site"
+      ? [[target.lon, target.lat]]
+      : target.kind === "solar" || target.kind === "wind"
+        ? [[target.site.lon, target.site.lat]]
+        : target.polygon.coordinates[0]
+  const b = bounds(points)
+  if (!b) return false
+  const view = map.getBounds()
+  const inView = b[0] <= view.getEast() && b[2] >= view.getWest() && b[1] <= view.getNorth() && b[3] >= view.getSouth()
+  // A speck: under a twentieth of the view both ways. A site is a point and is never one.
+  const speck =
+    target.kind !== "site" &&
+    target.kind !== "solar" &&
+    target.kind !== "wind" &&
+    b[2] - b[0] < (view.getEast() - view.getWest()) / 20 &&
+    b[3] - b[1] < (view.getNorth() - view.getSouth()) / 20
+  return inView && !speck ? false : frameItem(item)
 }
 
 /** Leave the drawing and measuring gestures: Escape. */

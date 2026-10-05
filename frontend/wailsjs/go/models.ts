@@ -44,6 +44,190 @@ export namespace energy {
 	        this.cell_km = source["cell_km"];
 	    }
 	}
+	export class DistributionOverflow {
+	    below: number;
+	    cells: number;
+	    area_km2?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DistributionOverflow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.below = source["below"];
+	        this.cells = source["cells"];
+	        this.area_km2 = source["area_km2"];
+	    }
+	}
+	export class Distribution {
+	    edges: number[];
+	    cells: number[];
+	    area_km2: number[];
+	    overflow?: DistributionOverflow;
+	
+	    static createFrom(source: any = {}) {
+	        return new Distribution(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.edges = source["edges"];
+	        this.cells = source["cells"];
+	        this.area_km2 = source["area_km2"];
+	        this.overflow = this.convertValues(source["overflow"], DistributionOverflow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class GroundCaveats {
+	    hand: string;
+	    water: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GroundCaveats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hand = source["hand"];
+	        this.water = source["water"];
+	    }
+	}
+	export class GroundClass {
+	    key: string;
+	    code: number;
+	    colour: string;
+	    area_km2: number;
+	    pct: number;
+	    pct_of_land?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GroundClass(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.code = source["code"];
+	        this.colour = source["colour"];
+	        this.area_km2 = source["area_km2"];
+	        this.pct = source["pct"];
+	        this.pct_of_land = source["pct_of_land"];
+	    }
+	}
+	export class GroundDefaults {
+	    slope_max_deg: number;
+	    hand_min_m: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GroundDefaults(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slope_max_deg = source["slope_max_deg"];
+	        this.hand_min_m = source["hand_min_m"];
+	    }
+	}
+	export class GroundRules {
+	    slope_max_deg: number;
+	    hand_min_m: number;
+	    drainage_km2: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GroundRules(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slope_max_deg = source["slope_max_deg"];
+	        this.hand_min_m = source["hand_min_m"];
+	        this.drainage_km2 = source["drainage_km2"];
+	    }
+	}
+	export class GroundStep {
+	    value: number;
+	    usable_pct: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GroundStep(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.value = source["value"];
+	        this.usable_pct = source["usable_pct"];
+	    }
+	}
+	export class GroundSensitivity {
+	    slope: GroundStep[];
+	    hand: GroundStep[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GroundSensitivity(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slope = this.convertValues(source["slope"], GroundStep);
+	        this.hand = this.convertValues(source["hand"], GroundStep);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class GroundWater {
+	    source: string;
+	    attribution: string;
+	    mapped: boolean;
+	    unmapped_km2: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GroundWater(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.attribution = source["attribution"];
+	        this.mapped = source["mapped"];
+	        this.unmapped_km2 = source["unmapped_km2"];
+	    }
+	}
 	export class TerrainDefaults {
 	    hourly_years: number;
 	    season: string;
@@ -104,6 +288,7 @@ export namespace energy {
 	    terrain: TerrainDefaults;
 	    connection: ConnectionDefaults;
 	    demand: DemandDefaults;
+	    ground: GroundDefaults;
 	
 	    static createFrom(source: any = {}) {
 	        return new ParameterDefaults(source);
@@ -116,6 +301,7 @@ export namespace energy {
 	        this.terrain = this.convertValues(source["terrain"], TerrainDefaults);
 	        this.connection = this.convertValues(source["connection"], ConnectionDefaults);
 	        this.demand = this.convertValues(source["demand"], DemandDefaults);
+	        this.ground = this.convertValues(source["ground"], GroundDefaults);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -471,6 +657,7 @@ export namespace energy {
 	    poa_max: number;
 	    poa_mean: number;
 	    poa_std_pct: number;
+	    distribution?: Distribution;
 	    slope_mean_deg: number;
 	    slope_max_deg: number;
 	    pixels: number;
@@ -499,6 +686,7 @@ export namespace energy {
 	        this.poa_max = source["poa_max"];
 	        this.poa_mean = source["poa_mean"];
 	        this.poa_std_pct = source["poa_std_pct"];
+	        this.distribution = this.convertValues(source["distribution"], Distribution);
 	        this.slope_mean_deg = source["slope_mean_deg"];
 	        this.slope_max_deg = source["slope_max_deg"];
 	        this.pixels = source["pixels"];
@@ -572,6 +760,116 @@ export namespace energy {
 	}
 	
 	
+	export class UsableGroundAnalysis {
+	    area_km2: number;
+	    land_km2: number;
+	    water_km2: number;
+	    usable_km2: number;
+	    usable_pct: number;
+	    usable_of_land_pct?: number;
+	    no_data_km2: number;
+	    classes: GroundClass[];
+	    excluded_by_slope_pct?: number;
+	    excluded_by_flood_pct?: number;
+	    sensitivity: GroundSensitivity;
+	    rules: GroundRules;
+	    water: GroundWater;
+	    slope_mean_deg?: number;
+	    slope_max_deg?: number;
+	    hand_median_m?: number;
+	    pixels: number;
+	    cell_m: number[];
+	    buffer_m: number;
+	    dem_source: string;
+	    caveats: GroundCaveats;
+	    overlay_url: string;
+	    raster_tif: string;
+	    extent: Bounds;
+	
+	    static createFrom(source: any = {}) {
+	        return new UsableGroundAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_km2 = source["area_km2"];
+	        this.land_km2 = source["land_km2"];
+	        this.water_km2 = source["water_km2"];
+	        this.usable_km2 = source["usable_km2"];
+	        this.usable_pct = source["usable_pct"];
+	        this.usable_of_land_pct = source["usable_of_land_pct"];
+	        this.no_data_km2 = source["no_data_km2"];
+	        this.classes = this.convertValues(source["classes"], GroundClass);
+	        this.excluded_by_slope_pct = source["excluded_by_slope_pct"];
+	        this.excluded_by_flood_pct = source["excluded_by_flood_pct"];
+	        this.sensitivity = this.convertValues(source["sensitivity"], GroundSensitivity);
+	        this.rules = this.convertValues(source["rules"], GroundRules);
+	        this.water = this.convertValues(source["water"], GroundWater);
+	        this.slope_mean_deg = source["slope_mean_deg"];
+	        this.slope_max_deg = source["slope_max_deg"];
+	        this.hand_median_m = source["hand_median_m"];
+	        this.pixels = source["pixels"];
+	        this.cell_m = source["cell_m"];
+	        this.buffer_m = source["buffer_m"];
+	        this.dem_source = source["dem_source"];
+	        this.caveats = this.convertValues(source["caveats"], GroundCaveats);
+	        this.overlay_url = source["overlay_url"];
+	        this.raster_tif = source["raster_tif"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UsableGroundRequest {
+	    area: Polygon;
+	    slope_max_deg?: number;
+	    hand_min_m?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UsableGroundRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area = this.convertValues(source["area"], Polygon);
+	        this.slope_max_deg = source["slope_max_deg"];
+	        this.hand_min_m = source["hand_min_m"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class WindAssumptions {
 	    hub_height_m: number;
 	    hub_height_source: string;
@@ -1112,6 +1410,97 @@ export namespace grid {
 	        this.voltage_confirmed = source["voltage_confirmed"];
 	    }
 	}
+	export class BoundaryLevel {
+	    level: number;
+	    name: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryLevel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.level = source["level"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	    }
+	}
+	export class BoundaryPlace {
+	    id: string;
+	    level: number;
+	    name: string;
+	    parent_id?: string;
+	    parent_name?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryPlace(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.level = source["level"];
+	        this.name = source["name"];
+	        this.parent_id = source["parent_id"];
+	        this.parent_name = source["parent_name"];
+	    }
+	}
+	export class BoundaryList {
+	    levels: BoundaryLevel[];
+	    places: BoundaryPlace[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryList(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.levels = this.convertValues(source["levels"], BoundaryLevel);
+	        this.places = this.convertValues(source["places"], BoundaryPlace);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class BoundaryShape {
+	    id: string;
+	    level: number;
+	    level_name: string;
+	    name: string;
+	    parent_id?: string;
+	    geometry: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new BoundaryShape(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.level = source["level"];
+	        this.level_name = source["level_name"];
+	        this.name = source["name"];
+	        this.parent_id = source["parent_id"];
+	        this.geometry = source["geometry"];
+	    }
+	}
 	export class BusHeadroom {
 	    bus: number;
 	    lines_in_service: number;
@@ -1464,6 +1853,88 @@ export namespace grid {
 		    return a;
 		}
 	}
+	export class StoreCapabilities {
+	    plants: boolean;
+	    network: boolean;
+	    connection: boolean;
+	    boundaries: boolean;
+	    brazil: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreCapabilities(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plants = source["plants"];
+	        this.network = source["network"];
+	        this.connection = source["connection"];
+	        this.boundaries = source["boundaries"];
+	        this.brazil = source["brazil"];
+	    }
+	}
+	export class StoreEntity {
+	    entity: string;
+	    table: string;
+	    present: boolean;
+	    rows: number;
+	    problems: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreEntity(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entity = source["entity"];
+	        this.table = source["table"];
+	        this.present = source["present"];
+	        this.rows = source["rows"];
+	        this.problems = source["problems"];
+	    }
+	}
+	export class StoreInfo {
+	    profile: string;
+	    name?: string;
+	    contract_version?: number;
+	    extent: number[];
+	    entities: StoreEntity[];
+	    problems: string[];
+	    capabilities: StoreCapabilities;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profile = source["profile"];
+	        this.name = source["name"];
+	        this.contract_version = source["contract_version"];
+	        this.extent = source["extent"];
+	        this.entities = this.convertValues(source["entities"], StoreEntity);
+	        this.problems = source["problems"];
+	        this.capabilities = this.convertValues(source["capabilities"], StoreCapabilities);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LoadConflicts {
 	    total: number;
 	    identical: number;
@@ -1535,6 +2006,7 @@ export namespace grid {
 	    plants: PlantCoverage;
 	    network: NetworkCoverage;
 	    load_conflicts: LoadConflicts;
+	    store?: StoreInfo;
 	
 	    static createFrom(source: any = {}) {
 	        return new Coverage(source);
@@ -1546,6 +2018,7 @@ export namespace grid {
 	        this.plants = this.convertValues(source["plants"], PlantCoverage);
 	        this.network = this.convertValues(source["network"], NetworkCoverage);
 	        this.load_conflicts = this.convertValues(source["load_conflicts"], LoadConflicts);
+	        this.store = this.convertValues(source["store"], StoreInfo);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2251,6 +2724,35 @@ export namespace grid {
 		}
 	}
 	
+	
+	export class StoreConnection {
+	    host: string;
+	    port: string;
+	    user: string;
+	    password: string;
+	    database: string;
+	    ssl_mode: string;
+	    params?: Record<string, string>;
+	    has_password: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreConnection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.user = source["user"];
+	        this.password = source["password"];
+	        this.database = source["database"];
+	        this.ssl_mode = source["ssl_mode"];
+	        this.params = source["params"];
+	        this.has_password = source["has_password"];
+	    }
+	}
+	
+	
 	export class StoreReport {
 	    dsn: string;
 	    dsn_source: string;
@@ -2473,6 +2975,104 @@ export namespace weather {
 	        this.v = source["v"];
 	        this.source = source["source"];
 	        this.note = source["note"];
+	    }
+	}
+
+}
+
+export namespace world {
+	
+	export class Country {
+	    iso3: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Country(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.iso3 = source["iso3"];
+	        this.name = source["name"];
+	    }
+	}
+	export class Countries {
+	    countries: Country[];
+	    credit: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Countries(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.countries = this.convertValues(source["countries"], Country);
+	        this.credit = source["credit"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Level {
+	    level: number;
+	    name: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Level(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.level = source["level"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	    }
+	}
+	export class Place {
+	    id: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Place(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
+	export class Shape {
+	    id: string;
+	    name: string;
+	    geometry: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Shape(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.geometry = source["geometry"];
 	    }
 	}
 

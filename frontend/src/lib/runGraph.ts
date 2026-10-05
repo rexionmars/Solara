@@ -5,6 +5,7 @@ import {
   type AreaObject,
   type ConnectionParams,
   type DemandParams,
+  type GroundParams,
   type Polygon,
   type Product,
   type ProjectData,
@@ -13,7 +14,7 @@ import {
   type TerrainParams,
   type WindParams,
 } from "./project"
-import type { RunValue } from "./runValue"
+import { reading, signature, supplied, type InputState, type RunValue } from "./runValue"
 
 /**
  * The shape of a run, as TERRA's runGraph.ts: one node per part of the
@@ -40,6 +41,8 @@ export type RunNodeId =
   | "reach"
   | "ceiling"
   | "cell"
+  | "slope"
+  | "flood"
   | "catalogue2"
   | "region"
   | "layer"
@@ -82,10 +85,12 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col" | "band">> = {
   season: { id: "season", label: "Season", h: 74 },
   turbine: { id: "turbine", label: "Turbine", h: 100 },
   roughness: { id: "roughness", label: "Roughness", h: 100 },
-  store: { id: "store", label: "Grid store", h: 100 },
+  store: { id: "store", label: "Grid store", h: 290 },
   reach: { id: "reach", label: "Reach", h: 74 },
   ceiling: { id: "ceiling", label: "Yield ceiling", h: 74 },
   cell: { id: "cell", label: "Layer cell", h: 74 },
+  slope: { id: "slope", label: "Slope rule", h: 74 },
+  flood: { id: "flood", label: "Flood rule", h: 74 },
   catalogue2: { id: "catalogue2", label: "Catalogue", h: 300 },
   region: { id: "region", label: "Region", h: 118 },
   layer: { id: "layer", label: "Layer", h: 132 },
@@ -130,6 +135,7 @@ const INPUTS: Record<Product, RunNodeId[]> = {
   terrain: ["area", "product", "record", "season"],
   connection: ["area", "product", "store", "reach"],
   demand: ["area", "product", "store", "ceiling", "cell"],
+  ground: ["area", "product", "slope", "flood"],
 }
 
 /**
@@ -155,12 +161,29 @@ export function runGraph(product: Product): RunGraph {
   const nodes = overArea ? [at("catalogue", 0), ...run] : run
   const edges = overArea ? [["catalogue", "area"] as const, ...runEdges] : runEdges
 
+  /*
+    THE STORE'S CARD IS ON EVERY BOARD. It is where a store is connected, and
+    it used to exist only on the two products that read one in their run: on
+    a solar or wind board there was nowhere to connect at all, while the map
+    below drew its layers from that same store. Where the run does not take
+    it, it stands in the map's band and feeds the map, which is what reads it
+    there.
+  */
+  const storeOnMap = !inputs.includes("store")
   // The map's own chain, in its own band: catalogue, ground, layer, screen.
-  const mapNodes = [at("catalogue2", 0, 1), at("region", 1, 1), at("layer", 1, 1), at("mapdraw", 2, 1)]
+  const mapNodes = [
+    at("catalogue2", 0, 1),
+    at("region", 1, 1),
+    at("layer", 1, 1),
+    ...(storeOnMap ? [at("store", 1, 1)] : []),
+    at("mapdraw", 2, 1),
+  ]
   const mapEdges = [
     ["catalogue2", "region"] as const,
     ["region", "mapdraw"] as const,
     ["layer", "mapdraw"] as const,
+    // The store feeds the map from wherever its card stands.
+    ["store", "mapdraw"] as const,
   ]
   return { nodes: [...nodes, ...mapNodes], edges: [...edges, ...mapEdges] }
 }
@@ -209,6 +232,7 @@ export type RunInputs = {
   terrain: TerrainParams
   connection: ConnectionParams
   demand: DemandParams
+  ground: GroundParams
   /** Whether the grid store answered: what the store card supplies. */
   storeReachable: boolean
   /** The map's ground: absent where the layer is drawn over everything it reaches. */
@@ -217,7 +241,7 @@ export type RunInputs = {
   mapLayer?: string | null
 }
 
-export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind", connection: "Connection", demand: "Demand" }
+export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind", connection: "Connection", demand: "Demand", ground: "Ground" }
 
 /**
  * Total over the node ids, so a card added without saying what it supplies
@@ -260,6 +284,8 @@ export function cardValues(p: RunInputs, d: energy.ParameterDefaults | null): Re
     catalogue2: { kind: "choice", label: "IBGE" },
     ceiling: { kind: "measure", of: or(p.demand.yieldCeilingKWhKWp, d?.demand?.yield_ceiling_kwh_kwp), unit: "kWh/kWp" },
     cell: { kind: "measure", of: or(p.demand.cellKm, d?.demand?.cell_km), unit: "km" },
+    slope: { kind: "measure", of: or(p.ground.slopeMaxDeg, d?.ground?.slope_max_deg), unit: "° at most" },
+    flood: { kind: "measure", of: or(p.ground.handMinM, d?.ground?.hand_min_m), unit: "m above drainage" },
     record,
     radiation: { kind: "record", years: or(s.climatologyYears, d?.solar.climatology_years), of: "climatology" },
     product: { kind: "choice", label: SHORT_PRODUCT[p.product] },
@@ -322,7 +348,7 @@ export function lastRun(
   if (!source) return null
   const result = d.results.filter((r) => r.kind === product && r.sourceId === source.id).at(-1)
   // A run that reached the sidecar read the store it was pointed at, so the store card's wire settles with it.
-  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {}, connection: {}, demand: {}, storeReachable: true }
+  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {}, connection: {}, demand: {}, ground: {}, storeReachable: true }
   const failed =
     failure && failure.product === product && failure.sourceId === source.id && (!result || Date.parse(result.createdAt) < failure.at)
       ? failure
@@ -351,8 +377,61 @@ export function lastRun(
           ? { ...base, area: { name: source.name, polygon: result.polygon }, connection: result.params }
           : result.kind === "demand"
             ? { ...base, area: { name: source.name, polygon: result.polygon }, demand: result.params }
+          : result.kind === "ground"
+            ? { ...base, area: { name: source.name, polygon: result.polygon }, ground: result.params }
             : result.kind === "solar"
             ? { ...base, site: { name: source.name, ...result.site }, solar: result.params }
           : { ...base, site: { name: source.name, ...result.site }, wind: result.params },
   }
+}
+
+// ---- An input against the run that read it ----------------------------------------
+
+/**
+ * One input's state: the wire's on the run graph, and the row's in Properties.
+ * Compared by signature, so a value typed back to what the run read is "read"
+ * again without running.
+ */
+export function inputState(value: RunValue, last: LastRun | null, lastValue: RunValue | null, busy: boolean): InputState {
+  if (!supplied(value)) return "missing"
+  if (busy) return "reading"
+  if (last && lastValue && signature(lastValue) === signature(value)) return last.ok ? "read" : "failed"
+  return "pending"
+}
+
+/** What the cards hold now beside what the newest run was given, for one product at one source. */
+export type RunComparison = { values: Record<RunNodeId, RunValue>; last: LastRun | null; lastValues: Record<RunNodeId, RunValue> | null }
+
+export function runComparison(
+  d: ProjectData,
+  product: Product,
+  source: SiteObject | AreaObject | null,
+  storeReachable: boolean,
+  engine: energy.ParameterDefaults | null,
+  failure: RunFailure | null,
+  map: Pick<RunInputs, "region" | "mapLayer"> = {}
+): RunComparison {
+  const site = source?.kind === "site" ? source : null
+  const area = source?.kind === "area" ? source : null
+  const values = cardValues({ ...currentInputs(d, product, site, area, storeReachable), ...map }, engine)
+  const last = lastRun(d, product, source, failure)
+  return { values, last, lastValues: last ? cardValues(last.inputs, engine) : null }
+}
+
+export type RunInputRow = { id: RunNodeId; label: string; reading: string; state: InputState }
+
+/**
+ * Everything a run of the product reads, in the order of the run card's rows,
+ * each with what it holds and where it stands. The product itself is left
+ * out: a list of one product's inputs is already under that product's name.
+ */
+export function runInputRows(product: Product, c: RunComparison, busy: boolean): RunInputRow[] {
+  return INPUTS[product]
+    .filter((id) => id !== "product")
+    .map((id) => ({
+      id,
+      label: SPEC[id].label,
+      reading: reading(c.values[id]),
+      state: inputState(c.values[id], c.last, c.lastValues?.[id] ?? null, busy),
+    }))
 }

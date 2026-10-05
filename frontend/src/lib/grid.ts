@@ -1,11 +1,24 @@
 import type { Feature, FeatureCollection, LineString, Point } from "geojson"
-import { GridConcessions, GridDemandReach, GridNetwork, GridPlants, GridTownDemand, InspectGridStore, SetGridStore } from "../../wailsjs/go/main/App"
+import {
+  DisconnectGridStore,
+  GridConcessions,
+  GridDemandReach,
+  GridNetwork,
+  GridPlants,
+  GridStoreConnection,
+  GridTownDemand,
+  InspectGridStore,
+  ParseGridStoreURL,
+  SetGridStore,
+  SetGridStoreConnection,
+  TestGridStore,
+} from "../../wailsjs/go/main/App"
 import { energy } from "../../wailsjs/go/models"
 import type { grid } from "../../wailsjs/go/models"
 import { errorMessage } from "./errors"
-import { stateMesh } from "./places"
+import { stateMesh, type CatalogueFrom } from "./places"
 import { fail, info, note } from "./reports"
-import { createStore } from "./store"
+import { createStore, type Store } from "./store"
 
 /**
  * The grid store: the local PostGIS database TERRA loads with the Brazilian
@@ -33,20 +46,36 @@ export function storeReport(s: GridStoreState = gridStore.get()): grid.StoreRepo
   return s.kind === "known" ? s.report : s.kind === "checking" ? s.last : null
 }
 
+/** What kind of store answered and what it can do; null until one has. */
+export const storeInfo = (s: GridStoreState = gridStore.get()) => storeReport(s)?.coverage?.store ?? null
+
+/**
+ * Where the catalogue of areas reads: the store's own boundaries when it
+ * carries them, IBGE's when the store is TERRA's and so the ground is Brazil,
+ * and otherwise the boundaries of any country, which need no store at all.
+ */
+export function catalogueSource(s: GridStoreState = gridStore.get()): CatalogueFrom {
+  const report = storeReport(s)
+  const caps = report?.reachable ? report.coverage?.store?.capabilities : undefined
+  if (caps?.boundaries) return { store: report!.dsn }
+  if (caps?.brazil) return "ibge"
+  return "world"
+}
+
 export const storeReachable = (s: GridStoreState = gridStore.get()) => !!storeReport(s)?.reachable
 
 /** Where the DSN came from, in the words the settings screen uses. */
 export function dsnSourceLabel(source: string): string {
   if (source === "TERRA_BR_DSN") return "set by TERRA_BR_DSN"
-  if (source === "chosen") return "chosen here"
-  return "the default"
+  if (source === "chosen") return "connected here"
+  return "not connected"
 }
 
 function settle(report: grid.StoreReport, announce: boolean): void {
   const wasReachable = storeReachable()
   gridStore.set({ kind: "known", report })
   // A store that came back is read again, so layers asked for while it was away arrive.
-  if (report.reachable && !wasReachable) retryLayers()
+  if (report.reachable && (!wasReachable || announce)) retryLayers()
   if (!announce) return
   if (report.reachable) {
     const c = report.coverage
@@ -69,30 +98,81 @@ export async function checkGridStore(announce = false): Promise<void> {
 }
 
 /**
- * Point the grid products at another store; an empty DSN returns to the
- * default. The shell refuses a store that does not answer and saves nothing,
- * so the report comes back unreachable and the choice is unchanged.
+ * Point the grid products at another store. The shell refuses a store that
+ * does not answer and saves nothing, so the report comes back unreachable and
+ * the choice is unchanged. `named` is whether a store was named at all: 
+ * disconnecting is never refused.
  */
-export async function chooseGridStore(dsn: string): Promise<boolean> {
+async function choose(ask: () => Promise<grid.StoreReport>, named: boolean): Promise<boolean> {
   gridStore.set({ kind: "checking", last: storeReport() })
   try {
-    const report = await SetGridStore(dsn)
-    const refused = !!dsn.trim() && !report.reachable && report.dsn_source === "chosen"
+    const report = await ask()
+    const refused = named && !report.reachable && report.dsn_source === "chosen"
     settle(report, false)
     if (refused) {
       fail(`Not saved: ${report.unreachable}`)
       return false
     }
     if (report.dsn_source === "TERRA_BR_DSN") note("Saved, but TERRA_BR_DSN is set and is what the grid products read.")
-    else info(dsn.trim() ? "Grid store chosen." : "Grid store back to the default.")
+    else info(named ? "Grid store connected." : "Grid store disconnected.")
     return true
   } catch (e) {
     const message = errorMessage(e)
-    gridStore.set({ kind: "failed", message })
+    // What was known about the store in use still holds: nothing was changed.
+    const last = storeReport()
+    gridStore.set(last ? { kind: "known", report: last } : { kind: "failed", message })
     fail(`Could not set the grid store: ${message}`)
     return false
   }
 }
+
+/** Point the grid products at a connection string; an empty one disconnects, and nothing is read until another is connected. */
+export const chooseGridStore = (dsn: string) => choose(() => SetGridStore(dsn), !!dsn.trim())
+
+// ---- The connection card --------------------------------------------------------------
+
+/**
+ * The store's connection as the fields of its card. Every field may be empty,
+ * which is the driver's own default for it; `has_password` says a password is
+ * saved that the card was never given, and an empty password then keeps it.
+ */
+export type StoreConnection = grid.StoreConnection
+
+export const EMPTY_CONNECTION: StoreConnection = { host: "", port: "", user: "", password: "", database: "", ssl_mode: "", has_password: false }
+
+/** The store chosen here, as fields. Empty when none was chosen, or when it was written in a form the card does not read. */
+export async function savedConnection(): Promise<StoreConnection> {
+  try {
+    return await GridStoreConnection()
+  } catch {
+    return { ...EMPTY_CONNECTION }
+  }
+}
+
+/** A pasted connection string as fields, or null with the reason said. */
+export async function importConnection(url: string): Promise<StoreConnection | null> {
+  try {
+    return await ParseGridStoreURL(url)
+  } catch (e) {
+    fail(`Could not import the connection: ${errorMessage(e)}`)
+    return null
+  }
+}
+
+/** Whether the store the fields describe answers, and what it holds. Changes nothing. */
+export async function testGridStore(conn: StoreConnection): Promise<grid.StoreReport | { failed: string }> {
+  try {
+    return await TestGridStore(conn)
+  } catch (e) {
+    return { failed: errorMessage(e) }
+  }
+}
+
+/** Stop reading the store for this session; the connection stays remembered for the next Connect. */
+export const disconnectGridStore = () => choose(() => DisconnectGridStore(), false)
+
+/** Point the grid products at the store the fields describe. */
+export const chooseGridConnection = (conn: StoreConnection) => choose(() => SetGridStoreConnection(conn), true)
 
 // ---- The layers ---------------------------------------------------------------------
 
@@ -174,7 +254,7 @@ export type TownDemandLayer = {
  */
 export function loadTownDemand(): void {
   const s = townDemand.get()
-  if (s.kind === "loading" || s.kind === "ready") return
+  if (s.kind !== "idle") return
   townDemand.set({ kind: "loading" })
   GridTownDemand()
     .then(async (layer) => {
@@ -295,6 +375,29 @@ export function loadReach(areaId: string, polygon: { type: string; coordinates: 
     .catch((e) => set({ kind: "failed", message: errorMessage(e) }))
 }
 
+/**
+ * How much of an area the best register covers, in the words said beside the
+ * button that would run a reading over it. `low` is a coverage the reader
+ * should see before pressing.
+ */
+export function reachSaid(areaName: string, probe: LayerState<ReachProbe> | undefined): { said: string; low: boolean } {
+  if (!probe || probe.kind === "loading" || probe.kind === "idle") return { said: "Measuring what each register covers here…", low: false }
+  if (probe.kind === "failed") return { said: `The register did not answer: ${probe.message}`, low: true }
+  const best = probe.data.coberturas[0]
+  if (!best) return { said: "This store carries no tariff sets, so how much of this ground it covers cannot be measured.", low: false }
+  if (!best.cobertura_pct) {
+    return { said: `No register loaded here reaches ${areaName}. A reading over it comes back empty.`, low: true }
+  }
+  const who = `${best.distribuidora.replace(/_/g, " ")} ${best.ano}`
+  return {
+    said:
+      best.cobertura_pct >= 100
+        ? `${who} covers all of ${areaName}.`
+        : `${who} covers ${best.cobertura_pct}% of ${areaName}; every figure will be about that part alone.`,
+    low: best.cobertura_pct < 50,
+  }
+}
+
 /** What a clicked reach says about itself. */
 export type ReachProps = {
   name: string
@@ -315,7 +418,7 @@ export type ConcessionLayer = {
 
 export function loadConcessions(): void {
   const s = concessions.get()
-  if (s.kind === "loading" || s.kind === "ready") return
+  if (s.kind !== "idle") return
   concessions.set({ kind: "loading" })
   GridConcessions()
     .then((layer) => {
@@ -362,7 +465,7 @@ export const networkRegister = createStore<LayerState<NetworkRegister>>({ kind: 
 /** Read the plant register, once. A failure is kept, and retried when asked again. */
 export function loadPlants(): void {
   const s = plantRegister.get()
-  if (s.kind === "loading" || s.kind === "ready") return
+  if (s.kind !== "idle") return
   plantRegister.set({ kind: "loading" })
   GridPlants()
     .then((layer) => {
@@ -375,7 +478,7 @@ export function loadPlants(): void {
 /** Read the transmission register, once. */
 export function loadNetwork(): void {
   const s = networkRegister.get()
-  if (s.kind === "loading" || s.kind === "ready") return
+  if (s.kind !== "idle") return
   networkRegister.set({ kind: "loading" })
   GridNetwork()
     .then((layer) =>
@@ -393,21 +496,26 @@ export function loadNetwork(): void {
     .catch((e) => networkRegister.set({ kind: "failed", message: errorMessage(e) }))
 }
 
+/*
+  A failed layer is not asked for again by the draw that shows it failed: the
+  map syncs on every change of these stores, so a load that retried on failure
+  would be a loop of requests against a store that is not there. It is asked
+  again here, when the store answers or is checked by hand, and by
+  forgetLayers when another store is connected.
+*/
 function retryLayers(): void {
-  if (plantRegister.get().kind === "failed") {
-    plantRegister.set({ kind: "idle" })
-    loadPlants()
-  }
-  if (networkRegister.get().kind === "failed") {
-    networkRegister.set({ kind: "idle" })
-    loadNetwork()
+  for (const layer of [plantRegister, networkRegister, concessions, townDemand] as Store<LayerState<unknown>>[]) {
+    if (layer.get().kind === "failed") layer.set({ kind: "idle" })
   }
 }
 
-/** Forget both layers, so the next draw reads the store now chosen. */
+/** Forget every layer read from the store, so the next draw reads the store now connected, or nothing. */
 export function forgetLayers(): void {
   plantRegister.set({ kind: "idle" })
   networkRegister.set({ kind: "idle" })
+  concessions.set({ kind: "idle" })
+  townDemand.set({ kind: "idle" })
+  reachByArea.set({})
 }
 
 // ---- The record's words ---------------------------------------------------------------

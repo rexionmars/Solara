@@ -5,6 +5,7 @@ import {energy} from '../models';
 import {store} from '../models';
 import {main} from '../models';
 import {weather} from '../models';
+import {world} from '../models';
 
 export function AnalyzeGridConnection(arg1:grid.ConnectionRequest):Promise<grid.ConnectionAnalysis>;
 
@@ -14,6 +15,8 @@ export function AnalyzeSolarResource(arg1:energy.SolarRequest):Promise<energy.So
 
 export function AnalyzeSolarTerrain(arg1:energy.SolarTerrainRequest):Promise<energy.SolarTerrainAnalysis>;
 
+export function AnalyzeUsableGround(arg1:energy.UsableGroundRequest):Promise<energy.UsableGroundAnalysis>;
+
 export function AnalyzeWindResource(arg1:energy.WindRequest):Promise<energy.WindAnalysis>;
 
 export function CancelRun():Promise<boolean>;
@@ -21,6 +24,8 @@ export function CancelRun():Promise<boolean>;
 export function ClearAvatar():Promise<store.User>;
 
 export function CurrentUser():Promise<store.User>;
+
+export function DisconnectGridStore():Promise<grid.StoreReport>;
 
 export function ExportResultFile(arg1:string,arg2:string):Promise<string>;
 
@@ -36,6 +41,8 @@ export function GridNetwork():Promise<grid.NetworkLayer>;
 
 export function GridPlants():Promise<grid.PlantsLayer>;
 
+export function GridStoreConnection():Promise<grid.StoreConnection>;
+
 export function GridTownDemand():Promise<grid.TownDemandLayer>;
 
 export function InspectGridStore():Promise<grid.StoreReport>;
@@ -47,6 +54,8 @@ export function Logout():Promise<void>;
 export function OpenProject(arg1:string):Promise<main.OpenedProject>;
 
 export function ParameterDefaults():Promise<energy.ParameterDefaults>;
+
+export function ParseGridStoreURL(arg1:string):Promise<grid.StoreConnection>;
 
 export function Ping():Promise<main.SidecarStatus>;
 
@@ -64,8 +73,24 @@ export function SetAvatar(arg1:string):Promise<store.User>;
 
 export function SetGridStore(arg1:string):Promise<grid.StoreReport>;
 
+export function SetGridStoreConnection(arg1:grid.StoreConnection):Promise<grid.StoreReport>;
+
 export function SetProjectDirty(arg1:boolean):Promise<void>;
+
+export function StoreBoundary(arg1:string):Promise<grid.BoundaryShape>;
+
+export function StoreBoundaryList():Promise<grid.BoundaryList>;
+
+export function TestGridStore(arg1:grid.StoreConnection):Promise<grid.StoreReport>;
 
 export function UpdateDisplayName(arg1:string):Promise<store.User>;
 
-export function WindField(arg1:number):Promise<weather.WindField>;
+export function WindField(arg1:number,arg2:Array<number>):Promise<weather.WindField>;
+
+export function WorldBoundary(arg1:string,arg2:number,arg3:string):Promise<world.Shape>;
+
+export function WorldCountries():Promise<world.Countries>;
+
+export function WorldLevels(arg1:string):Promise<Array<world.Level>>;
+
+export function WorldPlaces(arg1:string,arg2:number):Promise<Array<world.Place>>;

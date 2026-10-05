@@ -34,8 +34,20 @@ they are what the sources say, and a reading that ignores them is wrong.
   a concession area.** It answers where this register holds data, which is
   what decides whether a reading can be asked here. It is not a statement
   about who holds the concession in law.
-- **The published register layers cannot be picked.** SIGEL, FUNAI, ICMBio
-  and the nighttime lights arrive as pictures from their own services, so
+- **The flood rule of usable ground is a lower bound.** The elevation model
+  is read over the area and a buffer of 2 to 5 km, not over the watershed
+  upstream. A channel entering from beyond the buffer arrives without its
+  contributing area, so the ground beside it reads higher above the drainage
+  than it is and less of it is excluded than should be. The figure is shown
+  as "at least", with this said beside it.
+- **The water of usable ground is permanent water as mapped in 2021.** It is
+  the permanent water class of ESA WorldCover 2021 at 10 m, and a 30 m cell is
+  water when most of it is. Seasonal water, a river narrower than a few
+  cells, wetlands (a class of their own, not read) and anything that changed
+  since are not in it, and stay under the two rules. Where the map holds
+  nothing over an area the reading says so, and the sea is counted as ground.
+- **The published register layers cannot be picked.** SIGEL and the
+  nighttime lights arrive as pictures from their own services, so
   they say where something is and not what it is.
 
 ---
@@ -43,6 +55,85 @@ they are what the sources say, and a reading that ignores them is wrong.
 ## Unreleased
 
 In the working tree, not yet committed.
+
+### Usable ground
+
+- **How much of an area a plant could stand on, and what excludes the rest.**
+  Two rules, typed by the reader and read off the Copernicus DEM at 30 m:
+  ground steeper than a maximum slope (5° unless typed), and ground closer
+  than a minimum height above its nearest drainage, HAND (5 m unless typed;
+  zero switches the rule off). The reading gives the usable area and share,
+  the ground each rule takes, a layer of classes on the map with its legend,
+  a GeoTIFF of the classes, and two curves of what another rule would have
+  left with the other held where it was typed.
+  - It is the first product to call `terrain/hand.py`, which was written and
+    tested but answered no action.
+  - Set up and run from its card in Properties, or from the empty reading of
+    its workspace. The ribbon's Ground group opens that workspace, not the
+    run graph.
+  - **Permanent water is a reason of its own, not ground that floods.** The
+    elevation model carries the sea and the lakes as level surfaces, so the
+    first coastal area tried came back 59% "flood". Water is now read from
+    ESA WorldCover 2021 (10 m, CC BY 4.0, from the Planetary Computer) and
+    taken out before the rules: its own class in the raster, the legend, the
+    shares and the table. Over that same area: 31% water, 28% flood.
+  - **The usable share is said twice**, of the area that was drawn and of the
+    land inside it (28.4% and 41.3% there). The share each rule takes, the
+    terrain figures and both curves are of the land, since the rules act on
+    nothing else.
+  - A run whose water map cannot be read fails, rather than answering without
+    it.
+  - A screening by terrain alone. Land cover as a rule, protected areas,
+    wetlands and the distance to a connection are not read.
+
+### What a run reads, where it is started
+
+- **A product's card in Properties lists everything a run of it reads** — the
+  ground with its area, the store, each setting — with the value held now and
+  whether the newest run read it: not set, pending, reading, read or error.
+  They are the run graph's wires as rows, computed by the same functions, so
+  the two cannot disagree. The consumption reading also says, before it is
+  run, how much of the area the register covers.
+- **Area consumption has a card in Properties**, offered like the connection
+  card only over a store that could answer it.
+- **An empty reading shows the same list and runs from it**, over the site or
+  area that is active, instead of sending the reader to the run graph.
+- **A wire into Run can no longer be cut, and a cut no longer changes a run.**
+  A run reads every input its card in Properties lists, wherever it is
+  started; the run graph draws that and withholds nothing. Cuts kept from
+  before are dropped, and the Analysis tab's product buttons open the reading
+  instead of the run graph.
+
+### Reading a result
+
+- **Every reading is laid out the same way.** The product and its standing,
+  the one figure it answers with, and a line saying where and from what; up to
+  four figures, each beside what it is read against; the panel that takes the
+  answer apart across the full width; the panels behind it two abreast, one
+  where the area is narrow; how it was read, last. Solar resource, wind
+  screening, solar terrain and grid connection were pages of sections and are
+  now this, as usable ground and area consumption already were.
+  - The consumption reading's free board is gone, with the Grid/Board switch
+    in its header: a result is read one way.
+  - What explains a panel is behind the info button in its head. What changes
+    how a figure is read — gross, unvalidated, at least, injected and not
+    generated, unconfirmed — stays beside the figure.
+  - A reading no longer carries a small picture of its layer. The layer is on
+    the map, and when a run ends the map is brought to its ground if none of
+    it is in view.
+- **Properties says a result in one line**, the reading's own figure, with the
+  button that opens the reading, on every product's card and on a selected
+  result. It used to repeat the reading's figures as rows.
+- **A voltage level is one colour** in the year's chart and in the table's
+  bars of the consumption reading, by the level and not by its place in the
+  list.
+- The consumption register is named in English ("base year 2024").
+- **When a result was computed is shown in local time**, in the comparison
+  table, the result picker and Properties. It was the UTC moment cut short,
+  so an evening run showed the next day. The JSON export keeps the full UTC
+  moment, and a CSV carries the local one with its offset
+  (`2026-10-04T22:46:00-03:00`): on screen the zone is the reader's own, in a
+  file it has to be written.
 
 ### The ground a reading sits on
 
@@ -58,14 +149,12 @@ In the working tree, not yet committed.
 - **Hillshade** from the global elevation tiles, under everything the map
   draws, so relief is present away from the areas a terrain reading has
   already covered.
-- **Four registers that publish themselves**, each drawn straight from its
+- **Two registers that publish themselves**, each drawn straight from its
   own service and each off until asked for:
   - nighttime lights (NASA GIBS, Black Marble day/night band), as a check on
     where load is that does not come from the consumption record;
   - turbines one by one and the strips already declared of public utility
-    (SIGEL, ANEEL), neither of which the local store holds;
-  - indigenous land (FUNAI) and federal protected areas (ICMBio), which are
-    the ground a project cannot have.
+    (SIGEL, ANEEL), neither of which the local store holds.
 - **The credit at the foot follows what is drawn** — the ground in use and
   every register switched on — and says when the map is stretched past the
   zoom its tiles carry.
