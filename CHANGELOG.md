@@ -103,6 +103,12 @@ In the working tree, not yet committed.
 
 ### Reading a result
 
+- **A reading's board stacks in a narrow area instead of shrinking.** The
+  consumption board used to frame every card at a third of its size when its
+  area was narrower than the board. Where the columns would shrink past three
+  quarters, the cards are now flowed at full size across the area's width and
+  the wheel moves down them; Ctrl or Cmd with the wheel still zooms. The
+  wires are drawn only on the wide arrangement.
 - **When a result was computed is shown in local time**, in the comparison
   table, the result picker and Properties. It was the UTC moment cut short,
   so an evening run showed the next day. The JSON export keeps the full UTC

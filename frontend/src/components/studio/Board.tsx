@@ -58,6 +58,14 @@ export interface BoardCard {
 const MIN_ZOOM = 0.3
 const MAX_ZOOM = 2
 const PAD = 28
+/**
+ * How far the depth columns may be shrunk to fit before the board stacks
+ * instead. At three quarters a figure is still read at a glance; under it the
+ * reader is looking at the shape of a board and not at its numbers.
+ */
+const STACK_BELOW = 0.75
+/** The clear band a stacked board leaves at the top for the toolbar pinned over it. */
+const TOOLBAR_H = 40
 /** Until a card has been measured, the packing assumes this much of it. */
 const GUESS_H = 150
 
@@ -133,6 +141,8 @@ export function Board({
   const [panning, setPanning] = useState(false)
   // Once the reader has panned or zoomed, the view is theirs and is not refitted.
   const touched = useRef(false)
+  // The area's width, which decides between the two arrangements below.
+  const [hostW, setHostW] = useState(0)
 
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const width = (c: BoardCard) => c.w ?? cardWidth
@@ -155,7 +165,7 @@ export function Board({
    * Each depth is centred on a common axis, so a card and the cards it feeds
    * sit across from one another instead of all hanging from the top.
    */
-  const packed = useMemo(() => {
+  const { packed, stacked } = useMemo(() => {
     const depth = new Map<string, number>()
     const known = new Set(cards.map((c) => c.id))
     const depthOf = (c: BoardCard, seen: ReadonlySet<string>): number => {
@@ -201,9 +211,46 @@ export function Board({
       }
       x = cx - gap + rank
     }
-    return out
+
+    /*
+      A NARROW AREA STACKS; IT DOES NOT SHRINK. The columns above are as wide
+      as the derivation is deep, and an area half that wide used to frame them
+      at a third of their size: every card on screen and none of them
+      readable. Where the columns would have to shrink past STACK_BELOW, the
+      cards are flowed instead, in the same depth order, left to right and
+      wrapped at the area's width -- so two figures still share a row where
+      there is room and a chart takes a row of its own. The board is then as
+      wide as the area and as tall as it needs, drawn at full size, and the
+      wheel moves down it.
+
+      The wires are not drawn over a stack. They say what feeds what by
+      sweeping from one column to the next; between cards flowed like words
+      they would cross every card in between and say nothing.
+    */
+    const avail = hostW - PAD * 2
+    const natural = x - rank
+    if (hostW > 0 && natural > 0 && avail / natural < STACK_BELOW) {
+      const ordered = levels.flatMap((level) => cards.filter((c) => depth.get(c.id) === level))
+      const flow: Record<string, Place> = {}
+      let fx = 0
+      let fy = 0
+      let rowH = 0
+      for (const c of ordered) {
+        const w = width(c)
+        if (fx > 0 && fx + w > avail) {
+          fx = 0
+          fy += rowH + gap
+          rowH = 0
+        }
+        flow[c.id] = { x: fx, y: fy }
+        fx += w + gap
+        rowH = Math.max(rowH, heights[c.id] ?? GUESS_H)
+      }
+      return { packed: flow, stacked: true }
+    }
+    return { packed: out, stacked: false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, byId, heights, cardWidth, gap, band, rank])
+  }, [cards, byId, heights, cardWidth, gap, band, rank, hostW])
 
   const placeOf = useCallback((id: string): Place => places?.[id] ?? packed[id] ?? { x: 0, y: 0 }, [places, packed])
 
@@ -220,12 +267,12 @@ export function Board({
 
   // The fit reads the arrangement as drawn, so it is computed from refs rather
   // than captured: a fit triggered by a resize must not frame a stale board.
-  const frameRef = useRef({ cards, placeOf, heights, width })
-  frameRef.current = { cards, placeOf, heights, width }
+  const frameRef = useRef({ cards, placeOf, heights, width, stacked, top: toolbar ? TOOLBAR_H : 0 })
+  frameRef.current = { cards, placeOf, heights, width, stacked, top: toolbar ? TOOLBAR_H : 0 }
 
   const fit = useCallback(() => {
     const host = hostRef.current
-    const { cards: list, placeOf: at, heights: hs, width: w } = frameRef.current
+    const { cards: list, placeOf: at, heights: hs, width: w, stacked: stack, top } = frameRef.current
     if (!host || !list.length) return
     const vw = host.clientWidth
     const vh = host.clientHeight
@@ -246,6 +293,13 @@ export function Board({
     if (gw <= 0 || gh <= 0) return
     // Never magnified to fill: a board of three cards blown up to 2x reads as
     // a mistake. Shrunk to fit, yes; grown past its natural size, no.
+    if (stack) {
+      // Fitted to the width alone and hung from the top: a stack is read
+      // downwards, and framing its whole height would shrink it again.
+      const z = clamp((vw - PAD * 2) / gw, MIN_ZOOM, 1)
+      setView({ z, x: (vw - gw * z) / 2 - minX * z, y: PAD + top - minY * z })
+      return
+    }
     const z = clamp(Math.min((vw - PAD * 2) / gw, (vh - PAD * 2) / gh), MIN_ZOOM, 1)
     setView({ z, x: (vw - gw * z) / 2 - minX * z, y: (vh - gh * z) / 2 - minY * z })
   }, [])
@@ -262,12 +316,14 @@ export function Board({
   const measured = cards.every((c) => heights[c.id] != null)
   useLayoutEffect(() => {
     if (!touched.current) fit()
-  }, [measured, shape, fit])
+  }, [measured, shape, fit, stacked, packed])
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    setHostW(host.clientWidth)
     const ro = new ResizeObserver(() => {
+      setHostW(host.clientWidth)
       if (!touched.current) fit()
     })
     ro.observe(host)
@@ -322,6 +378,12 @@ export function Board({
     if (!host) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      // Over a stack the wheel moves down it, as over any column; a pinch, or
+      // the wheel with Ctrl or Cmd held, still zooms.
+      if (frameRef.current.stacked && !e.ctrlKey && !e.metaKey) {
+        setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }))
+        return
+      }
       touched.current = true
       const rect = host.getBoundingClientRect()
       const px = e.clientX - rect.left
@@ -427,6 +489,7 @@ export function Board({
         */}
         <svg width={1} height={1} className="pointer-events-none absolute left-0 top-0 overflow-visible">
           {measured &&
+            !stacked &&
             cards.flatMap((c) =>
               (c.from ?? []).map((src) => {
                 const a = boxes[src]
