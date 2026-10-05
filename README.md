@@ -6,10 +6,10 @@
 </h1>
 
 <p align="center">
-  <img src="docs/img/solara.png" alt="The studio: Rio Grande do Norte outlined over the nighttime lights and the transmission network, the run graph of its area consumption with every input marked read, the reading below, and its figures in the properties" width="900" />
+  <img src="docs/img/1.png" alt="The studio: the outliner with the project's areas and their results, an area outlined over Natal on the satellite basemap, and its usable-ground reading beside the map" width="900" />
 </p>
 
-<p align="center"><em>Rio Grande do Norte over the nighttime lights and the transmission network, the run graph of its area consumption, and the reading below: what the state draws from the network and what it puts back</em></p>
+<p align="center"><em>An area drawn over Natal, the results the project holds for it in the outliner, and its usable-ground reading beside the map: how much of the land a plant could stand on, and what excludes the rest</em></p>
 
 Solara reads what a place is worth for solar and wind generation,
 and what the electrical system would do to a plant there. At a site it reads
@@ -41,6 +41,18 @@ modelled value is never drawn as a measured one.
 | **Area consumption** | an area | what the area draws from the network through the year, by voltage level, tariff class and municipality, what its distributed generators put back on it (injected, not generated), and where it falls on a 1 km grid | the distributor's BDGD register, from the grid store |
 | **Usable ground** | an area | how much of the area a plant could stand on and what excludes the rest, by two rules the reader types: a maximum slope and a minimum height above the nearest drainage (HAND). Permanent water is taken out first, as a reason of its own, and the usable share is given of the area and of the land inside it. The flood rule is a lower bound | Copernicus DEM GLO-30, ESA WorldCover 2021 |
 
+<p align="center">
+  <img src="docs/img/2.png" alt="The solar terrain layer over Natal, captioned with its range of 1664 to 2012 kWh/m² per year, and the reading beside the map: the mean, the lowest cell, the beam shading, the slope, and the area by irradiation" width="900" />
+</p>
+
+<p align="center"><em>Solar terrain over Natal: the irradiation on the plane of the array drawn across the relief, where the dunes and the river banks shade themselves, and how the area is distributed around its mean</em></p>
+
+<p align="center">
+  <img src="docs/img/3.png" alt="The usable-ground layer over Natal, coloured by what excludes each part of the area, with the captions of the two layers on the map, the conditions now and what the run reads in the properties, and the reading beside the map" width="900" />
+</p>
+
+<p align="center"><em>Usable ground over the same area: each cell coloured by what excludes it, the conditions now and what a run reads in the properties, and the reading beside the map</em></p>
+
 Every result is kept in the project with the parameters and the place it was
 computed at. Moving a site, redrawing an area or changing a setting afterwards
 marks the result stale rather than relabelling it. Results of one product are
@@ -66,7 +78,7 @@ graph**, a **reading** per product, the **data table**, the **reports** and a
 **console**. Areas split, join, resize and maximise; the arrangement survives a
 restart.
 
-The **run graph**, in the screenshot above, lays a product's request out as
+The **run graph** lays a product's request out as
 nodes, in the grammar of Blender's node editor. The fields on a node are the
 project's settings, and each input of the run node says whether the reading on
 screen read it:
@@ -84,12 +96,6 @@ The Brazilian electrical record lives in a local PostgreSQL database with
 PostGIS, `terra_br`, loaded by TERRA: the ANEEL plant register, the ONS
 transmission register, and the ONS record of what each photovoltaic plant was
 told not to generate. This application reads it and never writes to it.
-
-<p align="center">
-  <img src="docs/img/solara-demand.png" alt="The Demand workspace over Rio Grande do Norte: the transmission lines and substations over the nighttime lights, a 500 kV circuit captioned where it was clicked, and the area consumption reading beside the map" width="900" />
-</p>
-
-<p align="center"><em>The transmission network over Rio Grande do Norte, a 500 kV circuit captioned where it was clicked, and the area's consumption reading beside the map</em></p>
 
 From it come two things. Four map overlays: plants in the operational record,
 sized by capacity; plants that are registered only; transmission lines,
@@ -110,12 +116,6 @@ Without the store, everything else works; the grid overlays and the connection
 reading say the store is unreachable, and why.
 
 ## The weather now
-
-<p align="center">
-  <img src="docs/img/solara-wind.png" alt="The GFS wind field over South America, coloured by speed with particles moving along it, and the speed and direction labelled at the project's area" width="900" />
-</p>
-
-<p align="center"><em>The GFS wind field over South America, coloured by speed with particles along it, and the speed and direction at the project's area</em></p>
 
 Four readings of the weather, each saying whether it was **observed** or
 **modelled**, and how old it is:
