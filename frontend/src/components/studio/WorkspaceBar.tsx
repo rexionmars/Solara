@@ -122,7 +122,7 @@ export function WorkspaceBar() {
                 style={
                   isCurrent
                     ? // The ground of the AREA BELOW: the entrance and the work it opens are one surface.
-                      { background: "var(--s-panel)", borderTopLeftRadius: 3, borderTopRightRadius: 3 }
+                      { background: "var(--s-band-tab)", borderTopLeftRadius: 3, borderTopRightRadius: 3 }
                     : undefined
                 }
               >

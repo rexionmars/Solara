@@ -11,9 +11,8 @@ import { SolarBody } from "../energy/SolarDocument"
 import { TerrainBody } from "../energy/TerrainDocument"
 import { WindBody } from "../energy/WindDocument"
 import { ConnectionBody } from "../energy/ConnectionDocument"
-import { DemandBoard } from "../energy/DemandBoard"
+import { DemandBody } from "../energy/DemandDocument"
 import { GroundBody } from "../energy/GroundDocument"
-import type { Place } from "../studio/Board"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AreaHeader } from "../studio/StudioArea"
@@ -55,38 +54,12 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
   const [picker, setPicker] = useState(false)
   const all = d.results.filter((r) => r.kind === product)
 
-  /*
-    Where the reader has dragged each card, per result: two runs of the same
-    product are two boards, because comparing them means arranging them
-    differently. Kept in the area's state, so it is this window's arrangement
-    and not the project's -- another window reading the same result is free to
-    lay it out its own way.
-  */
-  const boards = (useStore(areaStates)[areaId]?.boards ?? {}) as Record<string, Record<string, Place>>
-  const moveCard = (resultId: string, cardId: string, place: Place) =>
-    setAreaState(areaId, {
-      boards: { ...boards, [resultId]: { ...boards[resultId], [cardId]: place } },
-    })
-  const resetBoard = (resultId: string) => {
-    const { [resultId]: _dropped, ...rest } = boards
-    setAreaState(areaId, { boards: rest })
-  }
-
   // Operators act on the active item; one started from this header acts on the reading on screen.
   const onShown = (name: string) => {
     if (!result) return
     select(result.id)
     void runOperator(name)
   }
-
-  /*
-    A READING IS EITHER A DOCUMENT OR A BOARD, and the reading says which.
-    A document is scrolled inside a measured column; a board owns the whole
-    area and is panned. Wrapping a board in the document's scroller would give
-    it a height of zero, so the two are laid out by different branches rather
-    than by one container that tries to serve both.
-  */
-  const boarded = result?.kind === "demand"
 
   // A value rather than a component declared here, which would remount the reading on every render.
   const body = !result ? null : result.kind === "solar" ? (
@@ -100,13 +73,7 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
   ) : result.kind === "ground" ? (
     <GroundBody ground={result.data} area={result.polygon} />
   ) : (
-    <DemandBoard
-      demand={result.data}
-      area={result.polygon}
-      places={boards[result.id]}
-      onMove={(id, place) => moveCard(result.id, id, place)}
-      onReset={() => resetBoard(result.id)}
-    />
+    <DemandBody demand={result.data} area={result.polygon} />
   )
 
   return (
@@ -183,41 +150,25 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
         <div className="panel-scroll @container h-full min-h-0 overflow-y-auto">
           <Empty product={product} />
         </div>
-      ) : boarded ? (
-        // The board fills the area and is never scrolled. The staleness notice
-        // floats over it, centred at the top, because a board has no "above".
-        <div className="relative h-full min-h-0">
-          {body}
+      ) : (
+        // A reading lays itself out on the page of its own finish (primitives.tsx, ReadingPage).
+        <div className="reading panel-scroll h-full min-h-0 overflow-y-auto">
           {stale && (
-            <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
-              <StaleNotice stale={stale} onRerun={() => onShown("RERUN")} floating />
+            <div className="mx-auto max-w-[900px] px-6 pt-5">
+              <StaleNotice stale={stale} onRerun={() => onShown("RERUN")} />
             </div>
           )}
-        </div>
-      ) : (
-        <div className="panel-scroll @container h-full min-h-0 overflow-y-auto">
-          <div className="mx-auto max-w-4xl px-6 pb-12 pt-5">
-            {stale && (
-              <div className="mb-4">
-                <StaleNotice stale={stale} onRerun={() => onShown("RERUN")} />
-              </div>
-            )}
-            {body}
-          </div>
+          {body}
         </div>
       )}
     </>
   )
 }
 
-/** The source moved after the run. Said once, in the same words on either layout. */
-function StaleNotice({ stale, onRerun, floating }: { stale: string; onRerun: () => void; floating?: boolean }) {
+/** The source moved after the run. */
+function StaleNotice({ stale, onRerun }: { stale: string; onRerun: () => void }) {
   return (
-    <div
-      className={`pointer-events-auto flex items-center gap-2 rounded-md px-3 py-2 text-body ${floating ? "border border-white/[0.07] shadow-lg backdrop-blur" : ""}`}
-      style={{ background: floating ? "rgb(52 46 18 / 0.92)" : "rgb(213 190 75 / 0.12)", color: "var(--warning)" }}
-      role="status"
-    >
+    <div className="flex items-center gap-2 rounded-md px-3 py-2 text-body" style={{ background: "rgb(213 190 75 / 0.12)", color: "var(--warning)" }} role="status">
       <Warning className="size-3.5 shrink-0" weight="fill" />
       <span className="flex-1">{stale}. The figures describe the source as it was when computed.</span>
       <button type="button" onClick={onRerun} className="shrink-0 rounded-sm px-1.5 py-0.5 text-meta hover:bg-hover">

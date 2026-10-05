@@ -137,7 +137,7 @@ export function Studio() {
       <StudioSurface.Provider value={surface}>
         {/* The commands by kind, in tabs, between the window's band and the work. */}
         <Ribbon />
-        <div ref={setSurface} className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-app)" }}>
+        <div ref={setSurface} className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-gutter)" }}>
           {size.w > 0 &&
             (maximized
               ? renderArea({

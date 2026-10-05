@@ -6,7 +6,7 @@ import {
   Scroll, Sun, Table, TerminalWindow, Export as ExportIcon, ArrowClockwise,
 } from "./lib/icons"
 import type { energy, grid } from "../wailsjs/go/models"
-import { DemandBoard } from "./components/energy/DemandBoard"
+import { DemandBody } from "./components/energy/DemandDocument"
 import { Chip, Panel, Stat } from "./components/energy/primitives"
 import { AppSidebar, type NavGroup } from "./components/shell/AppSidebar"
 import { HeaderAction, PageHeader } from "./components/shell/PageHeader"
@@ -54,7 +54,7 @@ const sample = (n: number, overRate: number) =>
   })
 
 const demand = {
-  register: { distribuidora: "Neoenergia_Cosern", ano: 2024, base: "BDGD Neoenergia_Cosern, ano-base 2024", holdings: [] },
+  register: { distribuidora: "Neoenergia_Cosern", ano: 2024, base: "BDGD Neoenergia_Cosern, base year 2024", holdings: [] },
   consumo: {
     bt: { unidades: 540_611, energia_ano_mwh: 1_300_400, energia_mensal_mwh: months(121900, 97100) },
     mt: { unidades: 1_727, energia_ano_mwh: 648_800, energia_mensal_mwh: months(56100, 50200) },
@@ -87,7 +87,7 @@ const demand = {
   density: {
     overlay_url: "", extent: {} as never,
     scale: { min: 3.4, max: 35992.7, decimals: 1, basis: "own", stops: ["#000004", "#51127c", "#b73779", "#fc8961", "#fcfdbf"], reference: null, shared_with: "" },
-    cell_km: 1, cells: 375, grid: { nx: 28, ny: 22 }, unit: "MWh/ano por célula",
+    cell_km: 1, cells: 375, grid: { nx: 28, ny: 22 }, unit: "MWh/year per cell",
     note: "Each cell holds the year of the units whose connection point falls in it, so a block fed from one transformer lands on one cell. Empty cells are transparent, not zero.",
   },
   por_classe: [
@@ -185,8 +185,6 @@ function SelectionRail() {
 function App() {
   const [active, setActive] = useState("demand")
   const [collapsed, setCollapsed] = useState(false)
-  const [places, setPlaces] = useState<Record<string, { x: number; y: number }>>({})
-  const move = (id: string, place: { x: number; y: number }) => setPlaces((p) => ({ ...p, [id]: place }))
   return (
     <div className="flex h-screen bg-app text-foreground">
       <AppSidebar
@@ -205,14 +203,14 @@ function App() {
           title="Area consumption"
           crumbs={[{ label: "Natal" }, { label: "Grid" }]}
           badge={<Chip>18.9% injected back</Chip>}
-          subtitle="BDGD Neoenergia_Cosern, ano-base 2024 · 616 km² · read 2 minutes ago"
+          subtitle="BDGD Neoenergia_Cosern, base year 2024 · 616 km² · read 2 minutes ago"
           status={{ label: "engine ready", tone: "ok" }}
           actions={<HeaderAction icon={<ExportIcon size={14} />}>Export</HeaderAction>}
           primary={{ label: "Run again", onClick: () => {}, icon: <ArrowClockwise size={14} /> }}
         />
         <div className="flex min-h-0 flex-1">
-          <main className="min-w-0 flex-1 overflow-hidden">
-            <DemandBoard demand={demand} area={area} places={places} onMove={move} onReset={() => setPlaces({})} />
+          <main className="reading panel-scroll min-w-0 flex-1 overflow-y-auto">
+            <DemandBody demand={demand} area={area} />
           </main>
           <SelectionRail />
         </div>
@@ -346,10 +344,8 @@ function Ground() {
       <div className="w-[272px] shrink-0 overflow-y-auto border border-border bg-chrome">
         <PropertiesAreaCards />
       </div>
-      <div className="panel-scroll @container min-w-0 flex-1 overflow-y-auto border border-border">
-        <div className="mx-auto max-w-4xl px-6 pb-12 pt-5">
-          <GroundBody ground={ground} area={area} />
-        </div>
+      <div className="reading panel-scroll min-w-0 flex-1 overflow-y-auto border border-border">
+        <GroundBody ground={ground} area={area} />
       </div>
     </div>
   )
@@ -365,10 +361,25 @@ function PropertiesAreaCards() {
   )
 }
 
+/**
+ * `preview.html?demand`: the consumption reading on the grid every reading is
+ * laid out on, in a column as wide as the window.
+ */
+function Demand() {
+  return (
+    <div className="h-screen bg-app text-foreground">
+      <div className="reading panel-scroll h-full overflow-y-auto">
+        <DemandBody demand={demand} area={area} />
+      </div>
+    </div>
+  )
+}
+const wantsDemand = new URLSearchParams(location.search).has("demand")
+
 const wantsGround = new URLSearchParams(location.search).has("ground")
 if (wantsGround) seedGround()
 
 const inputs = wantsGround ? null : (new URLSearchParams(location.search).get("inputs") as InputsState | null)
 if (inputs) seedInputs(inputs)
 
-createRoot(document.getElementById("root")!).render(wantsGround ? <Ground /> : inputs ? <Inputs state={inputs} /> : <App />)
+createRoot(document.getElementById("root")!).render(wantsDemand ? <Demand /> : wantsGround ? <Ground /> : inputs ? <Inputs state={inputs} /> : <App />)

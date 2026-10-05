@@ -3,7 +3,6 @@ import { lastFailure, running } from "../../lib/analysis"
 import { productBlocked } from "../../lib/capabilities"
 import { defaults } from "../../lib/defaults"
 import { polygonAreaKm2 } from "../../lib/geo"
-import { graphCuts, graphLinks, isCut } from "../../lib/graphLinks"
 import { checkGridStore, gridStore, loadReach, reachByArea, reachSaid, storeReachable } from "../../lib/grid"
 import { Warning } from "../../lib/icons"
 import { isAreaProduct, project, type AreaObject, type Product, type SiteObject } from "../../lib/project"
@@ -25,7 +24,7 @@ import { useStore } from "../../lib/store"
 const READS_STORE: readonly Product[] = ["connection", "demand"]
 
 type Listed = {
-  rows: (RunInputRow & { cut: boolean })[]
+  rows: RunInputRow[]
   /** Why the store row is not supplied, where the store itself is the reason. */
   storeWhy: string | null
   /** How much of the ground the register covers: asked only by the product whose register is partial. */
@@ -39,9 +38,6 @@ export function useRunInputs(product: Product, source: SiteObject | AreaObject |
   const run = useStore(running)
   const failure = useStore(lastFailure)
   const store = useStore(gridStore)
-  // A wire cut on the run graph changes what a run takes, wherever it is started from.
-  const cuts = useStore(graphCuts)
-  useStore(graphLinks)
   const area = source?.kind === "area" ? source : null
 
   const readsStore = READS_STORE.includes(product)
@@ -58,10 +54,9 @@ export function useRunInputs(product: Product, source: SiteObject | AreaObject |
 
   const busy = !!run && run.product === product && run.sourceId === source?.id
   const compared = runComparison(d, product, source, storeReachable(store) && !storeWhy, engine, failure)
-  const rows = runInputRows(product, compared, busy).map((row) => {
-    const withGround = row.id === "area" && area ? { ...row, reading: `${row.reading} · ${polygonAreaKm2(area.polygon).toFixed(0)} km²` } : row
-    return { ...withGround, cut: isCut(row.id, "run", product, cuts) }
-  })
+  const rows = runInputRows(product, compared, busy).map((row) =>
+    row.id === "area" && area ? { ...row, reading: `${row.reading} · ${polygonAreaKm2(area.polygon).toFixed(0)} km²` } : row
+  )
   return {
     rows,
     storeWhy,
@@ -84,16 +79,10 @@ export function RunInputs({ product, source }: { product: Product; source: SiteO
             <span className="telemetry selectable min-w-0 truncate text-body text-foreground" title={row.reading}>
               {row.reading || <span className="text-muted-foreground">{EMPTY[row.id] ?? "—"}</span>}
             </span>
-            {row.cut ? (
-              <span className="telemetry text-[9px]" style={{ color: "var(--warning)" }} title="Its wire to Run is cut on the run graph, so a run does not take this value">
-                cut
-              </span>
-            ) : (
-              <span className="telemetry flex items-center gap-1 whitespace-nowrap text-[9px] text-muted-foreground" style={{ color: STATE_COLOUR[row.state] }}>
-                <span className="size-1.5 rounded-full bg-current" style={{ opacity: row.state === "missing" || row.state === "pending" ? 0.45 : 1 }} aria-hidden />
-                {STATE_NOTE[row.state]}
-              </span>
-            )}
+            <span className="telemetry flex items-center gap-1 whitespace-nowrap text-[9px] text-muted-foreground" style={{ color: STATE_COLOUR[row.state] }}>
+              <span className="size-1.5 rounded-full bg-current" style={{ opacity: row.state === "missing" || row.state === "pending" ? 0.45 : 1 }} aria-hidden />
+              {STATE_NOTE[row.state]}
+            </span>
           </li>
         ))}
       </ul>

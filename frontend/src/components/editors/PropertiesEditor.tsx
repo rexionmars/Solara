@@ -4,6 +4,8 @@ import { running } from "../../lib/analysis"
 import { useProductOffered } from "../../lib/capabilities"
 import { reveal } from "../../lib/export"
 import { formatLat, formatLng, formatMoment } from "../../lib/format"
+import { capacityFactorPct, speedMs, unitLabel } from "../../lib/energyFormat"
+import { km } from "../../lib/grid"
 import { groundRules } from "../../lib/ground"
 import { polygonAreaKm2, ringCentre } from "../../lib/geo"
 import { legendsShown, setLegendShown } from "../../lib/mapState"
@@ -32,6 +34,7 @@ import { select, useActiveItem } from "../../lib/selection"
 import { sidecar } from "../../lib/sidecarStatus"
 import { useStore } from "../../lib/store"
 import { COLUMNS, formatCell } from "../../lib/table"
+import { short } from "../energy/DemandDocument"
 import { ClassLegend, Legend } from "../energy/Legend"
 import { AreaHeader } from "../studio/StudioArea"
 import { btnGhostDense } from "../ui/buttons"
@@ -147,6 +150,47 @@ function Figures({ result }: { result: ResultObject }) {
 
 const RUN = RUN_OPERATOR
 
+/*
+  THE ONE FIGURE A CARD KEEPS, for a product whose reading holds the rest.
+
+  A card used to repeat the reading's figures as rows -- measured, water,
+  land, usable twice over, each rule -- which put every number on screen in
+  two places with nothing to say they were the same number. Each thing is
+  said once: the reading says how much, the map says where, this card says
+  with which inputs, the table compares. The card keeps the answer in a line,
+  so the reader knows a run exists and what it found, and the way to the rest.
+
+  Each line is written as the reading writes the same figure -- the same unit
+  and the same precision -- so the two are recognisably one number. A product
+  with no line here falls back to its rows.
+*/
+const HEADLINE: Partial<Record<Product, (r: ResultObject) => string | null>> = {
+  solar: (r) =>
+    r.kind === "solar"
+      ? `${r.data.pv.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp per year · capacity factor ${capacityFactorPct(r.data.pv.capacity_factor_pct)}`
+      : null,
+  // Gross, said in the line: the figure is never shown without what it is not.
+  wind: (r) =>
+    r.kind === "wind"
+      ? `${speedMs(r.data.hub.mean_speed_ms)} at ${r.data.hub_height_m.toFixed(0)} m · gross capacity factor ${capacityFactorPct(r.data.hub.gross_capacity_factor_pct)}`
+      : null,
+  terrain: (r) => (r.kind === "terrain" ? `${r.data.poa_mean.toFixed(r.data.scale.decimals)} ${unitLabel(r.data.unit)}, mean` : null),
+  connection: (r) => {
+    if (r.kind !== "connection") return null
+    const c = r.data.connection
+    const joined = c.attachment[0]
+    if (joined) return `joined at ${joined.point_code}`
+    if (c.nearest_substation) return `nearest substation ${km(c.nearest_substation.distance_km)}`
+    return c.nearest_line ? `nearest line ${km(c.nearest_line.distance_km)}` : "nothing within reach"
+  },
+  demand: (r) => (r.kind === "demand" ? `${short(r.data.totais.energia_consumida_ano_mwh)} in the year` : null),
+  ground: (r) =>
+    r.kind === "ground"
+      ? `${r.data.usable_km2.toFixed(1)} km² usable` +
+        (r.data.usable_of_land_pct != null ? ` · ${r.data.usable_of_land_pct.toFixed(1)}% of the land` : "")
+      : null,
+}
+
 /** A product's card: what it reads, its settings, the run, and what it last produced. */
 export function ProductCard({ product, source }: { product: Product; source: SiteObject | AreaObject }) {
   const d = useStore(project).data
@@ -155,6 +199,7 @@ export function ProductCard({ product, source }: { product: Product; source: Sit
   const latest = results.at(-1)
   const here = job && job.sourceId === source.id && job.product === product
   const stale = latest ? staleReason(d, latest) : null
+  const headline = latest ? (HEADLINE[product]?.(latest) ?? null) : null
 
   return (
     <PanelSection
@@ -183,16 +228,30 @@ export function ProductCard({ product, source }: { product: Product; source: Sit
       {latest && (
         <div className="flex flex-col gap-1 border-y py-1.5" style={{ borderColor: "rgb(var(--p-line) / 0.4)" }}>
           {stale && <StaleNote reason={stale} />}
-          <Figures result={latest} />
-          <div className="flex gap-1 pt-1">
-            <button type="button" className={btnGhostDense} onClick={() => select(latest.id)}>
-              Select
-            </button>
-            <button type="button" className={`${btnGhostDense} flex-1`} onClick={() => showResult(latest.id, product)}>
-              <ArrowSquareOut className="size-3" />
-              Read it
-            </button>
-          </div>
+          {headline ? (
+            <div className="flex items-center gap-2">
+              <span className="telemetry selectable min-w-0 flex-1 truncate text-body text-foreground" title={headline}>
+                {headline}
+              </span>
+              <button type="button" className={btnGhostDense} onClick={() => showResult(latest.id, product)}>
+                <ArrowSquareOut className="size-3" />
+                Read it
+              </button>
+            </div>
+          ) : (
+            <>
+              <Figures result={latest} />
+              <div className="flex gap-1 pt-1">
+                <button type="button" className={btnGhostDense} onClick={() => select(latest.id)}>
+                  Select
+                </button>
+                <button type="button" className={`${btnGhostDense} flex-1`} onClick={() => showResult(latest.id, product)}>
+                  <ArrowSquareOut className="size-3" />
+                  Read it
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </PanelSection>
@@ -207,7 +266,7 @@ export function ResultLayer({ result }: { result: Extract<ResultObject, { kind: 
   const legends = useStore(legendsShown)
   const layer =
     result.kind === "terrain"
-      ? { scale: result.data.scale, unit: result.data.unit, title: seasonLabel(result.data.season) }
+      ? { scale: result.data.scale, unit: unitLabel(result.data.unit), title: seasonLabel(result.data.season) }
       : result.kind === "demand" && result.data.density
         ? { scale: result.data.density.scale, unit: result.data.density.unit, title: `Cells of ${result.data.density.cell_km} km` }
         : null
@@ -327,12 +386,20 @@ function ResultBody({ result }: { result: ResultObject }) {
   const source = findItem(d, result.sourceId)
   const stale = staleReason(d, result)
   const params = Object.entries(result.params as Record<string, unknown>)
+  const headline = HEADLINE[result.kind]?.(result) ?? null
   return (
     <>
       <Head item={result} meta={`${source ? source.name : "deleted source"} · ${formatMoment(result.createdAt)}`} />
-      <PanelSection title="Figures" aside={<button type="button" className={btnGhostDense} onClick={() => showResult(result.id, result.kind)}><ArrowSquareOut className="size-3" />Read it</button>}>
+      {/* The answer in a line, as on the product's card: the reading holds the rest. */}
+      <PanelSection title="Result" aside={<button type="button" className={btnGhostDense} onClick={() => showResult(result.id, result.kind)}><ArrowSquareOut className="size-3" />Read it</button>}>
         {stale && <StaleNote reason={stale} onRerun={() => void runOperator("RERUN")} />}
-        <Figures result={result} />
+        {headline ? (
+          <span className="telemetry selectable truncate text-body text-foreground" title={headline}>
+            {headline}
+          </span>
+        ) : (
+          <Figures result={result} />
+        )}
       </PanelSection>
       <PanelSection title="Computed with">
         {params.length === 0 ? (

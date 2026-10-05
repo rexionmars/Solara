@@ -1,5 +1,6 @@
 import { formatMoment, formatMomentIso } from "./format"
 import { polygonAreaKm2 } from "./geo"
+import { unitLabel } from "./energyFormat"
 import { seasonLabel } from "./params"
 import { findItem, staleReason, type Product, type ProjectData, type ResultObject } from "./project"
 
@@ -110,7 +111,7 @@ export const COLUMNS: Record<Product, Column[]> = {
     { key: "mean", label: "Mean", decimals: 2, value: (r) => (r.kind === "terrain" ? r.data.poa_mean : null) },
     { key: "min", label: "Minimum", decimals: 2, value: (r) => (r.kind === "terrain" ? r.data.poa_min : null) },
     { key: "max", label: "Maximum", decimals: 2, value: (r) => (r.kind === "terrain" ? r.data.poa_max : null) },
-    { key: "unit", label: "Unit", value: (r) => (r.kind === "terrain" ? r.data.unit : null) },
+    { key: "unit", label: "Unit", value: (r) => (r.kind === "terrain" ? unitLabel(r.data.unit) : null) },
     { key: "spread", label: "Spread", unit: "%", decimals: 1, value: (r) => (r.kind === "terrain" ? r.data.poa_std_pct : null) },
     { key: "slope", label: "Mean Slope", unit: "°", decimals: 1, value: (r) => (r.kind === "terrain" ? r.data.slope_mean_deg : null) },
     ...trailing,

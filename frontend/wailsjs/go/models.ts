@@ -44,6 +44,59 @@ export namespace energy {
 	        this.cell_km = source["cell_km"];
 	    }
 	}
+	export class DistributionOverflow {
+	    below: number;
+	    cells: number;
+	    area_km2?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DistributionOverflow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.below = source["below"];
+	        this.cells = source["cells"];
+	        this.area_km2 = source["area_km2"];
+	    }
+	}
+	export class Distribution {
+	    edges: number[];
+	    cells: number[];
+	    area_km2: number[];
+	    overflow?: DistributionOverflow;
+	
+	    static createFrom(source: any = {}) {
+	        return new Distribution(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.edges = source["edges"];
+	        this.cells = source["cells"];
+	        this.area_km2 = source["area_km2"];
+	        this.overflow = this.convertValues(source["overflow"], DistributionOverflow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class GroundCaveats {
 	    hand: string;
 	    water: string;
@@ -604,6 +657,7 @@ export namespace energy {
 	    poa_max: number;
 	    poa_mean: number;
 	    poa_std_pct: number;
+	    distribution?: Distribution;
 	    slope_mean_deg: number;
 	    slope_max_deg: number;
 	    pixels: number;
@@ -632,6 +686,7 @@ export namespace energy {
 	        this.poa_max = source["poa_max"];
 	        this.poa_mean = source["poa_mean"];
 	        this.poa_std_pct = source["poa_std_pct"];
+	        this.distribution = this.convertValues(source["distribution"], Distribution);
 	        this.slope_mean_deg = source["slope_mean_deg"];
 	        this.slope_max_deg = source["slope_max_deg"];
 	        this.pixels = source["pixels"];

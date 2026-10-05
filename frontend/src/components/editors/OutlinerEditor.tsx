@@ -437,7 +437,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
         })}
         {empty && (
           <p className="px-3 py-2 text-body leading-relaxed text-muted-foreground">
-            Nothing in the project yet. Place a site on the map, or take an area from the catalogue in the run graph.
+            Nothing in the project yet. Place a site on the map, or take an area from a published boundary with Area from a place (Shift+D).
           </p>
         )}
       </div>

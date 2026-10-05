@@ -454,7 +454,7 @@ def demand_towns(req: Request) -> None:
         registros = []
         municipios = []
         ufs: set[str] = set()
-        unit = 'MWh/ano'
+        unit = 'MWh/year'
         nota = ''
         for dist, ano in sorted(latest.items()):
             one = demand.towns(conn, dist, ano)

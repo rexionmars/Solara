@@ -551,11 +551,11 @@ def solar_terrain(req: protocol.Request) -> None:
         other = overlays_mod.SEASON_PAIR[season]
         protocol.emit_progress(85, f'lookup [{other}], shared colour scale')
         companion, _ = _poa_for(other)
-        unit = 'kWh/m2 per season'
+        unit = 'kWh/m² per season'
     else:
         protocol.emit_progress(80, f'lookup [{season}]')
         poa, shading_loss = _poa_for(season)
-        unit = 'kWh/m2 per season' if season != 'annual' else 'kWh/m2/year'
+        unit = 'kWh/m² per season' if season != 'annual' else 'kWh/m² per year'
     protocol.emit_progress(92, 'interpolating onto the terrain')
 
     # Only pixels inside the area carry a result.
@@ -592,7 +592,7 @@ def solar_terrain(req: protocol.Request) -> None:
         vals, slope, valid,
         shading_loss=shading_loss, svf_loss=svf_loss, enclosure=enclosure,
         scale=scale, season=season, unit=unit, n_years=n_years,
-        beam_share=beam_share,
+        beam_share=beam_share, cell_km2=dx_m * dy_m / 1e6,
     )
     # Added after summarise, which rebuilds the scale from a fixed set of
     # keys: the palette's stops, so the legend is drawn from the colours that

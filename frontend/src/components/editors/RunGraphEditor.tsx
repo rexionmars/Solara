@@ -1150,7 +1150,12 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
             )
           }
         }}
-        onDisconnect={(from, to) => (LINKED.includes(from) ? setLink(`${from}>${to}`, false) : setCut(from, to, scopeOf(to as RunNodeId), true))}
+        onDisconnect={(from, to) => {
+          // A run reads every input Properties lists; the graph draws that and cannot withhold one.
+          if (to === "run") note("A wire into Run cannot be cut: a run reads every input its card in Properties lists.")
+          else if (LINKED.includes(from)) setLink(`${from}>${to}`, false)
+          else setCut(from, to, scopeOf(to as RunNodeId), true)
+        }}
         sections={sections}
         tabs={tabs}
       />

@@ -1,4 +1,3 @@
-import { storeFeeds } from "./graphLinks"
 import { gridStore, storeInfo, storeReport, type GridStoreState } from "./grid"
 import { mapView } from "./mapState"
 import type { Product } from "./project"
@@ -127,8 +126,7 @@ export function productBlocked(product: Product, s: GridStoreState = gridStore.g
   if (product !== "connection" && product !== "demand") return null
   const report = storeReport(s)
   const info = storeInfo(s)
-  if (!report?.reachable || !info) return "The grid store is not connected or not reachable (the Grid store card says why)"
-  if (!storeFeeds("run")) return "The Grid store card is not wired to Run: pull its socket onto the Run card"
+  if (!report?.reachable || !info) return "The grid store is not connected or not reachable (Settings › Grid store says why)"
   if (product === "connection") {
     return info.capabilities.connection ? null : "This store carries no lines or substations, so there is no network to measure a connection against"
   }

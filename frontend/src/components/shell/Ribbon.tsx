@@ -30,8 +30,10 @@ import { AppMenu, ProjectMenu } from "./AppMenus"
  * is a way to reach them that can be seen without opening anything, which is
  * the whole of what it adds.
  *
- * A RUN BUTTON OPENS THE RUN GRAPH; it does not spend the run. A request is
- * five or six settings, and the board is where they are all on screen at once.
+ * A PRODUCT'S BUTTON OPENS ITS READING; it does not spend the run. An empty
+ * reading lists what a run would read and carries the button, and Properties
+ * holds the settings beside it. The run graph is a second view with a button
+ * of its own.
  */
 
 export const RIBBON_TABS_PX = 28
@@ -240,21 +242,6 @@ function Column({ children }: { children: ReactNode }) {
   return <div className="flex shrink-0 flex-col justify-center gap-px">{children}</div>
 }
 
-function Run({ product }: { product: Product }) {
-  // A product the connected store could never answer is not offered.
-  if (!useProductOffered(product)) return null
-  return (
-    <Command
-      icon={editorMeta(product).icon}
-      art={ART_BY_PRODUCT[product]}
-      label={RUN_LABEL[product]}
-      title={`Set up ${PRODUCT_NAMES[product]} in the run graph`}
-      tall
-      onClick={() => openRunGraph(product)}
-    />
-  )
-}
-
 /**
  * A product's entrance since the run graph became a second view: the
  * workspace of its reading, where an empty reading lists what a run would
@@ -337,15 +324,15 @@ function AnalysisTab() {
   return (
     <>
       <Group label="Solar">
-        <Run product="solar" />
-        <Run product="terrain" />
+        <Reading product="solar" />
+        <Reading product="terrain" />
       </Group>
       <Group label="Wind">
-        <Run product="wind" />
+        <Reading product="wind" />
       </Group>
       <Group label="Grid">
-        <Run product="connection" />
-        <Run product="demand" />
+        <Reading product="connection" />
+        <Reading product="demand" />
         <Column>
           <Op name="GRID_STORE" label="Check the store" />
         </Column>
@@ -501,7 +488,7 @@ export function Ribbon() {
                 style={
                   on
                     ? // The ground of the ribbon below: the tab and its commands are one surface.
-                      { background: "var(--s-panel-head)", borderTopLeftRadius: 3, borderTopRightRadius: 3 }
+                      { background: "var(--s-band)", borderTopLeftRadius: 3, borderTopRightRadius: 3 }
                     : undefined
                 }
               >
@@ -531,7 +518,7 @@ export function Ribbon() {
           className="app-no-drag flex shrink-0 items-stretch overflow-x-auto border-b px-1"
           style={{
             height: RIBBON_PX,
-            background: "var(--s-panel-head)",
+            background: "var(--s-band)",
             borderColor: "rgb(var(--p-line) / 0.28)",
             scrollbarWidth: "none",
           }}

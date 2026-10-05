@@ -6,7 +6,6 @@ import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
 import { productBlocked } from "./capabilities"
-import { wiresBlock } from "./graphLinks"
 import { checkGridStore } from "./grid"
 import { cancelGesture, frameAll, frameItem, resetNorth, zoomIn, zoomOut } from "./mapEngine"
 import { legendsShown, mapMounted, setLegendShown } from "./mapState"
@@ -124,9 +123,6 @@ const needRasterResult = () => {
 export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION", demand: "DEMAND", ground: "GROUND" }
 
 /** That the connected store can answer this product, or why it cannot (capabilities.ts). */
-/** That the product's ground and product cards are wired to Run in the run graph (graphLinks.ts). */
-const needWires = (product: Product) => (): true | string => wiresBlock(product) ?? true
-
 const needStoreFor = (product: Product) => (): true | string => productBlocked(product) ?? true
 
 /**
@@ -648,7 +644,7 @@ export const OPERATORS: Operator[] = [
     description: "Solar resource and photovoltaic yield at the active site (NASA POWER, pvlib)",
     icon: Sun,
     menu: "Analyze",
-    poll: all(needSite, needWires("solar"), notRunning, engineUp),
+    poll: all(needSite, notRunning, engineUp),
     run: () => runProduct("solar"),
   },
   {
@@ -658,7 +654,7 @@ export const OPERATORS: Operator[] = [
     description: "Wind resource screening at the active site (NASA POWER, MERRA-2); unvalidated",
     icon: Wind,
     menu: "Analyze",
-    poll: all(needSite, needWires("wind"), notRunning, engineUp),
+    poll: all(needSite, notRunning, engineUp),
     run: () => runProduct("wind"),
   },
   {
@@ -668,7 +664,7 @@ export const OPERATORS: Operator[] = [
     description: "Plane-of-array irradiation over the active area's terrain (Copernicus DEM, NASA POWER)",
     icon: Mountains,
     menu: "Analyze",
-    poll: all(needArea, needWires("terrain"), notRunning, engineUp),
+    poll: all(needArea, notRunning, engineUp),
     run: () => runProduct("terrain"),
   },
   {
@@ -678,7 +674,7 @@ export const OPERATORS: Operator[] = [
     description: "Where the active area could join the transmission network, read from the grid store (ONS, ANEEL)",
     icon: PlugsConnected,
     menu: "Analyze",
-    poll: all(needArea, needWires("connection"), notRunning, engineUp, needStoreFor("connection")),
+    poll: all(needArea, notRunning, engineUp, needStoreFor("connection")),
     run: () => runProduct("connection"),
   },
   {
@@ -693,7 +689,7 @@ export const OPERATORS: Operator[] = [
       "What the active area already draws from the network and already puts back, read from the BDGD register in the grid store",
     icon: ChartBar,
     menu: "Analyze",
-    poll: all(needArea, needWires("demand"), notRunning, engineUp, needStoreFor("demand")),
+    poll: all(needArea, notRunning, engineUp, needStoreFor("demand")),
     run: () => runProduct("demand"),
   },
   {
@@ -704,7 +700,7 @@ export const OPERATORS: Operator[] = [
       "How much of the active area a plant could stand on, by slope and by height above the drainage (Copernicus DEM)",
     icon: CheckSquare,
     menu: "Analyze",
-    poll: all(needArea, needWires("ground"), notRunning, engineUp),
+    poll: all(needArea, notRunning, engineUp),
     run: () => runProduct("ground"),
   },
   {

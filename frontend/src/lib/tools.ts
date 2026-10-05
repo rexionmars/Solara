@@ -11,7 +11,7 @@ import { createStore } from "./store"
   nobody published: it crosses whatever boundary the register answering the
   question ends at, at a size nothing checked, and the reading comes back about
   the part that register happened to reach. An area comes from the boundary
-  catalogue in the run graph instead, where it is a state or a municipality
+  catalogue instead (Area from a place), where it is a state or a municipality
   IBGE publishes.
 */
 export type ToolId = "select" | "site" | "measure"

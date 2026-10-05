@@ -12,7 +12,8 @@ import { EventsOn } from "../../wailsjs/runtime/runtime"
 import { errorMessage } from "./errors"
 import { formatLat, formatLng } from "./format"
 import { polygonAreaKm2 } from "./geo"
-import { setLegendShown } from "./mapState"
+import { arrived, setLegendShown } from "./mapState"
+import { unitLabel } from "./energyFormat"
 import { seasonLabel, windSettingsError } from "./params"
 import {
   PRODUCT_NAMES,
@@ -27,7 +28,6 @@ import {
   type Settings,
   type SiteObject,
 } from "./project"
-import { wiredSettings } from "./graphLinks"
 import { fail, info, note } from "./reports"
 import { showResult } from "./screen"
 import { createStore } from "./store"
@@ -131,6 +131,8 @@ async function run(
       if (replace) setLegendShown(replace, false)
     }
     const result = project.get().data.results.find((r) => r.id === id)
+    // Where the result is, is on the map: brought into view only if none of it is there (mapEngine.ts).
+    if (result) arrived.set(id)
     if (result) info(summary(result), { label: "Show", run: () => showResult(id, product) })
     return id
   } catch (e) {
@@ -149,7 +151,7 @@ const siteLabel = (s: SiteObject) => `at ${s.name} (${formatLat(s.lat, 4)} ${for
 
 export function runSolar(site: SiteObject, replace?: string): Promise<string | null> {
   // Without the settings of any card cut from Run: the engine's defaults stand in for those.
-  const p = wiredSettings("solar", project.get().data.settings.solar)
+  const p = project.get().data.settings.solar
   const at = { lon: site.lon, lat: site.lat }
   return run(
     "solar",
@@ -180,7 +182,7 @@ export function runSolar(site: SiteObject, replace?: string): Promise<string | n
 
 export async function runWind(site: SiteObject, replace?: string): Promise<string | null> {
   // Without the settings of any card cut from Run: the engine's defaults stand in for those.
-  const p = wiredSettings("wind", project.get().data.settings.wind)
+  const p = project.get().data.settings.wind
   const problem = windSettingsError(p)
   if (problem) {
     fail(`Wind screening not started: ${problem}.`)
@@ -220,7 +222,7 @@ export async function runWind(site: SiteObject, replace?: string): Promise<strin
 
 export function runTerrain(area: AreaObject, replace?: string): Promise<string | null> {
   // Without the settings of any card cut from Run: the engine's defaults stand in for those.
-  const p = wiredSettings("terrain", project.get().data.settings.terrain)
+  const p = project.get().data.settings.terrain
   const polygon = area.polygon
   return run(
     "terrain",
@@ -240,7 +242,7 @@ export function runTerrain(area: AreaObject, replace?: string): Promise<string |
     (r) =>
       r.kind === "terrain"
         ? `Solar terrain over ${area.name}: ${seasonLabel(r.data.season).toLowerCase()}, mean ` +
-          `${r.data.poa_mean.toFixed(r.data.scale.decimals)} ${r.data.unit}, spread ${r.data.poa_std_pct.toFixed(1)}%.`
+          `${r.data.poa_mean.toFixed(r.data.scale.decimals)} ${unitLabel(r.data.unit)}, spread ${r.data.poa_std_pct.toFixed(1)}%.`
         : "",
     replace
   )
@@ -248,7 +250,7 @@ export function runTerrain(area: AreaObject, replace?: string): Promise<string |
 
 export function runConnection(area: AreaObject, replace?: string): Promise<string | null> {
   // Without the settings of any card cut from Run: the engine's defaults stand in for those.
-  const p = wiredSettings("connection", project.get().data.settings.connection)
+  const p = project.get().data.settings.connection
   const polygon = area.polygon
   return run(
     "connection",
@@ -287,7 +289,7 @@ export function runConnection(area: AreaObject, replace?: string): Promise<strin
  */
 export function runDemand(area: AreaObject, replace?: string): Promise<string | null> {
   // Without the settings of any card cut from Run: the engine's defaults stand in for those.
-  const p = wiredSettings("demand", project.get().data.settings.demand)
+  const p = project.get().data.settings.demand
   const polygon = area.polygon
   return run(
     "demand",
@@ -335,7 +337,7 @@ export async function cancelRun(): Promise<void> {
  */
 export function runGround(area: AreaObject, replace?: string): Promise<string | null> {
   // Without the settings of any card cut from Run: the engine's defaults stand in for those.
-  const p = wiredSettings("ground", project.get().data.settings.ground)
+  const p = project.get().data.settings.ground
   const polygon = area.polygon
   return run(
     "ground",

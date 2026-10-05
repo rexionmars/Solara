@@ -115,7 +115,7 @@ export function StudioArea({
 
   return (
     <div
-      className="absolute flex flex-col overflow-hidden"
+      className="studio-area absolute flex flex-col overflow-hidden"
       style={{
         left: rect.x,
         top: rect.y,

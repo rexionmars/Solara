@@ -434,7 +434,7 @@ def density_grid(conn, aoi_geojson, params: dict, cell_km: float, work_dir):
         'cell_km': round(cell_km, 3),
         'cells': int(valid.sum()),
         'grid': {'nx': nx, 'ny': ny},
-        'unit': 'MWh/ano por célula',
+        'unit': 'MWh/year per cell',
         'scale': {
             'palette': PALETTE_DEMAND,
             'min': round(vmin, 1),
@@ -600,7 +600,7 @@ def towns(conn, dist: str, ano: int) -> dict:
         # The two first digits of an IBGE municipality code are its state's.
         'ufs': sorted({r['mun'][:2] for r in rows if len(r['mun']) >= 2}),
         'municipios': rows,
-        'unit': 'MWh/ano',
+        'unit': 'MWh/year',
         'nota': (
             'Consumption of the units the register places in each municipality. '
             'A unit is counted where its connection point is, and generation is '
@@ -809,7 +809,7 @@ def demand_context(conn, aoi_geojson, req, work_dir=None) -> dict:
     return {
         'register': {
             'distribuidora': dist, 'ano': ano,
-            'base': f'BDGD {dist}, ano-base {ano}',
+            'base': f'BDGD {dist}, base year {ano}',
             'holdings': held,
         },
         'consumo': consumo,

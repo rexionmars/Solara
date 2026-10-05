@@ -246,9 +246,77 @@ def _pct(values, valid, reducer):
     return round(float(100.0 * reducer(values[valid])), 3)
 
 
+# How many intervals the distribution of the layer is counted in. Enough to
+# show two populations of ground -- a plain and the slopes around it -- and few
+# enough that each bar is still a bar at the width of a reading.
+DISTRIBUTION_BINS = 24
+# The share of the cells a long low tail may hold and still be set aside.
+TAIL_PERCENTILE = 2.0
+# A tail is set aside only when keeping it would cost more than this many of
+# the intervals; a shorter one is simply the first few bars.
+TAIL_COSTS_BINS = 3
+
+
+def distribution(values, cell_km2=None, bins=DISTRIBUTION_BINS):
+    """
+    How the cells of the layer are spread between its minimum and its maximum.
+
+    The minimum, the mean and the maximum say where the layer ends and where
+    it balances; they do not say whether the area is one population of ground
+    or two, nor how much of it sits near either end. The count per interval
+    does, and it is what a reading draws instead of three numbers.
+
+    A LONG LOW TAIL IS ONE INTERVAL OF ITS OWN. A few shaded cells in a gully
+    put the minimum far below everything else, and equal intervals from there
+    spend nearly all of themselves on two percent of the ground: the rest
+    falls in one bar and the shape of where the area actually is cannot be
+    seen. So where the stretch below the second percentile is longer than
+    TAIL_COSTS_BINS intervals of what is above it, that stretch is counted
+    once, as `overflow`, and the equal intervals run from the second
+    percentile to the maximum. A layer without such a tail has no overflow
+    and its intervals run from its minimum.
+
+    `edges` has one more entry than `cells`; its last is the maximum, and its
+    first is the minimum unless there is an overflow, whose `below` it then
+    is. A layer with one value has no spread to divide and is one interval.
+    `area_km2` is absent when the cell's area is not known, rather than a
+    count dressed as an area.
+    """
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return None
+
+    def area(count):
+        return None if cell_km2 is None else round(float(count) * float(cell_km2), 4)
+
+    lo, hi = float(values.min()), float(values.max())
+    if hi <= lo:
+        return {'edges': [round(lo, 4), round(hi, 4)], 'cells': [int(values.size)],
+                'area_km2': None if cell_km2 is None else [area(values.size)],
+                'overflow': None}
+
+    start = lo
+    overflow = None
+    cut = float(np.percentile(values, TAIL_PERCENTILE))
+    if cut < hi and (cut - lo) > TAIL_COSTS_BINS * (hi - cut) / bins:
+        below = int((values < cut).sum())
+        if below:
+            start = cut
+            overflow = {'below': round(cut, 4), 'cells': below, 'area_km2': area(below)}
+
+    cells, edges = np.histogram(values[values >= start], bins=int(bins), range=(start, hi))
+    return {
+        'edges': [round(float(e), 4) for e in edges],
+        'cells': [int(c) for c in cells],
+        'area_km2': None if cell_km2 is None else [area(c) for c in cells],
+        'overflow': overflow,
+    }
+
+
 def summarise(poa, slope, valid, *, shading_loss=None, svf_loss=None,
               enclosure=None, scale=None, season=None, unit=None,
-              n_years=None, beam_share=None):
+              n_years=None, beam_share=None, cell_km2=None):
     """
     The statistics the terrain layer is reported by.
 
@@ -272,6 +340,7 @@ def summarise(poa, slope, valid, *, shading_loss=None, svf_loss=None,
         # comparable: the spread of one AOI in its own units says nothing
         # about another at a different irradiation.
         'poa_std_pct': round(float(100.0 * np.std(values) / mean), 2),
+        'distribution': distribution(values, cell_km2),
         'slope_mean_deg': round(float(np.nanmean(slope[valid])), 2),
         'slope_max_deg': round(float(np.nanmax(slope[valid])), 2),
         'pixels': int(valid.sum()),

@@ -85,7 +85,7 @@ export function StatusBar() {
       {/* Which store the map's layers and the grid readings are read from, said
           wherever the reader is: data on the map with nothing naming its source
           is data nobody can account for. */}
-      <span className="telemetry flex shrink-0 items-center gap-1.5 text-[9px] text-muted-foreground" title={held?.reachable ? held.dsn : "Connect one on the Grid store card of the run graph"}>
+      <span className="telemetry flex shrink-0 items-center gap-1.5 text-[9px] text-muted-foreground" title={held?.reachable ? held.dsn : "Connect one in Settings › Grid store"}>
         <span className={`size-1.5 rounded-full ${held?.reachable ? "bg-success" : "bg-muted-foreground/50"}`} />
         {held?.reachable ? (
           <span className="max-w-[22rem] truncate">

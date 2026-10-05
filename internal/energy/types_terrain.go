@@ -89,6 +89,26 @@ type SkyView struct {
 	DiffuseLossMaxPct  *float64 `json:"diffuse_loss_max_pct"`
 }
 
+// Distribution is how the cells of a layer are spread between its minimum and
+// its maximum, in equal intervals: Edges has one more entry than Cells and its
+// last is the layer's maximum. Its first is the layer's minimum unless a long
+// low tail was set aside in Overflow, whose Below it then is.
+type Distribution struct {
+	Edges []float64 `json:"edges"`
+	Cells []int     `json:"cells"`
+	// Absent when the area of a cell is not known.
+	AreaKm2  []float64             `json:"area_km2"`
+	Overflow *DistributionOverflow `json:"overflow"`
+}
+
+// DistributionOverflow is the cells below the first interval, counted once: a
+// tail too long and too thin for equal intervals to show beside the rest.
+type DistributionOverflow struct {
+	Below   float64  `json:"below"`
+	Cells   int      `json:"cells"`
+	AreaKm2 *float64 `json:"area_km2"`
+}
+
 // Bounds is a geographic extent in degrees.
 type Bounds struct {
 	LonMin float64 `json:"lon_min"`
@@ -101,17 +121,19 @@ type Bounds struct {
 // atmospheric resource has no structure at this scale; the irradiation reaching
 // an inclined surface does, because the surface is terrain.
 type SolarTerrainAnalysis struct {
-	POAMin       float64 `json:"poa_min"`
-	POAMax       float64 `json:"poa_max"`
-	POAMean      float64 `json:"poa_mean"`
-	POAStdPct    float64 `json:"poa_std_pct"`
-	SlopeMeanDeg float64 `json:"slope_mean_deg"`
-	SlopeMaxDeg  float64 `json:"slope_max_deg"`
-	Pixels       int     `json:"pixels"`
-	HourlyYears  int     `json:"hourly_years"`
-	DEMSource    string  `json:"dem_source"`
-	Season       string  `json:"season"`
-	Unit         string  `json:"unit"`
+	POAMin    float64 `json:"poa_min"`
+	POAMax    float64 `json:"poa_max"`
+	POAMean   float64 `json:"poa_mean"`
+	POAStdPct float64 `json:"poa_std_pct"`
+	// Absent from a result computed before the distribution was counted.
+	Distribution *Distribution `json:"distribution,omitempty"`
+	SlopeMeanDeg float64       `json:"slope_mean_deg"`
+	SlopeMaxDeg  float64       `json:"slope_max_deg"`
+	Pixels       int           `json:"pixels"`
+	HourlyYears  int           `json:"hourly_years"`
+	DEMSource    string        `json:"dem_source"`
+	Season       string        `json:"season"`
+	Unit         string        `json:"unit"`
 	// Read this, not POAMin/POAMax, when building a legend: a seasonal layer
 	// shares its domain with the other season and is narrower than it.
 	Scale           RenderScale `json:"scale"`

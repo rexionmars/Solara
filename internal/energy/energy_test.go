@@ -119,3 +119,24 @@ func TestWindAnalysis_KeepsANullRoughness(t *testing.T) {
 		t.Fatal("null roughness decoded as a value")
 	}
 }
+
+// A result computed before the distribution was counted has no such field, and
+// one whose cell area is unknown carries the intervals with a null area. Both
+// have to decode, and the first must stay absent rather than become empty.
+func TestSolarTerrainAnalysis_CarriesTheDistributionWhenThereIsOne(t *testing.T) {
+	var with SolarTerrainAnalysis
+	if err := json.Unmarshal([]byte(`{"poa_min":1,"poa_max":3,"distribution":{"edges":[1,2,3],"cells":[4,6],"area_km2":null}}`), &with); err != nil {
+		t.Fatal(err)
+	}
+	if with.Distribution == nil || len(with.Distribution.Cells) != 2 || len(with.Distribution.Edges) != 3 || with.Distribution.AreaKm2 != nil {
+		t.Fatalf("distribution %+v", with.Distribution)
+	}
+
+	var without SolarTerrainAnalysis
+	if err := json.Unmarshal([]byte(`{"poa_min":1,"poa_max":3}`), &without); err != nil {
+		t.Fatal(err)
+	}
+	if without.Distribution != nil {
+		t.Fatalf("an old result grew a distribution: %+v", without.Distribution)
+	}
+}

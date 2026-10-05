@@ -27,16 +27,22 @@
 
 :root {
   /*
-    SIX STEPS, as Blender's chrome holds them: 24 the window's own ground, 30
-    the bands and input wells, 40 a control at rest, 48 a panel body, 53 a
-    panel header, 67 anything that floats. Adjacent regions differ by a step,
-    so a boundary is read from the ground rather than from a hairline.
+    THE STEPS. 24 the window's own ground and 30 its bands, as Blender's
+    chrome holds them; the ribbon and the workspace tabs keep Blender's 53 and
+    48 (--p-band, --p-band-tab). The PANELS are darker than Blender's: 26 a
+    panel body, 34 its header, 20 the ground between panels and the wells
+    inside them, 40 a control at rest, 67 anything that floats. A panel is one
+    step above the ground it stands on and its wells one step below it, so a
+    boundary is still read from the ground rather than from a hairline.
   */
   --p-sunk: 24 24 24;
   --p-ink: 30 30 30;
+  --p-well: 20 20 20;
   --p-control: 40 40 40;
-  --p-surface: 48 48 48;
-  --p-head: 53 53 53;
+  --p-surface: 26 26 26;
+  --p-head: 34 34 34;
+  --p-band: 53 53 53;
+  --p-band-tab: 48 48 48;
   --p-surface-raised: 67 67 67;
   --p-line: 91 91 91;
   --p-line-strong: 145 145 145;
@@ -57,9 +63,19 @@
 
   /* ---- Roles: what each surface IS. Components read these. ---- */
   --s-app: rgb(var(--p-sunk));
-  --s-field: rgb(var(--p-ink));
+  --s-field: rgb(var(--p-well));
   --s-chrome: rgb(var(--p-ink));
-  --s-sunk: rgb(var(--p-ink));
+  --s-sunk: rgb(var(--p-well));
+  /* What the panels stand on, and the two grounds of the ribbon, which did not darken with them. */
+  --s-gutter: rgb(var(--p-well));
+  --s-band: rgb(var(--p-band));
+  --s-band-tab: rgb(var(--p-band-tab));
+  /* A panel's two rules and its three weights of text: the reading's page and every editor read these. */
+  --s-line: #2b2b2b;
+  --s-line-soft: #232323;
+  --s-text: #ececec;
+  --s-text-muted: #9b9b9b;
+  --s-text-faint: #6e6e6e;
   --s-control: rgb(var(--p-control));
   --s-panel: rgb(var(--p-surface));
   --s-panel-head: rgb(var(--p-head));
@@ -594,4 +610,382 @@ input[type="number"]::-webkit-outer-spin-button {
   .wire-flow {
     animation: none;
   }
+}
+
+/*
+  A READING'S OWN SURFACE. The result of a run is read on a page of its own
+  finish, inside its studio area: three levels and no more -- a head, one row
+  of up to four indicator cards, one main panel -- then a line saying where the
+  figures came from. The colours are the panel roles every editor reads
+  (--s-panel, --s-line, --s-text...), so a reading and the Outliner beside it
+  are one surface.
+
+  Cards are few and large and take the page's own tone: a hairline and a
+  radius, no ground of their own and no filled head. The hierarchy is in the
+  type -- a figure more than twice the size of its label -- and in the space.
+  One typeface throughout, in sentence case; figures align with tabular-nums
+  rather than with a terminal face.
+
+  The columns follow the reading's AREA, not the window: the page declares the
+  container, and four cards become two and then one as the area narrows.
+*/
+/*
+  Inside a studio area the text takes the panel's weights. Scoped to the area
+  and not set at the root, because the ribbon and the bars above keep theirs.
+*/
+.studio-area {
+  --foreground: var(--s-text);
+  --muted-foreground: var(--s-text-muted);
+  color: var(--foreground);
+}
+
+.reading {
+  container-type: inline-size;
+  background: var(--s-panel);
+  color: var(--s-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+}
+/*
+  The sizes are a step under the mockup's: at its sizes four cards and a head
+  filled the whole of a narrow area and the panel started below the fold.
+*/
+.reading-page {
+  margin-inline: auto;
+  max-width: 900px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.reading-head h2 {
+  font-family: var(--font-sans);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.reading-head p {
+  margin-top: 2px;
+  max-width: 62ch;
+  color: var(--s-text-muted);
+}
+.reading-chip {
+  display: inline-block;
+  border: 1px solid var(--s-line);
+  border-radius: 6px;
+  background: var(--s-panel-head);
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--s-text);
+}
+.reading-chip[data-tone="warn"] {
+  border-color: rgb(213 190 75 / 0.35);
+  background: rgb(213 190 75 / 0.12);
+  color: var(--warning);
+}
+.reading-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.reading-kpi {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border: 1px solid var(--s-line);
+  border-radius: 10px;
+}
+.reading-kpi > header {
+  border-bottom: 1px solid var(--s-line-soft);
+  padding: 8px 12px 7px;
+}
+.reading-kpi h3 {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+/* One line each, so the figures of four neighbours start level; the whole of a cut line is in its tooltip. */
+.reading-kpi h3,
+.reading-kpi > header p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reading-kpi > header p {
+  font-size: 11px;
+  color: var(--s-text-faint);
+}
+.reading-kpi > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px 11px;
+}
+.reading-num {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+/*
+  A code in the figure's place -- a connection point's name -- is not a number
+  and is longer than one: set smaller and on one line, in the height a figure
+  takes, so the card keeps the shape of its neighbours.
+*/
+.reading-num[data-code] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 23px;
+  letter-spacing: -0.01em;
+}
+.reading-unit {
+  font-size: 12px;
+  color: var(--s-text-muted);
+}
+/* The chip has a line of its own in every card, so the descriptions of four neighbours start level. */
+.reading-kpi .reading-chip-line {
+  min-height: 19px;
+}
+.reading-kpi > div > p {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--s-text-muted);
+}
+.reading-panel {
+  border: 1px solid var(--s-line);
+  border-radius: 10px;
+}
+.reading-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 4px;
+}
+/*
+  The title keeps a width a sentence can be read at: where the controls would
+  squeeze it under that, they go to the line below instead.
+*/
+.reading-panel-title {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.reading-panel-head h3 {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-wrap: balance;
+}
+.reading-panel-head p {
+  font-size: 11.5px;
+  color: var(--s-text-faint);
+}
+.reading-panel-body {
+  padding: 2px 14px 10px;
+}
+.reading-note {
+  margin: 0 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--s-text-muted);
+}
+.reading-seg {
+  display: inline-flex;
+  gap: 2px;
+  border: 1px solid var(--s-line);
+  border-radius: 8px;
+  padding: 2px;
+}
+.reading-seg button {
+  border-radius: 6px;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--s-text-muted);
+}
+.reading-seg button[aria-pressed="true"] {
+  background: var(--s-panel-head);
+  color: var(--s-text);
+}
+.reading-details {
+  border-top: 1px solid var(--s-line-soft);
+}
+.reading-details > summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  justify-content: space-between;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--s-text-muted);
+}
+.reading-details > summary::-webkit-details-marker {
+  display: none;
+}
+.reading-details > summary::after {
+  content: "Show";
+  font-weight: 400;
+  color: var(--s-text-faint);
+}
+.reading-details[open] > summary::after {
+  content: "Hide";
+}
+.reading-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+  padding: 0 14px 10px;
+}
+.reading-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--s-line-soft);
+  padding: 5px 0;
+  font-size: 12px;
+}
+.reading-rows > div > span:first-child {
+  color: var(--s-text-muted);
+}
+.reading-rows > div > span:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.reading-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 32px;
+}
+.reading-source {
+  font-size: 11px;
+  color: var(--s-text-faint);
+}
+.reading-chart text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  fill: var(--s-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.reading-chart text.strong {
+  fill: var(--s-text);
+  font-weight: 500;
+}
+.reading button:focus-visible,
+.reading summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@container (max-width: 760px) {
+  .reading-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reading-page {
+    padding: 14px;
+  }
+  .reading-rows,
+  .reading-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container (max-width: 420px) {
+  .reading-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.reading-notice {
+  border: 1px solid rgb(213 190 75 / 0.3);
+  border-radius: 10px;
+  background: rgb(213 190 75 / 0.08);
+  padding: 6px 10px 6px 12px;
+  font-size: 12px;
+  color: var(--warning);
+}
+/*
+  Named bars: a name, a bar whose length is the quantity, the figure at its end.
+  A row's three cells sit in a wrapper that is display: contents, so they are
+  reached as descendants and not as children.
+*/
+.reading-bars {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) minmax(3rem, 1fr) max-content;
+  align-items: center;
+  gap: 5px 12px;
+  padding-top: 6px;
+  font-size: 12px;
+}
+.reading-bars .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 16rem;
+  color: var(--s-text-muted);
+}
+.reading-bars .track {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.reading-bars .track > span {
+  display: block;
+  height: 8px;
+  min-width: 1px;
+  border-radius: 2px;
+  background: #d9d9d9;
+}
+.reading-bars .figure {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reading-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.reading-table th {
+  padding: 6px 8px 6px 0;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--s-text-faint);
+}
+.reading-table td {
+  border-top: 1px solid var(--s-line-soft);
+  padding: 7px 8px 7px 0;
+}
+.reading-table .num {
+  text-align: right;
+}
+
+/* A control that sits in a panel's head in a wide area and in its body in a narrow one. */
+.reading-narrow-only {
+  display: none;
+}
+@container (max-width: 760px) {
+  .reading-wide-only {
+    display: none;
+  }
+  .reading-narrow-only {
+    display: block;
+  }
+}
+
+/* One typeface inside a reading: a chart drawn for the old panels sets its figures in the terminal face. */
+.reading .font-mono {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }

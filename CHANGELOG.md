@@ -98,17 +98,36 @@ In the working tree, not yet committed.
   card only over a store that could answer it.
 - **An empty reading shows the same list and runs from it**, over the site or
   area that is active, instead of sending the reader to the run graph.
-  - A wire cut on the run graph still withholds its value from a run started
-    anywhere; the row says "cut".
+- **A wire into Run can no longer be cut, and a cut no longer changes a run.**
+  A run reads every input its card in Properties lists, wherever it is
+  started; the run graph draws that and withholds nothing. Cuts kept from
+  before are dropped, and the Analysis tab's product buttons open the reading
+  instead of the run graph.
 
 ### Reading a result
 
-- **A reading's board stacks in a narrow area instead of shrinking.** The
-  consumption board used to frame every card at a third of its size when its
-  area was narrower than the board. Where the columns would shrink past three
-  quarters, the cards are now flowed at full size across the area's width and
-  the wheel moves down them; Ctrl or Cmd with the wheel still zooms. The
-  wires are drawn only on the wide arrangement.
+- **Every reading is laid out the same way.** The product and its standing,
+  the one figure it answers with, and a line saying where and from what; up to
+  four figures, each beside what it is read against; the panel that takes the
+  answer apart across the full width; the panels behind it two abreast, one
+  where the area is narrow; how it was read, last. Solar resource, wind
+  screening, solar terrain and grid connection were pages of sections and are
+  now this, as usable ground and area consumption already were.
+  - The consumption reading's free board is gone, with the Grid/Board switch
+    in its header: a result is read one way.
+  - What explains a panel is behind the info button in its head. What changes
+    how a figure is read — gross, unvalidated, at least, injected and not
+    generated, unconfirmed — stays beside the figure.
+  - A reading no longer carries a small picture of its layer. The layer is on
+    the map, and when a run ends the map is brought to its ground if none of
+    it is in view.
+- **Properties says a result in one line**, the reading's own figure, with the
+  button that opens the reading, on every product's card and on a selected
+  result. It used to repeat the reading's figures as rows.
+- **A voltage level is one colour** in the year's chart and in the table's
+  bars of the consumption reading, by the level and not by its place in the
+  list.
+- The consumption register is named in English ("base year 2024").
 - **When a result was computed is shown in local time**, in the comparison
   table, the result picker and Properties. It was the UTC moment cut short,
   so an evening run showed the next day. The JSON export keeps the full UTC

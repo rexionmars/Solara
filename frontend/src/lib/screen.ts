@@ -444,10 +444,8 @@ export function openReading(product: Product): void {
 /**
  * Open the run graph with one product already chosen.
  *
- * THE ONE WAY TO A RUN, so the places that used to run a product themselves
- * can send the reader here instead. A run has five or six inputs and the
- * graph is where all of them are visible at once; a button elsewhere spends
- * the run with none of them on screen.
+ * A second view of a run: Properties and the product's reading are where one
+ * is set up and started (openReading); the graph draws what it would read.
  *
  * The product is kept per graph panel, so it is set on whichever panel is
  * showing the graph -- after the switch, because the workspace it switches to

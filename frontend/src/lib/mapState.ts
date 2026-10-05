@@ -14,6 +14,13 @@ import { createStore } from "./store"
 */
 export const HOME_VIEW = { center: [0, 15] as [number, number], zoom: 1.4 }
 
+/**
+ * The result a run has just produced, for the map to bring its ground into
+ * view. Here, and not a call from the run to the map, because the map engine
+ * imports the operators and the operators import the run.
+ */
+export const arrived = createStore<string | null>(null)
+
 const VIEW_KEY = "terra-energy.mapView.v1"
 
 /** Where the map was last left, so it opens on the ground being worked on. */

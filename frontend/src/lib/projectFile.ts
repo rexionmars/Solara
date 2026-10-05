@@ -10,7 +10,7 @@ import {
   type ProjectData,
   type ResultObject,
 } from "./project"
-import { fail, info, note } from "./reports"
+import { fail, info, note, warn } from "./reports"
 import { select } from "./selection"
 import { createStore } from "./store"
 import { ask, lastOperation } from "./ui"
@@ -192,6 +192,23 @@ export async function openProject(path = ""): Promise<void> {
     info(
       `Opened "${opened.path}": ${data.sites.length} sites, ${data.areas.length} areas, ${data.results.length} results.`
     )
+    /*
+      A project is a file AND the folder of rasters beside it. Copied or
+      moved alone, it opens with every figure and no layer, and nothing said
+      why: the map was simply empty and a reading drew a broken picture.
+    */
+    const held = opened.run_dirs ?? {}
+    const lost = data.results.filter((r) => {
+      const id = runIdOf(r)
+      return id !== null && !held[id]
+    })
+    if (lost.length) {
+      warn(
+        `${lost.length} of this project's layers ${lost.length === 1 ? "has" : "have"} no raster: the folder ` +
+          `"${nameFromPath(opened.path)}.solara-data" was not found beside the file. The figures are intact; ` +
+          `move the folder next to the file and open it again, or run the ${lost.length === 1 ? "product" : "products"} again.`
+      )
+    }
   } catch (e) {
     const msg = errorMessage(e)
     fail(`Could not open ${path ? `"${path}"` : "the project"}: ${msg}`)

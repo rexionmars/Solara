@@ -27,7 +27,7 @@ import {
 } from "./grid"
 import { layerAvailable } from "./capabilities"
 import { graphCuts, graphLinks, mapScoped, storeFeeds } from "./graphLinks"
-import { HOME_VIEW, rememberView, restoreView, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
+import { HOME_VIEW, arrived, rememberView, restoreView, cursor, mapLoaded, mapMounted, mapView, measure, pickedGrid } from "./mapState"
 import {
   RADAR_MAXZOOM,
   SATELLITE,
@@ -208,6 +208,11 @@ function create(container: HTMLDivElement): void {
     windField.subscribe(syncWind)
     measure.subscribe(syncMeasure)
     activeTool.subscribe(syncTool)
+    arrived.subscribe(() => {
+      const id = arrived.get()
+      const result = id ? findItem(project.get().data, id) : null
+      if (result) frameIfUnseen(result)
+    })
     syncTool()
   })
 
@@ -1295,6 +1300,41 @@ export function frameItem(item: AnyItem): boolean {
   if (item.kind === "terrain" || item.kind === "connection" || item.kind === "demand" || item.kind === "ground") return frame(item.polygon.coordinates[0])
   if (item.kind === "solar" || item.kind === "wind") return frame([[item.site.lon, item.site.lat]])
   return false
+}
+
+/**
+ * Frame an object only when it cannot be seen: none of it is on screen, or
+ * all of it is a speck on it.
+ *
+ * For the end of a run: the reading says how much and the map says where, so
+ * a result whose ground is off the map has to be brought to it. So has one
+ * the map shows as a dot -- a municipality on a view of the continent is in
+ * the view and tells the reader nothing. Ground that fills a part of the view
+ * is left as the reader framed it: they may be looking at one corner of it on
+ * purpose.
+ */
+function frameIfUnseen(item: AnyItem): boolean {
+  if (!map) return false
+  const d = project.get().data
+  const target = isResult(item) ? (findItem(d, item.sourceId) ?? item) : item
+  const points =
+    target.kind === "site"
+      ? [[target.lon, target.lat]]
+      : target.kind === "solar" || target.kind === "wind"
+        ? [[target.site.lon, target.site.lat]]
+        : target.polygon.coordinates[0]
+  const b = bounds(points)
+  if (!b) return false
+  const view = map.getBounds()
+  const inView = b[0] <= view.getEast() && b[2] >= view.getWest() && b[1] <= view.getNorth() && b[3] >= view.getSouth()
+  // A speck: under a twentieth of the view both ways. A site is a point and is never one.
+  const speck =
+    target.kind !== "site" &&
+    target.kind !== "solar" &&
+    target.kind !== "wind" &&
+    b[2] - b[0] < (view.getEast() - view.getWest()) / 20 &&
+    b[3] - b[1] < (view.getNorth() - view.getSouth()) / 20
+  return inView && !speck ? false : frameItem(item)
 }
 
 /** Leave the drawing and measuring gestures: Escape. */
