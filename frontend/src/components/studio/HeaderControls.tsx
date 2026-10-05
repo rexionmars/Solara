@@ -98,7 +98,7 @@ export function StudioHeaderPopoverButton({
 }: {
   triggerRef: (el: HTMLElement | null) => void
   icon?: Icon
-  /** The coloured drawing that stands in for the glyph, where the set on trial has one (lib/art.ts). */
+  /** The drawing that stands in for the glyph, where Breeze has one (lib/art.ts). */
   art?: string
   label: string
   showLabel?: boolean

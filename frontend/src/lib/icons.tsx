@@ -5,12 +5,12 @@ import { artSrc } from "./art"
 
 /**
  * The interface's glyphs, under the names Phosphor gives them, so that a set
- * of coloured drawings can be tried across the whole application at once.
+ * of drawings can stand in for them across the whole application at once.
  *
  * EVERY COMPONENT IMPORTS ITS GLYPHS FROM HERE, not from Phosphor. A glyph
  * that stands for a THING or a COMMAND -- a site, a terrain reading, save,
- * undo -- answers with the drawing of the set on trial (lib/art.ts) and falls
- * back to Phosphor's own where that set has none. A glyph that is a CONTROL
+ * undo -- answers with Breeze's drawing (lib/art.ts) and falls
+ * back to Phosphor's own where Breeze has none. A glyph that is a CONTROL
  * of the interface -- a caret, a close mark, the eye, a transport button -- is
  * Phosphor's unchanged: colour there would be noise, and a GIS desktop keeps
  * those in one ink too.
@@ -22,7 +22,7 @@ import { artSrc } from "./art"
 
 export type { Icon, IconProps }
 
-/** A glyph that draws `art` when the set on trial has it. */
+/** A glyph that draws `art` when Breeze has it. */
 function drawn(Glyph: Icon, art: string): Icon {
   const Drawn = forwardRef<SVGSVGElement, IconProps>((props, ref) => {
     const src = artSrc(art)

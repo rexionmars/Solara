@@ -68,7 +68,7 @@ const TINT: Record<AnyItem["kind"], string> = {
   demand: "var(--node-socket-method)",
 }
 const FOLDER_TINT = "var(--warning)"
-/** The coloured drawing of each kind of thing, by what it means (lib/art.ts); the same names the ribbon asks for. */
+/** The drawing of each kind of thing, by what it means (lib/art.ts); the same names the ribbon asks for. */
 const ART: Record<AnyItem["kind"], string> = { site: "site", area: "area", solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand" }
 const GROUP_ART: Record<string, string> = { "g:overlays": "layers", "g:grid": "store", "g:weather": "weather", "g:reference": "basemap" }
 
@@ -86,7 +86,7 @@ type Row = {
   depth: number
   label: string
   icon: Icon
-  /** The coloured drawing that stands in for the glyph, where the set on trial has one. */
+  /** The drawing that stands in for the glyph, where Breeze has one. */
   art?: string
   tint: string
   expandable: boolean

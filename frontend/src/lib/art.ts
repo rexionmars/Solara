@@ -1,38 +1,24 @@
 /**
- * The coloured drawings on trial in place of the Phosphor glyphs, and which
- * set of them is being looked at.
+ * The drawings that stand in for the Phosphor glyphs: KDE's Breeze icons.
  *
- * A TRIAL, NOT A DECISION. The files are in public/icons and are not
- * committed. "office" is Icons8's Office style and "fluent" its Windows 11
- * Color style: Icons8's licence asks for a link in the product or a paid plan,
- * and whether it allows the files in a public repository is still to be read.
- * "vs" is Microsoft's Visual Studio Image Library, whose licence allows
- * testing and forbids publishing the files, so it is here to be looked at and
- * for nothing else.
+ * Breeze is LGPL-3.0-or-later, so the files are in the repository, in
+ * public/icons/breeze beside its licence. frontend/scripts/breeze_icons.py
+ * copies them from Breeze and says which icon each one is. A command is drawn
+ * in one ink, as Breeze draws its actions; a thing -- a folder, the sun, a
+ * file of a kind -- is in colour.
  *
- * A drawing is named for what it MEANS in this application ("site", "terrain",
- * "run-again"), not for the file it came from, so a set is swapped without
- * touching whoever asks for one. A name the set on trial has no drawing for
- * answers with nothing, and the caller keeps its glyph.
+ * A drawing is named for what it MEANS in this application ("site", "store",
+ * "run-again"), not for the file it came from, so the set is swapped without
+ * touching whoever asks for one. A name Breeze has no drawing for answers
+ * with nothing, and the caller keeps its glyph.
  */
 
-export type ArtSet = "office" | "fluent" | "vs"
+/** Breeze has no drawing for these. */
+const WITHOUT = new Set(["terrain"])
 
-export const ART_SET: ArtSet = "fluent"
-
-/** The Microsoft set has no drawing for these. */
-const VS_WITHOUT = new Set(["select-none", "wind", "logout"])
-
-/**
- * Where a drawing is. `large` asks for the one made for a tall button: Office
- * is drawn twice, at 40 px and at 16 px, and the small one is a different
- * drawing rather than the large one made small. The other sets have one.
- */
-export function artSrc(art: string | undefined, large?: boolean): string | undefined {
-  if (!art) return undefined
-  if (ART_SET === "vs") return VS_WITHOUT.has(art) ? undefined : `/icons/vs/${art}.svg`
-  if (ART_SET === "fluent") return `/icons/fluent/${art}.png`
-  return `/icons/office/${large ? 40 : 16}/${art}.png`
+/** Where a drawing is. */
+export function artSrc(art: string | undefined): string | undefined {
+  return art && !WITHOUT.has(art) ? `/icons/breeze/${art}.svg` : undefined
 }
 
 /**

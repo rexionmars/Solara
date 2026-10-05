@@ -64,7 +64,7 @@ function tone(on: boolean | undefined, disabled: boolean | undefined): string {
   return "text-foreground/85 hover:bg-hover hover:text-foreground"
 }
 
-// Which drawing each product and workspace asks for; the operators' are in lib/art.ts with the sets on trial.
+// Which drawing each product and workspace asks for; the operators' are in lib/art.ts .
 const ART_BY_PRODUCT: Record<Product, string> = { solar: "solar", terrain: "terrain", wind: "wind", connection: "connection", demand: "demand" }
 /** A workspace is drawn as what it is built around: the product's art, or the editor's. */
 const ART_BY_WORKSPACE: Record<string, string> = {
@@ -94,7 +94,7 @@ function Command({
   expanded,
 }: {
   icon?: Icon
-  /** The coloured drawing that stands in for the glyph, by its file name. */
+  /** The drawing that stands in for the glyph, by its file name. */
   art?: string
   label: string
   title: string
@@ -119,9 +119,9 @@ function Command({
         onClick={onClick}
         className={`flex min-w-11 shrink-0 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-sm px-1.5 text-meta transition-colors ${tone(on, disabled)}`}
       >
-        {artSrc(art, true) ? (
+        {artSrc(art) ? (
           // Greyed with the command: a colour that stayed lit would say it can be pressed.
-          <img src={artSrc(art, true)} alt="" draggable={false} className={`size-5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
+          <img src={artSrc(art)} alt="" draggable={false} className={`size-5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
         ) : (
           IconC && <IconC className="size-[18px] shrink-0" />
         )}
@@ -146,8 +146,8 @@ function Command({
         >
           {on && <span className="size-1.5 rounded-[1px] bg-accent" />}
         </span>
-      ) : artSrc(art, false) ? (
-        <img src={artSrc(art, false)} alt="" draggable={false} className={`size-3.5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
+      ) : artSrc(art) ? (
+        <img src={artSrc(art)} alt="" draggable={false} className={`size-3.5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
       ) : (
         IconC && <IconC className="size-3 shrink-0 text-muted-foreground" />
       )}
