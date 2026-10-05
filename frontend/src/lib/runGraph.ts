@@ -13,7 +13,7 @@ import {
   type TerrainParams,
   type WindParams,
 } from "./project"
-import type { RunValue } from "./runValue"
+import { reading, signature, supplied, type InputState, type RunValue } from "./runValue"
 
 /**
  * The shape of a run, as TERRA's runGraph.ts: one node per part of the
@@ -372,4 +372,55 @@ export function lastRun(
             ? { ...base, site: { name: source.name, ...result.site }, solar: result.params }
           : { ...base, site: { name: source.name, ...result.site }, wind: result.params },
   }
+}
+
+// ---- An input against the run that read it ----------------------------------------
+
+/**
+ * One input's state: the wire's on the run graph, and the row's in Properties.
+ * Compared by signature, so a value typed back to what the run read is "read"
+ * again without running.
+ */
+export function inputState(value: RunValue, last: LastRun | null, lastValue: RunValue | null, busy: boolean): InputState {
+  if (!supplied(value)) return "missing"
+  if (busy) return "reading"
+  if (last && lastValue && signature(lastValue) === signature(value)) return last.ok ? "read" : "failed"
+  return "pending"
+}
+
+/** What the cards hold now beside what the newest run was given, for one product at one source. */
+export type RunComparison = { values: Record<RunNodeId, RunValue>; last: LastRun | null; lastValues: Record<RunNodeId, RunValue> | null }
+
+export function runComparison(
+  d: ProjectData,
+  product: Product,
+  source: SiteObject | AreaObject | null,
+  storeReachable: boolean,
+  engine: energy.ParameterDefaults | null,
+  failure: RunFailure | null,
+  map: Pick<RunInputs, "region" | "mapLayer"> = {}
+): RunComparison {
+  const site = source?.kind === "site" ? source : null
+  const area = source?.kind === "area" ? source : null
+  const values = cardValues({ ...currentInputs(d, product, site, area, storeReachable), ...map }, engine)
+  const last = lastRun(d, product, source, failure)
+  return { values, last, lastValues: last ? cardValues(last.inputs, engine) : null }
+}
+
+export type RunInputRow = { id: RunNodeId; label: string; reading: string; state: InputState }
+
+/**
+ * Everything a run of the product reads, in the order of the run card's rows,
+ * each with what it holds and where it stands. The product itself is left
+ * out: a list of one product's inputs is already under that product's name.
+ */
+export function runInputRows(product: Product, c: RunComparison, busy: boolean): RunInputRow[] {
+  return INPUTS[product]
+    .filter((id) => id !== "product")
+    .map((id) => ({
+      id,
+      label: SPEC[id].label,
+      reading: reading(c.values[id]),
+      state: inputState(c.values[id], c.last, c.lastValues?.[id] ?? null, busy),
+    }))
 }

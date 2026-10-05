@@ -10,7 +10,13 @@ import { DemandBoard } from "./components/energy/DemandBoard"
 import { Chip, Panel, Stat } from "./components/energy/primitives"
 import { AppSidebar, type NavGroup } from "./components/shell/AppSidebar"
 import { HeaderAction, PageHeader } from "./components/shell/PageHeader"
-import type { Polygon } from "./lib/project"
+import { Empty } from "./components/editors/ReadingEditor"
+import { ProductCard } from "./components/editors/PropertiesEditor"
+import { lastFailure, running } from "./lib/analysis"
+import { defaults } from "./lib/defaults"
+import { gridStore, reachByArea } from "./lib/grid"
+import { emptyProject, project, type AreaObject, type Polygon, type Product, type ResultObject } from "./lib/project"
+import { select } from "./lib/selection"
 
 /**
  * A reading document on its own, over invented figures shaped like the real
@@ -214,4 +220,86 @@ function App() {
   )
 }
 
-createRoot(document.getElementById("root")!).render(<App />)
+// ---- The product card's inputs, in each state a run can leave them ----------------
+
+/**
+ * `preview.html?inputs=<state>`: the real product card and the real empty
+ * reading over seeded stores, since both read the stores and not props.
+ *
+ *   pending   an area chosen, nothing run
+ *   read      a run read everything, then the layer cell was changed
+ *   reading   a run in progress
+ *   failed    the last attempt failed
+ *   nostore   no store connected
+ *   nosource  nothing selected (the empty reading only)
+ */
+type InputsState = "pending" | "read" | "reading" | "failed" | "nostore" | "nosource"
+
+const natal: AreaObject = { id: "a1", kind: "area", name: "Natal", polygon: area, hidden: false } as unknown as AreaObject
+
+function seedInputs(state: InputsState) {
+  const ran = { yieldCeilingKWhKWp: 1610, cellKm: 1 }
+  const result = { id: "r1", kind: "demand", name: "Area consumption", sourceId: natal.id, polygon: area, params: ran, createdAt: new Date().toISOString(), data: demand } as unknown as ResultObject
+  defaults.set({
+    solar: { hourly_years: 3, climatology_years: 20, surface_azimuth: 0, performance_ratio: 0.8 },
+    wind: { record_years: 10, record_max_floor_ms: 12, hub_height_m: 120, calm_threshold_ms: 3, roughness_band_m: [0.03, 0.3] },
+    terrain: { hourly_years: 3, season: "annual", seasons: ["annual"] },
+    connection: { search_radius_km: 50 },
+    demand: { yield_ceiling_kwh_kwp: CEILING, cell_km: 1 },
+  } as never)
+  project.set((p) => ({
+    ...p,
+    data: {
+      ...emptyProject(),
+      name: "Natal",
+      areas: [natal],
+      results: state === "read" ? [result] : [],
+      // Changed after the run, so one row of a read list goes back to pending.
+      settings: { ...emptyProject().settings, demand: state === "read" ? { ...ran, cellKm: 2 } : state === "failed" ? ran : {} },
+    },
+  }))
+  if (state !== "nostore") {
+    gridStore.set({
+      kind: "known",
+      report: { reachable: true, dsn: "", coverage: { store: { capabilities: { brazil: true, connection: true, network: true, plants: true } } } },
+    } as never)
+  } else {
+    gridStore.set({ kind: "known", report: { reachable: false, dsn: "" } } as never)
+  }
+  reachByArea.set({
+    [natal.id]: {
+      key: JSON.stringify(area.coordinates),
+      state: { kind: "ready", data: { holdings: [], note: "", coberturas: [{ distribuidora: "Neoenergia_Cosern", ano: 2024, unidades: 542_345, area_km2: 290, concessao_km2: 53_501, dentro_km2: 290, cobertura_pct: 100 }] } },
+    },
+  })
+  if (state === "reading") running.set({ product: "demand", sourceId: natal.id, progress: 40, message: "Counting the units inside the area" } as never)
+  if (state === "failed") lastFailure.set({ product: "demand", sourceId: natal.id, source: natal, params: ran, at: Date.now() })
+  select(state === "nosource" ? null : natal.id)
+}
+
+const AREA_PRODUCTS: Product[] = ["demand", "connection", "terrain"]
+
+function Inputs({ state }: { state: InputsState }) {
+  return (
+    <div className="flex h-screen gap-6 bg-app p-6 text-foreground">
+      {state !== "nosource" && (
+        <div className="w-[272px] shrink-0 overflow-y-auto border border-border bg-chrome">
+          {AREA_PRODUCTS.map((p) => (
+            <ProductCard key={p} product={p} source={natal} />
+          ))}
+        </div>
+      )}
+      <div className="min-w-0 flex-1 overflow-y-auto border border-border">
+        <Empty product="demand" />
+      </div>
+      <div className="min-w-0 flex-1 overflow-y-auto border border-border">
+        <Empty product="solar" />
+      </div>
+    </div>
+  )
+}
+
+const inputs = new URLSearchParams(location.search).get("inputs") as InputsState | null
+if (inputs) seedInputs(inputs)
+
+createRoot(document.getElementById("root")!).render(inputs ? <Inputs state={inputs} /> : <App />)

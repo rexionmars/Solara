@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react"
 import { ArrowSquareOut, CaretDown, CaretRight, Pencil, Warning } from "../../lib/icons"
 import { running } from "../../lib/analysis"
+import { useProductOffered } from "../../lib/capabilities"
 import { reveal } from "../../lib/export"
 import { formatLat, formatLng } from "../../lib/format"
 import { polygonAreaKm2, ringCentre } from "../../lib/geo"
@@ -36,6 +37,7 @@ import { btnGhostDense } from "../ui/buttons"
 import { Checkbox, FieldRow, Figure, NumberField, OperatorButton, PanelSection, TextField } from "../ui/Fields"
 import { NowSection } from "./NowSection"
 import { ParamFields } from "./ParamFields"
+import { RunInputs } from "./RunInputs"
 
 /**
  * What is active, and everything with a value attached to it -- TERRA's
@@ -145,7 +147,7 @@ function Figures({ result }: { result: ResultObject }) {
 const RUN = RUN_OPERATOR
 
 /** A product's card: what it reads, its settings, the run, and what it last produced. */
-function ProductCard({ product, source }: { product: Product; source: SiteObject | AreaObject }) {
+export function ProductCard({ product, source }: { product: Product; source: SiteObject | AreaObject }) {
   const d = useStore(project).data
   const job = useStore(running)
   const results = resultsOf(d, source.id).filter((r) => r.kind === product)
@@ -159,6 +161,7 @@ function ProductCard({ product, source }: { product: Product; source: SiteObject
       aside={latest && <span className="telemetry text-[9px] text-muted-foreground">{results.length} run{results.length === 1 ? "" : "s"}</span>}
     >
       <p className="text-body leading-relaxed text-muted-foreground">{PRODUCT_SUMMARY[product]}</p>
+      <RunInputs product={product} source={source} />
       <Disclosure label="Settings" defaultOpen={!latest}>
         <ParamFields group={product} />
       </Disclosure>
@@ -288,6 +291,9 @@ function AreaBody({ area }: { area: AreaObject }) {
   const d = useStore(project).data
   const c = ringCentre(area.polygon)
   const latest = resultsOf(d, area.id).filter((r) => r.kind === "terrain").at(-1)
+  // A product the connected store could never answer is not offered (capabilities.ts).
+  const connection = useProductOffered("connection")
+  const demand = useProductOffered("demand")
   return (
     <>
       <Head item={area} meta={`${polygonAreaKm2(area.polygon).toFixed(2)} km² · ${area.polygon.coordinates[0].length - 1} vertices`} />
@@ -300,7 +306,8 @@ function AreaBody({ area }: { area: AreaObject }) {
       <NowSection lat={c.lat} lon={c.lon} sourceId={area.id} />
       <ProductCard product="terrain" source={area} />
       {(latest?.kind === "terrain" || latest?.kind === "demand") && <ResultLayer result={latest} />}
-      <ProductCard product="connection" source={area} />
+      {connection && <ProductCard product="connection" source={area} />}
+      {demand && <ProductCard product="demand" source={area} />}
     </>
   )
 }

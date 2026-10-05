@@ -375,6 +375,29 @@ export function loadReach(areaId: string, polygon: { type: string; coordinates: 
     .catch((e) => set({ kind: "failed", message: errorMessage(e) }))
 }
 
+/**
+ * How much of an area the best register covers, in the words said beside the
+ * button that would run a reading over it. `low` is a coverage the reader
+ * should see before pressing.
+ */
+export function reachSaid(areaName: string, probe: LayerState<ReachProbe> | undefined): { said: string; low: boolean } {
+  if (!probe || probe.kind === "loading" || probe.kind === "idle") return { said: "Measuring what each register covers here…", low: false }
+  if (probe.kind === "failed") return { said: `The register did not answer: ${probe.message}`, low: true }
+  const best = probe.data.coberturas[0]
+  if (!best) return { said: "This store carries no tariff sets, so how much of this ground it covers cannot be measured.", low: false }
+  if (!best.cobertura_pct) {
+    return { said: `No register loaded here reaches ${areaName}. A reading over it comes back empty.`, low: true }
+  }
+  const who = `${best.distribuidora.replace(/_/g, " ")} ${best.ano}`
+  return {
+    said:
+      best.cobertura_pct >= 100
+        ? `${who} covers all of ${areaName}.`
+        : `${who} covers ${best.cobertura_pct}% of ${areaName}; every figure will be about that part alone.`,
+    low: best.cobertura_pct < 50,
+  }
+}
+
 /** What a clicked reach says about itself. */
 export type ReachProps = {
   name: string

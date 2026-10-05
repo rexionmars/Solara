@@ -85,3 +85,30 @@ export function subject(v: RunValue): Subject | null {
       return null
   }
 }
+
+/**
+ * Where an input stands against the run it is compared with: "missing" when
+ * nothing is supplied, "pending" when no run has read what is held now,
+ * "reading" while one does, then "read" or "failed" by how that run ended.
+ *
+ * Here rather than with the canvas that first drew it, because the run graph
+ * is one of two places that say it: Properties lists the same inputs in the
+ * same words, and two tables of them would come to disagree.
+ */
+export type InputState = "missing" | "pending" | "reading" | "read" | "failed"
+
+export const STATE_NOTE: Record<InputState, string> = {
+  missing: "not set",
+  pending: "pending",
+  reading: "reading",
+  read: "read",
+  failed: "error",
+}
+
+export const STATE_COLOUR: Record<InputState, string | undefined> = {
+  missing: undefined,
+  pending: undefined,
+  reading: "rgb(var(--p-accent))",
+  read: "var(--success)",
+  failed: "var(--destructive-quiet)",
+}

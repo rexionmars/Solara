@@ -12,6 +12,7 @@ import {
   type Icon,
 } from "../../lib/icons"
 import { NODE_W, type Place } from "../../lib/runGraph"
+import type { InputState } from "../../lib/runValue"
 import { openContextMenu } from "../../lib/ui"
 
 /**
@@ -68,7 +69,7 @@ import { openContextMenu } from "../../lib/ui"
  * what any particular board is about.
  */
 
-export type EdgeState = "missing" | "pending" | "reading" | "read" | "failed"
+export type EdgeState = InputState
 
 /** The fixed geometry that places sockets without measuring rows. */
 const HEAD_H = 26

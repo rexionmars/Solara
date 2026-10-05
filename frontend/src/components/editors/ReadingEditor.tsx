@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { ChartBar, Fan, Graph, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "../../lib/icons"
-import { runOperator } from "../../lib/operators"
+import { ChartBar, Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "../../lib/icons"
+import { RUN_OPERATOR, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
-import { areaStates, openRunGraph, setAreaState } from "../../lib/screen"
-import { select, useActiveItem } from "../../lib/selection"
+import { areaStates, setAreaState } from "../../lib/screen"
+import { activeArea, activeSite, select, useActiveItem } from "../../lib/selection"
 import { useStore } from "../../lib/store"
 import type { MenuItem } from "../../lib/ui"
 import { SolarBody } from "../energy/SolarDocument"
@@ -15,7 +15,8 @@ import type { Place } from "../studio/Board"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AreaHeader } from "../studio/StudioArea"
-import { btnPrimary } from "../ui/buttons"
+import { OperatorButton } from "../ui/Fields"
+import { RunInputs } from "./RunInputs"
 
 /**
  * A product's reading, as TERRA's Solar result and Wind screening editors:
@@ -223,23 +224,26 @@ function StaleNotice({ stale, onRerun, floating }: { stale: string; onRerun: () 
 }
 
 /*
-  WHAT AN EMPTY READING SAYS, AND WHAT IT MUST NOT DO.
+  WHAT AN EMPTY READING SAYS.
 
-  It says what the product is, in the one sentence PRODUCT_SUMMARY holds, and
-  it sends the reader to the run graph. It does NOT run anything.
+  What the product is, in the one sentence PRODUCT_SUMMARY holds, and what a
+  run of it would read over the site or area that is active: the same rows
+  the product's card in Properties lists, each with its value and its state.
 
-  A RUN IS SET UP IN ONE PLACE. The graph shows every input of a request at
-  once, each with the state of its own wire, which is what makes the request
-  legible before it is spent. A button here ran the same product with none of
-  that on screen, so the reader pressed without seeing the ground, the
-  register or the settings it would use -- and a second place to press is a
-  second place for the two to disagree. The canvas exists to stop that, so
-  this screen points at it instead of competing with it.
+  IT RUNS, BECAUSE IT NO LONGER RUNS BLIND. A button here once spent a run
+  with none of its inputs on screen, and was taken away for it. With the
+  ground, the register and the settings listed above it, the button is the
+  one in Properties under another roof; the settings themselves are edited
+  there, where the selection's values live.
 */
 
-function Empty({ product }: { product: Product }) {
+export function Empty({ product }: { product: Product }) {
   const IconC = ICON[product]
-  const on = isAreaProduct(product) ? "an area" : "a site"
+  // Redrawn with the selection and the project; the source is the one operators act on.
+  useActiveItem()
+  useStore(project)
+  const wanted = isAreaProduct(product) ? "area" : "site"
+  const source = wanted === "area" ? activeArea() : activeSite()
   return (
     <div className="mx-auto flex max-w-md flex-col gap-3 px-6 py-16">
       <div className="flex items-center gap-2">
@@ -247,14 +251,15 @@ function Empty({ product }: { product: Product }) {
         <p className="eyebrow">{PRODUCT_NAMES[product]}</p>
       </div>
       <p className="text-body leading-relaxed">{PRODUCT_SUMMARY[product]}</p>
-      <p className="text-meta leading-relaxed text-muted-foreground">
-        No reading yet. A run is set up in the run graph, where {on} and every setting it reads are on one board; what it
-        produces is read back here, and stays in the project to be compared.
-      </p>
-      <button type="button" onClick={() => openRunGraph(product)} className={`${btnPrimary} self-start`}>
-        <Graph className="size-3.5" />
-        Set up a run
-      </button>
+      <div className="rounded-sm border px-2.5 py-2" style={{ borderColor: "var(--hairline)" }}>
+        <RunInputs product={product} source={source} />
+      </div>
+      {!source && (
+        <p className="text-meta leading-relaxed text-muted-foreground">
+          Select {wanted === "area" ? "an area" : "a site"} in the Outliner or on the map; its settings are in Properties.
+        </p>
+      )}
+      <OperatorButton name={RUN_OPERATOR[product]} label={`Run ${PRODUCT_NAMES[product].toLowerCase()}`} primary className="self-start" />
     </div>
   )
 }

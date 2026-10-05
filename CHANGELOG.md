@@ -44,6 +44,21 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 In the working tree, not yet committed.
 
+### What a run reads, where it is started
+
+- **A product's card in Properties lists everything a run of it reads** — the
+  ground with its area, the store, each setting — with the value held now and
+  whether the newest run read it: not set, pending, reading, read or error.
+  They are the run graph's wires as rows, computed by the same functions, so
+  the two cannot disagree. The consumption reading also says, before it is
+  run, how much of the area the register covers.
+- **Area consumption has a card in Properties**, offered like the connection
+  card only over a store that could answer it.
+- **An empty reading shows the same list and runs from it**, over the site or
+  area that is active, instead of sending the reader to the run graph.
+  - A wire cut on the run graph still withholds its value from a run started
+    anywhere; the row says "cut".
+
 ### The ground a reading sits on
 
 - **A basemap that can be switched.** The dark street map is now one of two

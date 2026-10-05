@@ -25,13 +25,12 @@ import {
   type Group,
   type NumberField as FieldDef,
 } from "../../lib/params"
-import { catalogueSource, checkGridStore, concessions, dsnSourceLabel, gridStore, loadReach, reachByArea, storeReachable, storeReport, townDemand } from "../../lib/grid"
+import { catalogueSource, checkGridStore, concessions, dsnSourceLabel, gridStore, loadReach, reachByArea, reachSaid, storeReachable, storeReport, townDemand } from "../../lib/grid"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, isAreaProduct, project, type Polygon, type Product } from "../../lib/project"
 import {
-  cardValues,
-  currentInputs,
   defaultPlaces,
-  lastRun,
+  inputState,
+  runComparison,
   runGraph,
   isMapNode,
   type Place,
@@ -39,7 +38,7 @@ import {
 } from "../../lib/runGraph"
 import { MAP_LAYERS, REGION_AWARE, clipFeatures, layerMeta, mapGraph, resolveRegion, setMapGraph, type MapLayerKey } from "../../lib/mapGraph"
 import { overlays } from "../../lib/tools"
-import { reading, signature, subject, supplied, type RunValue } from "../../lib/runValue"
+import { STATE_COLOUR, STATE_NOTE, reading, subject, supplied, type RunValue } from "../../lib/runValue"
 import { areaStates, setAreaState, showResult } from "../../lib/screen"
 import { activeArea, activeSite, select, selection } from "../../lib/selection"
 import { useStore } from "../../lib/store"
@@ -75,21 +74,8 @@ const PRODUCTS: Product[] = ["solar", "terrain", "wind", "connection", "demand"]
 
 const OPERATOR = RUN_OPERATOR
 
-const EDGE_NOTE: Record<EdgeState, string> = {
-  missing: "not set",
-  pending: "pending",
-  reading: "reading",
-  read: "read",
-  failed: "error",
-}
-
-const NOTE_COLOUR: Record<EdgeState, string | undefined> = {
-  missing: undefined,
-  pending: undefined,
-  reading: "rgb(var(--p-accent))",
-  read: "var(--success)",
-  failed: "var(--destructive-quiet)",
-}
+const EDGE_NOTE = STATE_NOTE
+const NOTE_COLOUR = STATE_COLOUR
 
 /*
   A node's header says which part of a request it is, and its socket what
@@ -510,24 +496,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   useEffect(() => {
     if (product === "demand" && area) loadReach(area.id, area.polygon)
   }, [product, area?.id, area?.polygon])
-  const coverage = ((): { said: string; low: boolean } | null => {
-    if (product !== "demand" || !area) return null
-    if (!probe || probe.kind === "loading" || probe.kind === "idle") return { said: "Measuring what each register covers here…", low: false }
-    if (probe.kind === "failed") return { said: `The register did not answer: ${probe.message}`, low: true }
-    const best = probe.data.coberturas[0]
-    if (!best) return { said: "This store carries no tariff sets, so how much of this ground it covers cannot be measured.", low: false }
-    if (!best.cobertura_pct) {
-      return { said: `No register loaded here reaches ${area.name}. A reading over it comes back empty.`, low: true }
-    }
-    const who = `${best.distribuidora.replace(/_/g, " ")} ${best.ano}`
-    return {
-      said:
-        best.cobertura_pct >= 100
-          ? `${who} covers all of ${area.name}.`
-          : `${who} covers ${best.cobertura_pct}% of ${area.name}; every figure will be about that part alone.`,
-      low: best.cobertura_pct < 50,
-    }
-  })()
+  const coverage = product === "demand" && area ? reachSaid(area.name, probe) : null
 
   const [places, move, resetPlaces] = useKeptPlaces(product)
   const [gone, setRemoved] = useRemoved(product)
@@ -558,23 +527,18 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const landsOn = (id: RunNodeId) => wired.filter(([from]) => from === id).map(([, to]) => to)
   const toRegion = (p: { name: string; polygon: Polygon }) => setMapGraph({ region: { kind: "place", name: p.name, polygon: p.polygon } })
   const fallback = defaultPlaces(graph, heights)
-  const values = cardValues(
-    {
-      // Connected is not enough: the wire is good only if this store can answer this product.
-      ...currentInputs(d, product, site, area, storeReachable(store) && !productBlocked(product, store)),
-      // The map band is on every board, so its cards are in every table.
-      region: regionArea ? { label: regionArea.name, at: JSON.stringify(regionArea.polygon.coordinates) } : null,
-      mapLayer: layerMeta(map.layer).label,
-    },
-    engine
-  )
+  // Connected is not enough: the wire is good only if this store can answer this product.
+  const compared = runComparison(d, product, source, storeReachable(store) && !productBlocked(product, store), engine, failure, {
+    // The map band is on every board, so its cards are in every table.
+    region: regionArea ? { label: regionArea.name, at: JSON.stringify(regionArea.polygon.coordinates) } : null,
+    mapLayer: layerMeta(map.layer).label,
+  })
+  const { values, last, lastValues } = compared
   // The catalogue cards say where they read: the store's own boundaries, or IBGE's.
   const reads = catalogueSource(store)
   const catalogueLabel = reads === "ibge" ? "IBGE" : reads === "world" ? "World" : "Store"
   values.catalogue = { kind: "choice", label: catalogueLabel }
   values.catalogue2 = { kind: "choice", label: catalogueLabel }
-  const last = lastRun(d, product, source, failure)
-  const lastValues = last ? cardValues(last.inputs, engine) : null
   const pct = run?.progress === null || !run ? null : Math.round(Math.max(0, Math.min(100, run.progress)))
 
   const sourcePicker = (kind: "site" | "area") => {
@@ -885,9 +849,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
     if (isMapNode(from)) return "read"
     // The store's card feeding the map is a map wire like the others.
     if (from === "store" && graph.nodes.find((n) => n.id === "store")?.band) return "read"
-    if (busy) return "reading"
-    if (lastValues && signature(lastValues[from]) === signature(value)) return last!.ok ? "read" : "failed"
-    return "pending"
+    return inputState(value, last, lastValues?.[from] ?? null, busy)
   }
 
   const nodes: CanvasNode[] = graph.nodes.filter((spec) => !gone.has(spec.id)).map((spec) => {
