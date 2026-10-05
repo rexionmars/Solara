@@ -57,6 +57,7 @@ function Editor({ areaId, editor }: { areaId: string; editor: EditorId }): React
     case "terrain":
     case "connection":
     case "demand":
+    case "ground":
       return <ReadingEditor areaId={areaId} product={editor} />
   }
 }

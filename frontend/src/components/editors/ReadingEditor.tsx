@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChartBar, Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "../../lib/icons"
+import { ChartBar, CheckSquare, Fan, Mountains, PlugsConnected, PushPin, Sun, Warning, type Icon } from "../../lib/icons"
 import { RUN_OPERATOR, runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, PRODUCT_SUMMARY, findItem, isAreaProduct, isResult, project, resultsOf, staleReason, type AnyItem, type Product, type ProjectData, type ResultObject } from "../../lib/project"
 import { areaStates, setAreaState } from "../../lib/screen"
@@ -11,6 +11,7 @@ import { TerrainBody } from "../energy/TerrainDocument"
 import { WindBody } from "../energy/WindDocument"
 import { ConnectionBody } from "../energy/ConnectionDocument"
 import { DemandBoard } from "../energy/DemandBoard"
+import { GroundBody } from "../energy/GroundDocument"
 import type { Place } from "../studio/Board"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
@@ -27,7 +28,7 @@ import { RunInputs } from "./RunInputs"
  * newest in the project.
  */
 
-const ICON: Record<Product, Icon> = { solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar }
+const ICON: Record<Product, Icon> = { solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar, ground: CheckSquare }
 
 function shown(d: ProjectData, product: Product, pinned: string | undefined, active: AnyItem | null): ResultObject | null {
   const pin = pinned ? findItem(d, pinned) : null
@@ -95,6 +96,8 @@ export function ReadingEditor({ areaId, product }: { areaId: string; product: Pr
     <TerrainBody terrain={result.data} area={result.polygon} />
   ) : result.kind === "connection" ? (
     <ConnectionBody connection={result.data} area={result.polygon} />
+  ) : result.kind === "ground" ? (
+    <GroundBody ground={result.data} area={result.polygon} />
   ) : (
     <DemandBoard
       demand={result.data}

@@ -5,13 +5,14 @@ import {
   ChartBar, Database, Fan, Graph, MapTrifold, Mountains, PlugsConnected,
   Scroll, Sun, Table, TerminalWindow, Export as ExportIcon, ArrowClockwise,
 } from "./lib/icons"
-import type { grid } from "../wailsjs/go/models"
+import type { energy, grid } from "../wailsjs/go/models"
 import { DemandBoard } from "./components/energy/DemandBoard"
 import { Chip, Panel, Stat } from "./components/energy/primitives"
 import { AppSidebar, type NavGroup } from "./components/shell/AppSidebar"
 import { HeaderAction, PageHeader } from "./components/shell/PageHeader"
 import { Empty } from "./components/editors/ReadingEditor"
-import { ProductCard } from "./components/editors/PropertiesEditor"
+import { ProductCard, ResultLayer } from "./components/editors/PropertiesEditor"
+import { GroundBody } from "./components/energy/GroundDocument"
 import { lastFailure, running } from "./lib/analysis"
 import { defaults } from "./lib/defaults"
 import { gridStore, reachByArea } from "./lib/grid"
@@ -246,6 +247,7 @@ function seedInputs(state: InputsState) {
     terrain: { hourly_years: 3, season: "annual", seasons: ["annual"] },
     connection: { search_radius_km: 50 },
     demand: { yield_ceiling_kwh_kwp: CEILING, cell_km: 1 },
+    ground: { slope_max_deg: 5, hand_min_m: 5 },
   } as never)
   project.set((p) => ({
     ...p,
@@ -299,7 +301,74 @@ function Inputs({ state }: { state: InputsState }) {
   )
 }
 
-const inputs = new URLSearchParams(location.search).get("inputs") as InputsState | null
+// ---- The usable-ground reading, over the figures a real run returned ---------------
+
+/**
+ * `preview.html?ground`: the reading and the product's card, over the result
+ * of a run on this very area (Natal, 5 degrees and 5 m). The layer is drawn
+ * as a flat swatch here: the workshop has no run directory to serve a raster.
+ */
+const ground = {
+  area_km2: 293.2715, land_km2: 202.2344, water_km2: 91.0371, usable_km2: 83.4169, usable_pct: 28.44, usable_of_land_pct: 41.25, no_data_km2: 0,
+  classes: [
+    { key: "usable", code: 0, colour: "#009e73", area_km2: 83.4169, pct: 28.44, pct_of_land: 41.25 },
+    { key: "slope", code: 1, colour: "#e69f00", area_km2: 30.2865, pct: 10.33, pct_of_land: 14.98 },
+    { key: "flood", code: 2, colour: "#0072b2", area_km2: 81.8422, pct: 27.91, pct_of_land: 40.47 },
+    { key: "slope_and_flood", code: 3, colour: "#cc79a7", area_km2: 6.6889, pct: 2.28, pct_of_land: 3.31 },
+    { key: "water", code: 4, colour: "#56b4e9", area_km2: 91.0371, pct: 31.04, pct_of_land: null },
+  ],
+  excluded_by_slope_pct: 18.28, excluded_by_flood_pct: 43.78,
+  water: { source: "ESA WorldCover 2021, 10 m", attribution: "© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium", mapped: true, unmapped_km2: 0 },
+  sensitivity: {
+    slope: [[1, 8.34], [2, 20.57], [3, 29.5], [4, 36.14], [5, 41.25], [6, 44.68], [8, 48.9], [10, 51.28], [12, 52.87], [15, 54.38], [20, 55.62], [30, 56.22]].map(([value, usable_pct]) => ({ value, usable_pct })),
+    hand: [[0, 74.54], [1, 65.25], [2, 58.5], [3, 52.23], [4, 46.39], [5, 41.25], [6, 36.7], [8, 29.85], [10, 25.22], [15, 17.94], [20, 13.76], [30, 7.48]].map(([value, usable_pct]) => ({ value, usable_pct })),
+  },
+  rules: { slope_max_deg: 5, hand_min_m: 5, drainage_km2: 0.5 },
+  slope_mean_deg: 3.27, slope_max_deg: 31.42, hand_median_m: 6.22, pixels: 310464,
+  cell_m: [30.76, 30.71], buffer_m: 3537.3, dem_source: "Copernicus DEM GLO-30",
+  caveats: {
+    hand: "The flood rule is a lower bound. The elevation model is read over the area and a buffer of 3.5 km, not over the watershed upstream, so a channel entering from beyond the buffer arrives without its contributing area and the ground beside it reads higher above the drainage than it is.",
+    water: "Water is the permanent water class of ESA WorldCover 2021, at 10 m. Seasonal water, rivers narrower than a few cells, wetlands and anything that changed since are not in it, and stay under the two rules.",
+  },
+  overlay_url: new URLSearchParams(location.search).get("ground") || "", raster_tif: "/results/8f3a/usable_ground.tif",
+  extent: { lon_min: -35.3, lat_min: -5.88, lon_max: -35.15, lat_max: -5.72 },
+} as unknown as energy.UsableGroundAnalysis
+
+function seedGround() {
+  seedInputs("pending")
+  const result = { id: "g1", kind: "ground", name: "Usable ground", sourceId: natal.id, polygon: area, params: {}, opacity: 0.7, hidden: false, createdAt: new Date().toISOString(), data: ground } as unknown as ResultObject
+  project.set((p) => ({ ...p, data: { ...p.data, results: [result] } }))
+}
+
+function Ground() {
+  return (
+    <div className="flex h-screen gap-6 bg-app p-6 text-foreground">
+      <div className="w-[272px] shrink-0 overflow-y-auto border border-border bg-chrome">
+        <PropertiesAreaCards />
+      </div>
+      <div className="panel-scroll @container min-w-0 flex-1 overflow-y-auto border border-border">
+        <div className="mx-auto max-w-4xl px-6 pb-12 pt-5">
+          <GroundBody ground={ground} area={area} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PropertiesAreaCards() {
+  const latest = project.get().data.results.find((r) => r.kind === "ground")
+  return (
+    <>
+      <ProductCard product="ground" source={natal} />
+      {latest?.kind === "ground" && <ResultLayer result={latest} />}
+    </>
+  )
+}
+
+const wantsGround = new URLSearchParams(location.search).has("ground")
+if (wantsGround) seedGround()
+
+const inputs = wantsGround ? null : (new URLSearchParams(location.search).get("inputs") as InputsState | null)
 if (inputs) seedInputs(inputs)
 
-createRoot(document.getElementById("root")!).render(inputs ? <Inputs state={inputs} /> : <App />)
+createRoot(document.getElementById("root")!).render(wantsGround ? <Ground /> : inputs ? <Inputs state={inputs} /> : <App />)

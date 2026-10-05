@@ -76,7 +76,7 @@ export const storeFeeds = (to: "run" | "mapdraw", links: readonly string[] = gra
 */
 
 /** The product a run wire belongs to, or "map" for the map band's. */
-export type WireScope = "solar" | "wind" | "terrain" | "connection" | "demand" | "map"
+export type WireScope = "solar" | "wind" | "terrain" | "connection" | "demand" | "ground" | "map"
 
 const CUTS_KEY = "terra-energy.graph.cuts.v1"
 
@@ -116,6 +116,7 @@ const CARD_FIELDS: Record<Exclude<WireScope, "map">, Record<string, readonly str
   terrain: { record: ["hourlyYears"], season: ["season"] },
   connection: { reach: ["searchRadiusKm"] },
   demand: { ceiling: ["yieldCeilingKWhKWp"], cell: ["cellKm"] },
+  ground: { slope: ["slopeMaxDeg"], flood: ["handMinM"] },
 }
 
 /**

@@ -4,6 +4,7 @@ import { running } from "../../lib/analysis"
 import { useProductOffered } from "../../lib/capabilities"
 import { reveal } from "../../lib/export"
 import { formatLat, formatLng } from "../../lib/format"
+import { groundRules } from "../../lib/ground"
 import { polygonAreaKm2, ringCentre } from "../../lib/geo"
 import { legendsShown, setLegendShown } from "../../lib/mapState"
 import { setResultOpacity, setSiteCoordinate } from "../../lib/objects"
@@ -31,7 +32,7 @@ import { select, useActiveItem } from "../../lib/selection"
 import { sidecar } from "../../lib/sidecarStatus"
 import { useStore } from "../../lib/store"
 import { COLUMNS, formatCell } from "../../lib/table"
-import { Legend } from "../energy/Legend"
+import { ClassLegend, Legend } from "../energy/Legend"
 import { AreaHeader } from "../studio/StudioArea"
 import { btnGhostDense } from "../ui/buttons"
 import { Checkbox, FieldRow, Figure, NumberField, OperatorButton, PanelSection, TextField } from "../ui/Fields"
@@ -202,15 +203,15 @@ export function ProductCard({ product, source }: { product: Product; source: Sit
  * The layer a result drew, whichever product drew it: shown or not, its
  * legend, its opacity and the ramp it was drawn on.
  */
-function ResultLayer({ result }: { result: Extract<ResultObject, { kind: "terrain" | "demand" }> }) {
+export function ResultLayer({ result }: { result: Extract<ResultObject, { kind: "terrain" | "demand" | "ground" }> }) {
   const legends = useStore(legendsShown)
   const layer =
     result.kind === "terrain"
       ? { scale: result.data.scale, unit: result.data.unit, title: seasonLabel(result.data.season) }
-      : result.data.density
+      : result.kind === "demand" && result.data.density
         ? { scale: result.data.density.scale, unit: result.data.density.unit, title: `Cells of ${result.data.density.cell_km} km` }
         : null
-  if (!layer) return null
+  if (!layer && result.kind !== "ground") return null
   return (
     <PanelSection title="Layer">
       <Checkbox checked={!result.hidden} onChange={(v) => setHidden(result.id, !v)} label="Drawn on the map" />
@@ -232,7 +233,11 @@ function ResultLayer({ result }: { result: Extract<ResultObject, { kind: "terrai
           onChange={(v) => v !== undefined && setResultOpacity(result.id, v / 100)}
         />
       </FieldRow>
-      <Legend scale={layer.scale} unit={layer.unit} title={layer.title} />
+      {result.kind === "ground" ? (
+        <ClassLegend classes={result.data.classes} title={groundRules(result.data)} />
+      ) : (
+        layer && <Legend scale={layer.scale} unit={layer.unit} title={layer.title} />
+      )}
     </PanelSection>
   )
 }
@@ -249,6 +254,8 @@ const PARAM_LABELS: Record<string, string> = {
   roughnessLowM: "Roughness low",
   roughnessHighM: "Roughness high",
   season: "Window",
+  slopeMaxDeg: "Maximum slope",
+  handMinM: "Minimum height above drainage",
 }
 
 function SiteBody({ site }: { site: SiteObject }) {
@@ -291,6 +298,7 @@ function AreaBody({ area }: { area: AreaObject }) {
   const d = useStore(project).data
   const c = ringCentre(area.polygon)
   const latest = resultsOf(d, area.id).filter((r) => r.kind === "terrain").at(-1)
+  const ground = resultsOf(d, area.id).filter((r) => r.kind === "ground").at(-1)
   // A product the connected store could never answer is not offered (capabilities.ts).
   const connection = useProductOffered("connection")
   const demand = useProductOffered("demand")
@@ -308,6 +316,8 @@ function AreaBody({ area }: { area: AreaObject }) {
       {(latest?.kind === "terrain" || latest?.kind === "demand") && <ResultLayer result={latest} />}
       {connection && <ProductCard product="connection" source={area} />}
       {demand && <ProductCard product="demand" source={area} />}
+      <ProductCard product="ground" source={area} />
+      {ground?.kind === "ground" && <ResultLayer result={ground} />}
     </>
   )
 }
@@ -336,12 +346,12 @@ function ResultBody({ result }: { result: ResultObject }) {
           </button>
         )}
       </PanelSection>
-      {(result.kind === "terrain" || result.kind === "demand") && <ResultLayer result={result} />}
+      {(result.kind === "terrain" || result.kind === "demand" || result.kind === "ground") && <ResultLayer result={result} />}
       <PanelSection title="Export">
         <div className="flex flex-wrap gap-1">
           <OperatorButton name="EXPORT_CSV" label="CSV" />
           <OperatorButton name="EXPORT_JSON" label="JSON" />
-          {result.kind === "terrain" && <OperatorButton name="EXPORT_GEOTIFF" label="GeoTIFF" />}
+          {(result.kind === "terrain" || result.kind === "ground") && <OperatorButton name="EXPORT_GEOTIFF" label="GeoTIFF" />}
         </div>
       </PanelSection>
     </>

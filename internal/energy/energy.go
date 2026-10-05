@@ -122,6 +122,63 @@ func AnalyzeSolarTerrain(ctx context.Context, r *sidecar.Runner, req SolarTerrai
 	return &out, nil
 }
 
+func groundPayload(req UsableGroundRequest, workDir string) map[string]any {
+	p := map[string]any{
+		"action":          "usable_ground",
+		"polygon_geojson": req.Area,
+		"work_dir":        workDir,
+	}
+	if req.SlopeMaxDeg != nil {
+		p["slope_max_deg"] = *req.SlopeMaxDeg
+	}
+	if req.HandMinM != nil {
+		p["hand_min_m"] = *req.HandMinM
+	}
+	return p
+}
+
+// AnalyzeUsableGround runs the usable_ground action in workDir, where the
+// sidecar writes the layer of classes and its GeoTIFF, as AnalyzeSolarTerrain.
+func AnalyzeUsableGround(ctx context.Context, r *sidecar.Runner, req UsableGroundRequest, workDir string,
+	overlayURL func(file string) string, onProgress func(sidecar.Progress)) (*UsableGroundAnalysis, error) {
+	if err := req.Area.Validate(); err != nil {
+		return nil, err
+	}
+	raw, err := r.Run(ctx, groundPayload(req, workDir), onProgress)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Ground *struct {
+			UsableGroundAnalysis
+			OverlayPNG string `json:"overlay_png"`
+		} `json:"usable_ground"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode the usable ground result: %w", err)
+	}
+	if wrapped.Ground == nil {
+		return nil, errors.New("the sidecar returned no usable ground result")
+	}
+	if filepath.Dir(filepath.Clean(wrapped.Ground.OverlayPNG)) != filepath.Clean(workDir) {
+		return nil, fmt.Errorf("the sidecar wrote the usable ground layer outside the run directory: %s", wrapped.Ground.OverlayPNG)
+	}
+	out := wrapped.Ground.UsableGroundAnalysis
+	// Absent lists arrive as empty ones, so the interface never has to guard
+	// a null before drawing a legend or a curve.
+	if out.Classes == nil {
+		out.Classes = []GroundClass{}
+	}
+	if out.Sensitivity.Slope == nil {
+		out.Sensitivity.Slope = []GroundStep{}
+	}
+	if out.Sensitivity.Hand == nil {
+		out.Sensitivity.Hand = []GroundStep{}
+	}
+	out.OverlayURL = overlayURL(filepath.Base(wrapped.Ground.OverlayPNG))
+	return &out, nil
+}
+
 // AnalyzeSolar runs the solar_resource action.
 func AnalyzeSolar(ctx context.Context, r *sidecar.Runner, req SolarRequest, cacheDir string, onProgress func(sidecar.Progress)) (*SolarAnalysis, error) {
 	raw, err := r.Run(ctx, solarPayload(req, cacheDir), onProgress)

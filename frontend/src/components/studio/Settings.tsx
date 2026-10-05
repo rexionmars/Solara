@@ -4,7 +4,7 @@ import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BRAND_TAGLINE, RELEASE_NAME } from "../../lib/brand"
 import { defaults, loadDefaults } from "../../lib/defaults"
 import { formatKeys, OPERATORS, type Scope } from "../../lib/operators"
-import { CONNECTION_FIELDS, SOLAR_FIELDS, TERRAIN_FIELDS, WIND_FIELDS, seasonLabel } from "../../lib/params"
+import { CONNECTION_FIELDS, GROUND_FIELDS, SOLAR_FIELDS, TERRAIN_FIELDS, WIND_FIELDS, seasonLabel } from "../../lib/params"
 import { checkGridStore, dsnSourceLabel, gridStore, storeReport } from "../../lib/grid"
 import { sidecar } from "../../lib/sidecarStatus"
 import { useStore } from "../../lib/store"
@@ -56,6 +56,7 @@ function EngineSection() {
             { title: "Wind screening", fields: WIND_FIELDS },
             { title: "Solar terrain", fields: TERRAIN_FIELDS },
             { title: "Grid connection", fields: CONNECTION_FIELDS },
+            { title: "Usable ground", fields: GROUND_FIELDS },
           ].map((g) => (
             <div key={g.title} className="pt-1">
               <p className="eyebrow !text-[9px] pb-0.5 !text-foreground">{g.title}</p>

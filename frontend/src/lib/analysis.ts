@@ -3,6 +3,7 @@ import {
   AnalyzeGridDemand,
   AnalyzeSolarResource,
   AnalyzeSolarTerrain,
+  AnalyzeUsableGround,
   AnalyzeWindResource,
   CancelRun,
 } from "../../wailsjs/go/main/App"
@@ -125,7 +126,7 @@ async function run(
     running.set(null)
     lastFailure.set(null)
     // A new layer arrives with its legend up, taken over from the one it replaces.
-    if (product === "terrain") {
+    if (product === "terrain" || product === "ground") {
       setLegendShown(id, true)
       if (replace) setLegendShown(replace, false)
     }
@@ -324,4 +325,37 @@ export async function cancelRun(): Promise<void> {
   if (!running.get()) return
   const stopped = await CancelRun()
   if (!stopped) info("Nothing was running.")
+}
+
+/**
+ * How much of the area a plant could stand on.
+ *
+ * A rule is sent only when the project carries one: absent, the sidecar
+ * applies its default and the reading states the rule that was applied.
+ */
+export function runGround(area: AreaObject, replace?: string): Promise<string | null> {
+  // Without the settings of any card cut from Run: the engine's defaults stand in for those.
+  const p = wiredSettings("ground", project.get().data.settings.ground)
+  const polygon = area.polygon
+  return run(
+    "ground",
+    area,
+    `over ${area.name} (${polygonAreaKm2(polygon).toFixed(2)} km²)`,
+    async () => ({
+      kind: "ground" as const,
+      polygon,
+      params: { ...p },
+      opacity: 0.7,
+      data: await AnalyzeUsableGround(
+        energy.UsableGroundRequest.createFrom({ area: polygon, slope_max_deg: p.slopeMaxDeg, hand_min_m: p.handMinM })
+      ),
+    }),
+    (r) =>
+      r.kind === "ground"
+        ? `Usable ground over ${area.name}: ${r.data.usable_km2.toFixed(1)} km², ${r.data.usable_pct.toFixed(1)}% of the area` +
+          `${r.data.usable_of_land_pct != null ? ` and ${r.data.usable_of_land_pct.toFixed(1)}% of its land` : ""}, ` +
+          `at ${r.data.rules.slope_max_deg}° and ${r.data.rules.hand_min_m} m; the flood rule is a lower bound.`
+        : "",
+    replace
+  )
 }

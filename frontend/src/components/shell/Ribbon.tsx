@@ -3,7 +3,7 @@ import { CaretDown, CaretUp, Crosshair, Cube, GlobeHemisphereWest, Graph, type I
 import { STUDIO_GROUPS, editorMeta } from "../../lib/editors"
 import { findOperator, formatKeys, pollOperator, runOperator, usePollTick } from "../../lib/operators"
 import { PRODUCT_NAMES, type Product } from "../../lib/project"
-import { WORKSPACES, openRunGraph, screen, setWorkspace } from "../../lib/screen"
+import { WORKSPACES, openReading, openRunGraph, screen, setWorkspace } from "../../lib/screen"
 import { artSrc, operatorArt } from "../../lib/art"
 import { useStore } from "../../lib/store"
 import { activeTool, basemap, overlays, type ToolId } from "../../lib/tools"
@@ -39,7 +39,7 @@ export const RIBBON_PX = 62
 
 const TABS: { id: RibbonTab; label: string; hint: string }[] = [
   { id: "map", label: "Map", hint: "Move over the map, place sites and areas, and choose what is drawn on it" },
-  { id: "analysis", label: "Analysis", hint: "The five readings, by subject, and the run in progress" },
+  { id: "analysis", label: "Analysis", hint: "The readings, by subject, and the run in progress" },
   { id: "view", label: "View", hint: "The window's arrangements, by subject, and what the window shows" },
   { id: "share", label: "Share", hint: "What leaves the application: results, tables and the project file" },
 ]
@@ -54,9 +54,10 @@ const RUN_LABEL: Record<Product, string> = {
   wind: "Screening",
   connection: "Connection",
   demand: "Consumption",
+  ground: "Usable ground",
 }
 
-const TABLES: Product[] = ["solar", "terrain", "wind", "connection", "demand"]
+const TABLES: Product[] = ["solar", "terrain", "wind", "connection", "demand", "ground"]
 
 function tone(on: boolean | undefined, disabled: boolean | undefined): string {
   if (disabled) return "cursor-not-allowed text-muted-foreground/40"
@@ -65,7 +66,7 @@ function tone(on: boolean | undefined, disabled: boolean | undefined): string {
 }
 
 // Which drawing each product and workspace asks for; the operators' are in lib/art.ts .
-const ART_BY_PRODUCT: Record<Product, string> = { solar: "solar", terrain: "terrain", wind: "wind", connection: "connection", demand: "demand" }
+const ART_BY_PRODUCT: Record<Product, string> = { solar: "solar", terrain: "terrain", wind: "wind", connection: "connection", demand: "demand", ground: "ground" }
 /** A workspace is drawn as what it is built around: the product's art, or the editor's. */
 const ART_BY_WORKSPACE: Record<string, string> = {
   layout: "layout",
@@ -77,6 +78,7 @@ const ART_BY_WORKSPACE: Record<string, string> = {
   wind: "wind",
   connection: "connection",
   demand: "demand",
+  ground: "ground",
 }
 
 /** One command. Tall, it is a group's principal verb; short, three of them stack in a column. */
@@ -253,6 +255,25 @@ function Run({ product }: { product: Product }) {
   )
 }
 
+/**
+ * A product's entrance since the run graph became a second view: the
+ * workspace of its reading, where an empty reading lists what a run would
+ * read and carries the button, and Properties holds the settings beside it.
+ */
+function Reading({ product }: { product: Product }) {
+  if (!useProductOffered(product)) return null
+  return (
+    <Command
+      icon={editorMeta(product).icon}
+      art={ART_BY_PRODUCT[product]}
+      label={RUN_LABEL[product]}
+      title={`${PRODUCT_NAMES[product]}: what a run reads over the active area, and its reading`}
+      tall
+      onClick={() => openReading(product)}
+    />
+  )
+}
+
 // ---- The tabs' bodies ---------------------------------------------------------
 
 function MapTab() {
@@ -327,6 +348,12 @@ function AnalysisTab() {
         <Run product="demand" />
         <Column>
           <Op name="GRID_STORE" label="Check the store" />
+        </Column>
+      </Group>
+      <Group label="Ground">
+        <Reading product="ground" />
+        <Column>
+          <Op name="GROUND" label="Run on the area" />
         </Column>
       </Group>
       <Group label="Run">

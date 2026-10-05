@@ -5,6 +5,7 @@ import {
   type AreaObject,
   type ConnectionParams,
   type DemandParams,
+  type GroundParams,
   type Polygon,
   type Product,
   type ProjectData,
@@ -40,6 +41,8 @@ export type RunNodeId =
   | "reach"
   | "ceiling"
   | "cell"
+  | "slope"
+  | "flood"
   | "catalogue2"
   | "region"
   | "layer"
@@ -86,6 +89,8 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col" | "band">> = {
   reach: { id: "reach", label: "Reach", h: 74 },
   ceiling: { id: "ceiling", label: "Yield ceiling", h: 74 },
   cell: { id: "cell", label: "Layer cell", h: 74 },
+  slope: { id: "slope", label: "Slope rule", h: 74 },
+  flood: { id: "flood", label: "Flood rule", h: 74 },
   catalogue2: { id: "catalogue2", label: "Catalogue", h: 300 },
   region: { id: "region", label: "Region", h: 118 },
   layer: { id: "layer", label: "Layer", h: 132 },
@@ -130,6 +135,7 @@ const INPUTS: Record<Product, RunNodeId[]> = {
   terrain: ["area", "product", "record", "season"],
   connection: ["area", "product", "store", "reach"],
   demand: ["area", "product", "store", "ceiling", "cell"],
+  ground: ["area", "product", "slope", "flood"],
 }
 
 /**
@@ -226,6 +232,7 @@ export type RunInputs = {
   terrain: TerrainParams
   connection: ConnectionParams
   demand: DemandParams
+  ground: GroundParams
   /** Whether the grid store answered: what the store card supplies. */
   storeReachable: boolean
   /** The map's ground: absent where the layer is drawn over everything it reaches. */
@@ -234,7 +241,7 @@ export type RunInputs = {
   mapLayer?: string | null
 }
 
-export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind", connection: "Connection", demand: "Demand" }
+export const SHORT_PRODUCT: Record<Product, string> = { solar: "Resource", terrain: "Terrain", wind: "Wind", connection: "Connection", demand: "Demand", ground: "Ground" }
 
 /**
  * Total over the node ids, so a card added without saying what it supplies
@@ -277,6 +284,8 @@ export function cardValues(p: RunInputs, d: energy.ParameterDefaults | null): Re
     catalogue2: { kind: "choice", label: "IBGE" },
     ceiling: { kind: "measure", of: or(p.demand.yieldCeilingKWhKWp, d?.demand?.yield_ceiling_kwh_kwp), unit: "kWh/kWp" },
     cell: { kind: "measure", of: or(p.demand.cellKm, d?.demand?.cell_km), unit: "km" },
+    slope: { kind: "measure", of: or(p.ground.slopeMaxDeg, d?.ground?.slope_max_deg), unit: "° at most" },
+    flood: { kind: "measure", of: or(p.ground.handMinM, d?.ground?.hand_min_m), unit: "m above drainage" },
     record,
     radiation: { kind: "record", years: or(s.climatologyYears, d?.solar.climatology_years), of: "climatology" },
     product: { kind: "choice", label: SHORT_PRODUCT[p.product] },
@@ -339,7 +348,7 @@ export function lastRun(
   if (!source) return null
   const result = d.results.filter((r) => r.kind === product && r.sourceId === source.id).at(-1)
   // A run that reached the sidecar read the store it was pointed at, so the store card's wire settles with it.
-  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {}, connection: {}, demand: {}, storeReachable: true }
+  const base = { product, site: null, area: null, solar: {}, wind: {}, terrain: {}, connection: {}, demand: {}, ground: {}, storeReachable: true }
   const failed =
     failure && failure.product === product && failure.sourceId === source.id && (!result || Date.parse(result.createdAt) < failure.at)
       ? failure
@@ -368,6 +377,8 @@ export function lastRun(
           ? { ...base, area: { name: source.name, polygon: result.polygon }, connection: result.params }
           : result.kind === "demand"
             ? { ...base, area: { name: source.name, polygon: result.polygon }, demand: result.params }
+          : result.kind === "ground"
+            ? { ...base, area: { name: source.name, polygon: result.polygon }, ground: result.params }
             : result.kind === "solar"
             ? { ...base, site: { name: source.name, ...result.site }, solar: result.params }
           : { ...base, site: { name: source.name, ...result.site }, wind: result.params },

@@ -43,7 +43,7 @@ export function setSiteCoordinate(id: string, axis: "lon" | "lat", value: number
 export function setResultOpacity(id: string, opacity: number): void {
   commit(
     "Layer Opacity",
-    (d) => mapItem(d, id, (o) => (o.kind === "terrain" && o.opacity !== opacity ? { ...o, opacity } : o)),
+    (d) => mapItem(d, id, (o) => ((o.kind === "terrain" || o.kind === "demand" || o.kind === "ground") && o.opacity !== opacity ? { ...o, opacity } : o)),
     true
   )
 }

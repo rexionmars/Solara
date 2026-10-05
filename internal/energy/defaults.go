@@ -59,6 +59,12 @@ type DemandDefaults struct {
 	CellKM             float64 `json:"cell_km"`
 }
 
+// GroundDefaults are the rules usable_ground applies when the request types none.
+type GroundDefaults struct {
+	SlopeMaxDeg float64 `json:"slope_max_deg"`
+	HandMinM    float64 `json:"hand_min_m"`
+}
+
 // ParameterDefaults is the parameter_defaults reply.
 type ParameterDefaults struct {
 	Solar      SolarDefaults      `json:"solar"`
@@ -66,6 +72,7 @@ type ParameterDefaults struct {
 	Terrain    TerrainDefaults    `json:"terrain"`
 	Connection ConnectionDefaults `json:"connection"`
 	Demand     DemandDefaults     `json:"demand"`
+	Ground     GroundDefaults     `json:"ground"`
 }
 
 // FetchParameterDefaults runs the parameter_defaults action. It goes through
@@ -89,17 +96,18 @@ func decodeParameterDefaults(raw []byte) (*ParameterDefaults, error) {
 
 		Connection *ConnectionDefaults `json:"connection"`
 		Demand     *DemandDefaults     `json:"demand"`
+		Ground     *GroundDefaults     `json:"ground"`
 	}
 	if err := json.Unmarshal(raw, &wrapped); err != nil {
 		return nil, fmt.Errorf("decode the parameter defaults: %w", err)
 	}
 	if wrapped.Solar == nil || wrapped.Wind == nil || wrapped.Terrain == nil || wrapped.Connection == nil ||
-		wrapped.Demand == nil {
+		wrapped.Demand == nil || wrapped.Ground == nil {
 		return nil, errors.New("the sidecar returned incomplete parameter defaults")
 	}
 	if len(wrapped.Wind.RoughnessBandM) != 2 {
 		return nil, fmt.Errorf("the default roughness band needs two lengths, got %d", len(wrapped.Wind.RoughnessBandM))
 	}
 	return &ParameterDefaults{Solar: *wrapped.Solar, Wind: *wrapped.Wind, Terrain: *wrapped.Terrain,
-		Connection: *wrapped.Connection, Demand: *wrapped.Demand}, nil
+		Connection: *wrapped.Connection, Demand: *wrapped.Demand, Ground: *wrapped.Ground}, nil
 }

@@ -11,7 +11,8 @@ const defaultsReply = `{
 	"wind": {"record_years": 10, "hub_height_m": 110.0, "calm_threshold_ms": 0.5, "record_max_floor_ms": 10.0, "roughness_band_m": [0.03, 0.1]},
 	"terrain": {"hourly_years": 10, "season": "annual", "seasons": ["annual", "winter", "summer", "winter_crop", "anisotropy", "shading"]},
 	"connection": {"search_radius_km": 100.0},
-	"demand": {"yield_ceiling_kwh_kwp": 1610.0, "cell_km": 1.0}
+	"demand": {"yield_ceiling_kwh_kwp": 1610.0, "cell_km": 1.0},
+	"ground": {"slope_max_deg": 5.0, "hand_min_m": 5.0}
 }`
 
 func TestDecodeParameterDefaults(t *testing.T) {
@@ -27,6 +28,7 @@ func TestDecodeParameterDefaults(t *testing.T) {
 			Seasons: []string{"annual", "winter", "summer", "winter_crop", "anisotropy", "shading"}},
 		Connection: ConnectionDefaults{SearchRadiusKM: 100},
 		Demand:     DemandDefaults{YieldCeilingKWhKWp: 1610, CellKM: 1},
+		Ground:     GroundDefaults{SlopeMaxDeg: 5, HandMinM: 5},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -38,8 +40,9 @@ func TestDecodeParameterDefaults_RefusesAnIncompleteReply(t *testing.T) {
 	for name, raw := range map[string]string{
 		"no terrain":    `{"solar": {}, "wind": {"roughness_band_m": [0.03, 0.1]}}`,
 		"no connection": `{"solar": {}, "wind": {"roughness_band_m": [0.03, 0.1]}, "terrain": {}}`,
-		"no demand":     `{"solar": {}, "wind": {"roughness_band_m": [0.03, 0.1]}, "terrain": {}, "connection": {}}`,
-		"half a band":   `{"solar": {}, "wind": {"roughness_band_m": [0.03]}, "terrain": {}, "connection": {}, "demand": {}}`,
+		"no demand":     `{"solar": {}, "wind": {"roughness_band_m": [0.03, 0.1]}, "terrain": {}, "connection": {}, "ground": {}}`,
+		"no ground":     `{"solar": {}, "wind": {"roughness_band_m": [0.03, 0.1]}, "terrain": {}, "connection": {}, "demand": {}}`,
+		"half a band":   `{"solar": {}, "wind": {"roughness_band_m": [0.03]}, "terrain": {}, "connection": {}, "demand": {}, "ground": {}}`,
 		"not an object": `[]`,
 	} {
 		if _, err := decodeParameterDefaults([]byte(raw)); err == nil {

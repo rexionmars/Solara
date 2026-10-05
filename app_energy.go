@@ -88,6 +88,27 @@ func (a *App) AnalyzeSolarTerrain(req energy.SolarTerrainRequest) (*energy.Solar
 	return res, nil
 }
 
+// AnalyzeUsableGround counts how much of an area neither the slope rule nor the
+// flood rule excludes. The layer of classes is served from this run's results
+// directory, as the terrain layer is.
+func (a *App) AnalyzeUsableGround(req energy.UsableGroundRequest) (*energy.UsableGroundAnalysis, error) {
+	r, err := a.analysisRunner()
+	if err != nil {
+		return nil, err
+	}
+	dir, id, err := a.newRunDir()
+	if err != nil {
+		return nil, err
+	}
+	res, err := energy.AnalyzeUsableGround(a.ctx, r, req, dir,
+		func(file string) string { return resultURL(id, file) }, a.emitProgress)
+	if err != nil {
+		_ = os.RemoveAll(dir)
+		return nil, err
+	}
+	return res, nil
+}
+
 // How long ParameterDefaults waits. The action reads only constants, but the
 // first interpreter start after a reboot can take several seconds, and numpy is
 // imported on the way.

@@ -323,11 +323,20 @@ MAX_DEM_CELLS = 4_000_000
 DEM_CELL_M = 30.0
 
 
-def request_area(req: protocol.Request, margin_m: float):
+def request_area(
+    req: protocol.Request,
+    margin_m: float,
+    product: str = 'the terrain product',
+    margin: str = 'the horizon margin',
+):
     """
     The area as a shapely polygon, refused before any download when it cannot
     be computed: not a polygon, an outline that crosses itself, or more ground
     than the horizon trace can hold.
+
+    `product` and `margin` name, in the refusal, who is asking and what the
+    margin is for: usable ground reads the same elevation model under the same
+    bound, with a drainage buffer where this product has a horizon.
     """
     from terra_energy_engine import aoi
 
@@ -350,9 +359,9 @@ def request_area(req: protocol.Request, margin_m: float):
     cells = (width_m / DEM_CELL_M) * (height_m / DEM_CELL_M)
     if cells > MAX_DEM_CELLS:
         protocol.fail(
-            f'the area is too large for the terrain product: about '
-            f'{cells / 1e6:.1f} million elevation cells with the horizon '
-            f'margin, against a limit of {MAX_DEM_CELLS / 1e6:.0f} million '
+            f'the area is too large for {product}: about '
+            f'{cells / 1e6:.1f} million elevation cells with {margin}, '
+            f'against a limit of {MAX_DEM_CELLS / 1e6:.0f} million '
             f'(roughly 55 by 55 km)'
         )
     return polygon
@@ -611,6 +620,7 @@ def solar_terrain(req: protocol.Request) -> None:
 def parameter_defaults(req: protocol.Request) -> None:
     from terra_energy_engine.energy import pv as pv_mod, seasons as seasons_mod, wind as wind_mod
     from terra_energy_engine.grid import actions as grid_actions, demand as demand_mod
+    from terra_energy_engine.terrain import usable as usable_mod
 
     lo, hi = wind_mod.ROUGHNESS_BAND_M
     protocol.reply({
@@ -641,5 +651,9 @@ def parameter_defaults(req: protocol.Request) -> None:
         'demand': {
             'yield_ceiling_kwh_kwp': demand_mod.DEFAULT_CEILING_KWH_KWP,
             'cell_km': demand_mod.CELL_KM,
+        },
+        'ground': {
+            'slope_max_deg': usable_mod.SLOPE_MAX_DEG,
+            'hand_min_m': usable_mod.HAND_MIN_M,
         },
     })

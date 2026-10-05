@@ -39,6 +39,7 @@ modelled value is never drawn as a measured one.
 | **Solar terrain** | an area | plane-of-array irradiation over the terrain at 30 m, with horizon shading, by season | Copernicus DEM GLO-30, NASA POWER |
 | **Grid connection** | an area | where plants of the area join the network, the headroom at that bus, what is within reach, and what the plants already joined there lost to curtailment | ONS and ANEEL registers, from the grid store |
 | **Area consumption** | an area | what the area draws from the network through the year, by voltage level, tariff class and municipality, what its distributed generators put back on it (injected, not generated), and where it falls on a 1 km grid | the distributor's BDGD register, from the grid store |
+| **Usable ground** | an area | how much of the area a plant could stand on and what excludes the rest, by two rules the reader types: a maximum slope and a minimum height above the nearest drainage (HAND). Permanent water is taken out first, as a reason of its own, and the usable share is given of the area and of the land inside it. The flood rule is a lower bound | Copernicus DEM GLO-30, ESA WorldCover 2021 |
 
 Every result is kept in the project with the parameters and the place it was
 computed at. Moving a site, redrawing an area or changing a setting afterwards
@@ -58,6 +59,7 @@ by subject.
 | Solar | Resource, Terrain | the solar readings beside the map |
 | Wind | Screening | the wind reading beside the map |
 | Grid | Connection, Demand | the connection and the consumption readings beside the map of plants and lines |
+| Ground | Usable ground | the usable-ground reading beside the map, with its layer of classes |
 
 The editors are the **map**, the **outliner**, **properties**, the **run
 graph**, a **reading** per product, the **data table**, the **reports** and a
@@ -141,6 +143,7 @@ unaffected.
 |---|---|---|
 | Irradiation, meteorology | [NASA POWER](https://power.larc.nasa.gov/) | public |
 | Elevation | Copernicus DEM GLO-30, via the [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) | free, with attribution |
+| Permanent water | [ESA WorldCover](https://esa-worldcover.org/) 2021 v200, 10 m, via the Microsoft Planetary Computer. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium | CC BY 4.0 |
 | Plant register | [ANEEL](https://dadosabertos.aneel.gov.br/) (SIGA) | open data |
 | Transmission, curtailment | [ONS](https://dados.ons.org.br/) | open data |
 | Clouds | NOAA GOES-East, via [NASA GIBS](https://earthdata.nasa.gov/gibs) | public |

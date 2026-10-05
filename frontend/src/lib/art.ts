@@ -14,7 +14,7 @@
  */
 
 /** Breeze has no drawing for these. */
-const WITHOUT = new Set(["terrain"])
+const WITHOUT = new Set(["terrain", "ground"])
 
 /** Where a drawing is. */
 export function artSrc(art: string | undefined): string | undefined {
@@ -64,6 +64,7 @@ const OPERATOR_ART: Record<string, string> = {
   TERRAIN: "terrain",
   CONNECTION: "connection",
   DEMAND: "demand",
+  GROUND: "ground",
   GRID_STORE: "store",
   RERUN: "run-again",
   CANCEL: "cancel",
@@ -94,6 +95,7 @@ const EDITOR_ART: Record<string, string> = {
   terrain: "terrain",
   connection: "connection",
   demand: "demand",
+  ground: "ground",
 }
 
 export const editorArt = (id: string): string | undefined => EDITOR_ART[id]

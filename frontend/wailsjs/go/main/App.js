@@ -18,6 +18,10 @@ export function AnalyzeSolarTerrain(arg1) {
   return window['go']['main']['App']['AnalyzeSolarTerrain'](arg1);
 }
 
+export function AnalyzeUsableGround(arg1) {
+  return window['go']['main']['App']['AnalyzeUsableGround'](arg1);
+}
+
 export function AnalyzeWindResource(arg1) {
   return window['go']['main']['App']['AnalyzeWindResource'](arg1);
 }

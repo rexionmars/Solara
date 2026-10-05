@@ -1,4 +1,4 @@
-import { ChartBar, Cube, Fan, Graph, Mountains, PlugsConnected, Sun, Table, TerminalWindow, type Icon } from "./icons"
+import { ChartBar, CheckSquare, Cube, Fan, Graph, Mountains, PlugsConnected, Sun, Table, TerminalWindow, type Icon } from "./icons"
 import { EDITORS, editorMeta, type EditorId, type StudioGroup } from "./editors"
 import type { Product } from "./project"
 import { select } from "./selection"
@@ -139,6 +139,14 @@ export const WORKSPACES: WorkspacePreset[] = [
     icon: ChartBar,
     hint: "What an area already draws from the network, beside the map",
     build: () => split("row", 0.74, split("row", 0.55, area("map"), area("demand")), sideColumn()),
+  },
+  {
+    id: "ground",
+    label: "Usable ground",
+    group: "ground",
+    icon: CheckSquare,
+    hint: "How much of an area a plant could stand on, with its layer on the map",
+    build: () => split("row", 0.74, split("row", 0.5, area("map"), area("ground")), sideColumn()),
   },
 ]
 
@@ -407,7 +415,7 @@ export function setAreaState(areaId: string, patch: AreaState): void {
 
 // ---- Navigation between editors ---------------------------------------------
 
-const WORKSPACE_OF: Record<Product, string> = { solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand" }
+const WORKSPACE_OF: Record<Product, string> = { solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand", ground: "ground" }
 
 /**
  * Bring a result into view: select it, and open the workspace built around
@@ -416,6 +424,19 @@ const WORKSPACE_OF: Record<Product, string> = { solar: "solar", wind: "wind", te
 export function showResult(id: string, product?: Product): void {
   select(id)
   if (!product) return
+  if (leaves(activeTree()).some((a) => a.editor === product)) return
+  setWorkspace(WORKSPACE_OF[product])
+}
+
+/**
+ * Open the workspace built around a product's reading: the map, the reading
+ * and Properties side by side.
+ *
+ * Where a product is set up and run since the run graph became a second view.
+ * With no result yet, the reading lists what a run would read and carries the
+ * button; with one, it is the reading.
+ */
+export function openReading(product: Product): void {
   if (leaves(activeTree()).some((a) => a.editor === product)) return
   setWorkspace(WORKSPACE_OF[product])
 }

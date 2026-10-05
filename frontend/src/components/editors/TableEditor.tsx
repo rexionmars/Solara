@@ -1,4 +1,4 @@
-import { CaretDown, CaretUp, Fan, Mountains, PlugsConnected, Sun, Warning } from "../../lib/icons"
+import { CaretDown, CaretUp, CheckSquare, Fan, Mountains, PlugsConnected, Sun, Warning } from "../../lib/icons"
 import { PRODUCT_NAMES, isAreaProduct, project, staleReason, type Product } from "../../lib/project"
 import { areaStates, setAreaState } from "../../lib/screen"
 import { select, selection } from "../../lib/selection"
@@ -44,6 +44,7 @@ export function TableEditor({ areaId }: { areaId: string }) {
               { id: "wind", label: "Wind", icon: Fan, title: PRODUCT_NAMES.wind },
               { id: "terrain", label: "Terrain", icon: Mountains, title: PRODUCT_NAMES.terrain },
               { id: "connection", label: "Grid", icon: PlugsConnected, title: PRODUCT_NAMES.connection },
+              { id: "ground", label: "Ground", icon: CheckSquare, title: PRODUCT_NAMES.ground },
             ]}
           />
         }

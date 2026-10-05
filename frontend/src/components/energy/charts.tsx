@@ -682,3 +682,215 @@ export function Scatter({
     </div>
   )
 }
+
+// ------------------------------------------------------------- the rule curve
+
+/**
+ * A share against a threshold the reader typed: what the answer would have
+ * been had the rule been set elsewhere, with the rule that was applied marked
+ * on it.
+ *
+ * NOT `AreaChart`, which spaces its categories evenly. The thresholds here are
+ * numbers and not evenly spaced, so they are placed on a true axis: drawn as
+ * categories, the step from 20 to 30 would be as wide as the step from 1 to 2
+ * and the curve would bend where the ground does not.
+ *
+ * The share axis starts at zero and ends at a hundred, since it is a share of
+ * one fixed ground and the height of the line is the claim. The applied rule
+ * carries the one direct label; every other point is in the table twin.
+ */
+export function RuleCurve({
+  points,
+  at,
+  xUnit,
+  xLabel,
+  yLabel,
+  color = SERIES.drawn,
+  height = 132,
+}: {
+  points: { x: number; y: number }[]
+  /** The threshold that was applied. */
+  at: number
+  xUnit: string
+  xLabel: string
+  yLabel: string
+  color?: string
+  height?: number
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const [table, setTable] = useState(false)
+  const sorted = useMemo(() => [...points].sort((a, b) => a.x - b.x), [points])
+  const fmt = (v: number) => `${v.toFixed(1)}%`
+  // A degree sign is set against its number; every other unit takes a space.
+  const xv = (v: number) => `${Number(v.toFixed(2))}${xUnit === "°" ? "" : " "}${xUnit}`
+
+  if (table) {
+    return (
+      <div>
+        <TwinTable head={[xLabel, yLabel]} rows={sorted.map((p) => [xv(p.x), fmt(p.y)])} />
+        <div className="mt-1 flex justify-end">
+          <TableToggle on onClick={() => setTable(false)} />
+        </div>
+      </div>
+    )
+  }
+
+  const gutter = 34
+  const axisBand = 30
+  const padTop = 14
+  const xMax = Math.max(...sorted.map((p) => p.x), at) || 1
+  const xTicks = niceTicks(xMax, 5).filter((t) => t <= xMax + 1e-9)
+  const yTicks = [0, 25, 50, 75, 100]
+  const plotW = Math.max(0, width - gutter - 12)
+  const px = (v: number) => gutter + (v / xMax) * plotW
+  const py = (v: number) => padTop + (height - padTop) * (1 - v / 100)
+  const line = sorted.map((p, i) => `${i ? "L" : "M"}${px(p.x)},${py(p.y)}`).join(" ")
+  const applied = sorted.find((p) => p.x === at)
+  // Where the curve climbs to the right the label goes under the point, clear of the line.
+  const next = applied ? sorted[sorted.indexOf(applied) + 1] : undefined
+  const below = !!applied && !!next && next.y > applied.y
+  const shown = hover !== null ? sorted[hover] : null
+
+  return (
+    <div>
+      <div ref={ref} className="relative w-full">
+        {width > 0 && (
+          <svg width={width} height={height + axisBand} className="block overflow-visible" role="img" aria-label={`${yLabel} against ${xLabel}`}>
+            {yTicks.map((t) => (
+              <g key={t}>
+                <line x1={gutter} x2={gutter + plotW} y1={py(t)} y2={py(t)} stroke={GRID} strokeWidth={1} />
+                <text x={gutter - 6} y={py(t) + 3} textAnchor="end" className={AXIS_TEXT}>
+                  {t}
+                </text>
+              </g>
+            ))}
+            <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            {sorted.map((p) => (
+              <circle key={p.x} cx={px(p.x)} cy={py(p.y)} r={2} fill={color} />
+            ))}
+
+            {/* The rule that was applied: a dashed rule, because here a threshold is exactly the claim. */}
+            <line x1={px(at)} x2={px(at)} y1={padTop - 4} y2={height} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
+            {applied && (
+              <g>
+                <circle cx={px(at)} cy={py(applied.y)} r={4} fill={color} stroke={SURFACE} strokeWidth={2} />
+                <text
+                  x={px(at) + (px(at) > width - 110 ? -8 : 8)}
+                  y={below ? py(applied.y) + 16 : Math.max(10, py(applied.y) - 8)}
+                  textAnchor={px(at) > width - 110 ? "end" : "start"}
+                  className="text-[10px] tabular-nums fill-[var(--foreground)]"
+                >
+                  {fmt(applied.y)} at {xv(at)}
+                </text>
+              </g>
+            )}
+
+            {xTicks.map((t) => (
+              <text key={t} x={px(t)} y={height + 12} textAnchor="middle" className={AXIS_TEXT}>
+                {t}
+              </text>
+            ))}
+            <text x={gutter + plotW / 2} y={height + 26} textAnchor="middle" className={AXIS_TEXT}>
+              {xLabel} ({xUnit})
+            </text>
+            <text x={gutter - 6} y={8} textAnchor="end" className={AXIS_TEXT}>
+              %
+            </text>
+
+            {sorted.map((p, i) => {
+              const left = i ? (px(sorted[i - 1].x) + px(p.x)) / 2 : gutter
+              const right = i < sorted.length - 1 ? (px(p.x) + px(sorted[i + 1].x)) / 2 : gutter + plotW
+              return (
+                <rect
+                  key={`hit-${p.x}`}
+                  x={left}
+                  y={0}
+                  width={Math.max(1, right - left)}
+                  height={height}
+                  fill="transparent"
+                  onPointerEnter={() => setHover(i)}
+                  onPointerLeave={() => setHover(null)}
+                  tabIndex={0}
+                  onFocus={() => setHover(i)}
+                  onBlur={() => setHover(null)}
+                />
+              )
+            })}
+          </svg>
+        )}
+        {shown && <Tooltip x={px(shown.x)} y={py(shown.y)} width={width} title={`${xLabel} ${xv(shown.x)}`} rows={[{ label: yLabel, value: fmt(shown.y), color }]} />}
+      </div>
+      <div className="flex justify-end">
+        <TableToggle on={false} onClick={() => setTable(true)} />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------- the share of a whole
+
+/**
+ * One ground split into named parts: a single bar a hundred percent long, and
+ * a row per part under it that is the bar's legend and its table at once.
+ *
+ * The colours are the caller's, because here they are the map's: the part
+ * that is orange in this bar is the ground that is orange on the layer. Every
+ * part is named on its row, so the hue is never the only thing telling two
+ * apart.
+ */
+export function ShareBar({
+  parts,
+  unit,
+  of,
+}: {
+  parts: { key: string; label: string; color: string; value: number; pct: number; pct2?: number | null }[]
+  unit: string
+  /**
+   * What the two shares are shares of, where a part is said against two
+   * wholes. The bar is drawn on the first; the second is a column, and a part
+   * that is outside the second whole leaves its cell empty.
+   */
+  of?: [string, string]
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex h-3 w-full overflow-hidden rounded-[3px]" role="img" aria-label={parts.map((p) => `${p.label} ${p.pct.toFixed(1)}%`).join(", ")}>
+        {parts
+          .filter((p) => p.pct > 0)
+          .map((p) => (
+            // A gap in the surface between two parts, never a stroke over them.
+            <span key={p.key} className="h-full border-r-2 last:border-r-0" style={{ width: `${p.pct}%`, background: p.color, borderColor: SURFACE }} title={`${p.label}: ${p.pct.toFixed(1)}%`} />
+          ))}
+      </div>
+      <div className="flex flex-col">
+        {of && (
+          <div className="flex justify-end gap-2 pb-0.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="w-16 text-right">{of[0]}</span>
+            <span className="w-16 text-right">{of[1]}</span>
+          </div>
+        )}
+        {parts.map((p) => (
+          // The name has a floor and the figures drop under it in a narrow
+          // panel: beside the hue, the name is all that says which part this is.
+          <div key={p.key} className="flex flex-wrap items-baseline justify-end gap-x-2 py-0.5 text-xs">
+            <span className="flex min-w-[9rem] flex-1 items-baseline gap-2 text-muted-foreground">
+              <span className="size-2.5 shrink-0 translate-y-px rounded-[2px]" style={{ background: p.color }} aria-hidden />
+              {p.label}
+            </span>
+            {/* The figures stay together, so they drop under the name as one line. */}
+            <span className="flex shrink-0 items-baseline gap-2">
+              <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+                {p.value.toFixed(1)} {unit}
+              </span>
+              <span className={`${of ? "w-16" : "w-14"} shrink-0 text-right font-mono tabular-nums text-foreground`}>{p.pct.toFixed(1)}%</span>
+              {of && (
+                <span className="w-16 shrink-0 text-right font-mono tabular-nums text-foreground">{p.pct2 == null ? "" : `${p.pct2.toFixed(1)}%`}</span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

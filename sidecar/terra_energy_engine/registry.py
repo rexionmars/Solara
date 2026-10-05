@@ -21,6 +21,9 @@ ACTIONS: dict[str, str] = {
     'wind_resource': 'terra_energy_engine.energy.actions:wind_resource',
     'solar_terrain': 'terra_energy_engine.energy.actions:solar_terrain',
     'parameter_defaults': 'terra_energy_engine.energy.actions:parameter_defaults',
+    # How much of an area a plant could stand on, by slope and by height above
+    # the drainage, from the elevation model alone.
+    'usable_ground': 'terra_energy_engine.terrain.actions:usable_ground',
     # The electrical system, read from the local PostGIS store. TERRA's names,
     # so a request can move between the two programs unchanged.
     'grid_coverage': 'terra_energy_engine.grid.actions:grid_coverage',

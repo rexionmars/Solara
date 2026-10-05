@@ -50,12 +50,19 @@ export type ConnectionParams = { searchRadiusKm?: number }
  * and says so in the reading.
  */
 export type DemandParams = { yieldCeilingKWhKWp?: number; cellKm?: number }
+/**
+ * The two rules usable ground is judged by. Typed by the reader: ground
+ * steeper than the one, or closer above its drainage than the other, is
+ * excluded and keeps the reason.
+ */
+export type GroundParams = { slopeMaxDeg?: number; handMinM?: number }
 export type Settings = {
   solar: SolarParams
   wind: WindParams
   terrain: TerrainParams
   connection: ConnectionParams
   demand: DemandParams
+  ground: GroundParams
 }
 
 type ResultBase = {
@@ -91,7 +98,16 @@ export type DemandResult = ResultBase & {
   /** Of its density layer on the map, as the terrain layer has one. */
   opacity: number
 }
-export type ResultObject = SolarResult | WindResult | TerrainResult | ConnectionResult | DemandResult
+/** How much of the area neither the slope rule nor the flood rule excludes. */
+export type GroundResult = ResultBase & {
+  kind: "ground"
+  polygon: Polygon
+  params: GroundParams
+  data: energy.UsableGroundAnalysis
+  /** Of its layer of classes on the map. */
+  opacity: number
+}
+export type ResultObject = SolarResult | WindResult | TerrainResult | ConnectionResult | DemandResult | GroundResult
 export type Product = ResultObject["kind"]
 
 export const PRODUCT_NAMES: Record<Product, string> = {
@@ -100,6 +116,7 @@ export const PRODUCT_NAMES: Record<Product, string> = {
   terrain: "Solar terrain",
   connection: "Grid connection",
   demand: "Area consumption",
+  ground: "Usable ground",
 }
 
 /**
@@ -125,12 +142,14 @@ export const PRODUCT_SUMMARY: Record<Product, string> = {
     "Where the area could join the transmission network, and what the plants already joined there lost. Read from the grid store.",
   demand:
     "What this area already draws from the network and already puts back, counted from the distributor's BDGD register, with the share of that register its own generators contradict.",
+  ground:
+    "How much of this area a plant could stand on, and what excludes the rest: ground too steep, or too close above its drainage, from the 30 m elevation model alone. Draws a layer.",
 }
 
 /** The products read over an area rather than at a site. */
-export type AreaResult = TerrainResult | ConnectionResult | DemandResult
+export type AreaResult = TerrainResult | ConnectionResult | DemandResult | GroundResult
 export const isAreaProduct = (p: Product): p is AreaResult["kind"] =>
-  p === "terrain" || p === "connection" || p === "demand"
+  p === "terrain" || p === "connection" || p === "demand" || p === "ground"
 export const isAreaResult = (r: ResultObject): r is AreaResult => isAreaProduct(r.kind)
 
 export type ProjectData = {
@@ -165,7 +184,7 @@ export function emptyProject(): ProjectData {
     sites: [],
     areas: [],
     results: [],
-    settings: { solar: {}, wind: {}, terrain: {}, connection: {}, demand: {} },
+    settings: { solar: {}, wind: {}, terrain: {}, connection: {}, demand: {}, ground: {} },
   }
 }
 
@@ -292,7 +311,8 @@ export function isResult(item: AnyItem | null): item is ResultObject {
       item.kind === "wind" ||
       item.kind === "terrain" ||
       item.kind === "connection" ||
-      item.kind === "demand")
+      item.kind === "demand" ||
+      item.kind === "ground")
   )
 }
 
@@ -306,7 +326,8 @@ export function resultsOf(d: ProjectData, sourceId: string): ResultObject[] {
  * a reopened project still finds its rasters.
  */
 export function runIdOf(r: ResultObject): string | null {
-  const url = r.kind === "terrain" ? r.data.overlay_url : r.kind === "demand" ? r.data.density?.overlay_url : null
+  const url =
+    r.kind === "terrain" || r.kind === "ground" ? r.data.overlay_url : r.kind === "demand" ? r.data.density?.overlay_url : null
   const m = url?.match(/^\/results\/([^/]+)\//)
   return m ? m[1] : null
 }

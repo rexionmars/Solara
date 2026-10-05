@@ -161,7 +161,7 @@ function parse(content: string, runDirs: Record<string, string>): ProjectData {
   }
   const base = emptyProject()
   const results = (doc.results ?? []).map((r) => {
-    if (r.kind !== "terrain") return r
+    if (r.kind !== "terrain" && r.kind !== "ground") return r
     // The raster lives in this session's results directory now, under the
     // same run id; its old absolute path named the session that saved it.
     const id = runIdOf(r)

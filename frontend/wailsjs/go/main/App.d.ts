@@ -15,6 +15,8 @@ export function AnalyzeSolarResource(arg1:energy.SolarRequest):Promise<energy.So
 
 export function AnalyzeSolarTerrain(arg1:energy.SolarTerrainRequest):Promise<energy.SolarTerrainAnalysis>;
 
+export function AnalyzeUsableGround(arg1:energy.UsableGroundRequest):Promise<energy.UsableGroundAnalysis>;
+
 export function AnalyzeWindResource(arg1:energy.WindRequest):Promise<energy.WindAnalysis>;
 
 export function CancelRun():Promise<boolean>;

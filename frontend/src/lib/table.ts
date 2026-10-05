@@ -194,6 +194,39 @@ export const COLUMNS: Record<Product, Column[]> = {
     },
     ...trailing,
   ],
+  ground: [
+    ...common,
+    { key: "area", label: "Measured", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.area_km2 : null) },
+    { key: "water", label: "Permanent Water", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.water_km2 : null) },
+    { key: "land", label: "Land", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.land_km2 : null) },
+    { key: "usable", label: "Usable", unit: "km²", decimals: 2, value: (r) => (r.kind === "ground" ? r.data.usable_km2 : null) },
+    { key: "usablePct", label: "Usable, Of Area", unit: "%", decimals: 1, value: (r) => (r.kind === "ground" ? r.data.usable_pct : null) },
+    {
+      key: "usableOfLand",
+      label: "Usable, Of Land",
+      unit: "%",
+      decimals: 1,
+      value: (r) => (r.kind === "ground" ? (r.data.usable_of_land_pct ?? null) : null),
+    },
+    {
+      key: "bySlope",
+      label: "Slope, Of Land",
+      unit: "%",
+      decimals: 1,
+      value: (r) => (r.kind === "ground" ? (r.data.excluded_by_slope_pct ?? null) : null),
+    },
+    {
+      key: "byFlood",
+      // A lower bound, as the reading says: the elevation model is not read over the watershed upstream.
+      label: "Flood, Of Land, At Least",
+      unit: "%",
+      decimals: 1,
+      value: (r) => (r.kind === "ground" ? (r.data.excluded_by_flood_pct ?? null) : null),
+    },
+    { key: "slopeMax", label: "Slope Rule", unit: "°", decimals: 1, value: (r) => (r.kind === "ground" ? r.data.rules.slope_max_deg : null) },
+    { key: "handMin", label: "Flood Rule", unit: "m", decimals: 1, value: (r) => (r.kind === "ground" ? r.data.rules.hand_min_m : null) },
+    ...trailing,
+  ],
 }
 
 export function formatCell(c: Column, v: number | string | null): string {

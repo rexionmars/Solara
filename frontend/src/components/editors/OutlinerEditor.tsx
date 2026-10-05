@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import {
+import { CheckSquare,
   CaretDown,
   CaretRight,
   ChartBar,
@@ -51,8 +51,8 @@ import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS, layerNote } 
  * edited in Properties, for whichever row is active.
  */
 
-const ICON: Record<AnyItem["kind"], Icon> = { site: MapPin, area: Pentagon, solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar }
-const KIND: Record<AnyItem["kind"], string> = { site: "Site", area: "Area", solar: "Solar", wind: "Wind", terrain: "Terrain", connection: "Grid", demand: "Demand" }
+const ICON: Record<AnyItem["kind"], Icon> = { site: MapPin, area: Pentagon, solar: Sun, wind: Fan, terrain: Mountains, connection: PlugsConnected, demand: ChartBar, ground: CheckSquare }
+const KIND: Record<AnyItem["kind"], string> = { site: "Site", area: "Area", solar: "Solar", wind: "Wind", terrain: "Terrain", connection: "Grid", demand: "Demand", ground: "Ground" }
 /*
   A row's glyph in the colour of what it is, as an object explorer's are: the
   tree is scanned by colour before it is read. The node editor's socket
@@ -66,10 +66,11 @@ const TINT: Record<AnyItem["kind"], string> = {
   terrain: "var(--node-socket-when)",
   connection: "var(--node-socket-method)",
   demand: "var(--node-socket-method)",
+  ground: "var(--node-socket-source)",
 }
 const FOLDER_TINT = "var(--warning)"
 /** The drawing of each kind of thing, by what it means (lib/art.ts); the same names the ribbon asks for. */
-const ART: Record<AnyItem["kind"], string> = { site: "site", area: "area", solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand" }
+const ART: Record<AnyItem["kind"], string> = { site: "site", area: "area", solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand", ground: "ground" }
 const GROUP_ART: Record<string, string> = { "g:overlays": "layers", "g:grid": "store", "g:weather": "weather", "g:reference": "basemap" }
 
 /** The map's layers, in the groups the map's own popover offers them in. */
@@ -115,7 +116,7 @@ function itemMenu(item: AnyItem): MenuItem[] {
     { type: "sep" },
     op("EXPORT_CSV"),
     op("EXPORT_JSON"),
-    ...(item.kind === "terrain"
+    ...(item.kind === "terrain" || item.kind === "ground"
       ? [
           op("EXPORT_GEOTIFF"),
           {
@@ -392,7 +393,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
                 </span>
               )}
               {/* A terrain layer's legend, tied to it on the map: shown by asking, from here. */}
-              {item?.kind === "terrain" && (
+              {(item?.kind === "terrain" || item?.kind === "ground") && (
                 <button
                   type="button"
                   onClick={(e) => {

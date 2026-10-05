@@ -89,6 +89,24 @@ func TestTerrainPayload_SendsTheAreaAndOmitsUnsetFields(t *testing.T) {
 	}
 }
 
+// A zero height above the drainage is a rule, not an omission: it switches the
+// flood rule off, and must reach the sidecar as zero.
+func TestGroundPayload_OmitsUnsetRulesAndKeepsAZero(t *testing.T) {
+	got := keys(groundPayload(UsableGroundRequest{Area: square()}, "/work"))
+	want := []string{"action", "polygon_geojson", "work_dir"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("keys %v, want %v", got, want)
+	}
+	zero := 0.0
+	p := groundPayload(UsableGroundRequest{Area: square(), HandMinM: &zero}, "/work")
+	if v, ok := p["hand_min_m"]; !ok || v != 0.0 {
+		t.Fatalf("hand_min_m = %v (set %v), want 0", v, ok)
+	}
+	if p["action"] != "usable_ground" {
+		t.Fatalf("action %v", p["action"])
+	}
+}
+
 // A null the sidecar sends for a quantity with no answer must stay null, not
 // become a measured zero.
 func TestWindAnalysis_KeepsANullRoughness(t *testing.T) {

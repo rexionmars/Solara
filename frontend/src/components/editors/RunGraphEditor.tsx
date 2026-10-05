@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { ArrowsClockwise, ChartBar, CircleNotch, CodeSimple, Eye, Fan, FlowArrow, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "../../lib/icons"
+import { ArrowsClockwise, ChartBar, CheckSquare, CircleNotch, CodeSimple, Eye, Fan, FlowArrow, Mountains, Play, PlugsConnected, Stop, Sun, Warning, type Icon } from "../../lib/icons"
 import { lastFailure, running } from "../../lib/analysis"
 import { errorMessage } from "../../lib/errors"
 import { frameItem, framePolygon } from "../../lib/mapEngine"
@@ -14,7 +14,7 @@ import { polygonAreaKm2 } from "../../lib/geo"
 import { RUN_OPERATOR, runOperator, useOperator } from "../../lib/operators"
 import {
   FALLBACK_SEASONS,
-  CONNECTION_FIELDS, DEMAND_FIELDS,
+  CONNECTION_FIELDS, DEMAND_FIELDS, GROUND_FIELDS,
   SOLAR_FIELDS,
   TERRAIN_FIELDS,
   WIND_FIELDS,
@@ -63,14 +63,14 @@ import { ConsoleBody } from "./ConsoleBody"
  * screen read what its card holds now; see NodeCanvas for the five states.
  */
 
-const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan, connection: PlugsConnected, demand: ChartBar }
+const PRODUCT_ICON: Record<Product, Icon> = { solar: Sun, terrain: Mountains, wind: Fan, connection: PlugsConnected, demand: ChartBar, ground: CheckSquare }
 /*
   Every product the graph can lay out, which is every product: INPUTS in
   runGraph.ts names the cards of each one, and a product missing from HERE is
   a product whose request cannot be set up at all -- the Product select, the
   View menu and the fallback on line 298 all read this list.
 */
-const PRODUCTS: Product[] = ["solar", "terrain", "wind", "connection", "demand"]
+const PRODUCTS: Product[] = ["solar", "terrain", "wind", "connection", "demand", "ground"]
 
 const OPERATOR = RUN_OPERATOR
 
@@ -183,6 +183,7 @@ const FIELDS: Record<Group, FieldDef<string>[]> = {
   terrain: TERRAIN_FIELDS,
   connection: CONNECTION_FIELDS,
   demand: DEMAND_FIELDS,
+  ground: GROUND_FIELDS,
 }
 
 /** A project setting, in a card: the drag field Properties uses, with its name inside it. */
@@ -742,6 +743,8 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
       </>
     ),
     reach: <Param group="connection" field="searchRadiusKm" label="Radius" />,
+    slope: <Param group="ground" field="slopeMaxDeg" label="At most" />,
+    flood: <Param group="ground" field="handMinM" label="At least" />,
     performance: <Param group="solar" field="performanceRatio" label="Ratio" />,
     season: (
       <Select

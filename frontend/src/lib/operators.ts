@@ -1,7 +1,7 @@
-import { ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "./icons"
+import { CheckSquare, ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "./icons"
 import { Quit, WindowIsFullscreen, WindowFullscreen, WindowUnfullscreen } from "../../wailsjs/runtime/runtime"
 import { account, logout } from "./account"
-import { cancelRun, runConnection, runDemand, runSolar, runTerrain, runWind, running } from "./analysis"
+import { cancelRun, runConnection, runDemand, runGround, runSolar, runTerrain, runWind, running } from "./analysis"
 import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
@@ -112,12 +112,16 @@ const needSite = () => (activeSite() ? true : "Select a site first (Place Site t
 const needArea = () => (activeArea() ? true : "Select an area first (Draw Area tool, D)")
 const needItem = () => (activeItem() ? true : "Nothing is selected")
 const needResult = () => (isResult(activeItem()) ? true : "Select a result first")
-const needTerrainResult = () => (activeItem()?.kind === "terrain" ? true : "Select a solar terrain result first")
+/** A result with a GeoTIFF behind its layer: the terrain's irradiation, or the usable ground's classes. */
+const needRasterResult = () => {
+  const k = activeItem()?.kind
+  return k === "terrain" || k === "ground" ? true : "Select a solar terrain or usable ground result first"
+}
 
 // ---- Run helpers ---------------------------------------------------------------
 
 /** The operator that runs each product. */
-export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION", demand: "DEMAND" }
+export const RUN_OPERATOR: Record<Product, string> = { solar: "SOLAR", wind: "WIND", terrain: "TERRAIN", connection: "CONNECTION", demand: "DEMAND", ground: "GROUND" }
 
 /** That the connected store can answer this product, or why it cannot (capabilities.ts). */
 /** That the product's ground and product cards are wired to Run in the run graph (graphLinks.ts). */
@@ -134,6 +138,7 @@ const RUN_AREA: Record<AreaResult["kind"], (a: AreaObject) => Promise<string | n
   terrain: runTerrain,
   connection: runConnection,
   demand: runDemand,
+  ground: runGround,
 }
 const RUN_SITE: Record<Exclude<Product, AreaResult["kind"]>, (s: SiteObject) => Promise<string | null>> = {
   solar: runSolar,
@@ -245,14 +250,14 @@ export const OPERATORS: Operator[] = [
   {
     name: "EXPORT_GEOTIFF",
     aliases: [],
-    label: "Terrain layer as GeoTIFF…",
-    description: "Save the active solar terrain result's float32 GeoTIFF",
+    label: "Layer as GeoTIFF…",
+    description: "Save the GeoTIFF behind the active result's layer: solar terrain as float32, usable ground as its classes",
     icon: Download,
     menu: "Studio › Export",
-    poll: needTerrainResult,
+    poll: needRasterResult,
     run: () => {
       const r = activeItem()
-      if (r?.kind === "terrain") return exportGeoTiff(r)
+      if (r?.kind === "terrain" || r?.kind === "ground") return exportGeoTiff(r)
     },
   },
   {
@@ -260,14 +265,14 @@ export const OPERATORS: Operator[] = [
     aliases: [],
     label: "Comparison table as CSV…",
     description: "Export every result of one product as a CSV table",
-    usage: "EXPORT_TABLE solar|wind|terrain|connection",
+    usage: "EXPORT_TABLE solar|wind|terrain|connection|demand|ground",
     icon: FileArrowDown,
     menu: "Studio › Export",
     poll: () => (project.get().data.results.length ? true : "There are no results yet"),
     run: (args) => {
       const product = (args[0]?.toLowerCase() ?? activeProductForTable()) as Product
       if (!(product in PRODUCT_NAMES)) {
-        fail("Usage: EXPORT_TABLE solar|wind|terrain|connection")
+        fail("Usage: EXPORT_TABLE solar|wind|terrain|connection|demand|ground")
         return
       }
       return exportTableCsv(product)
@@ -384,14 +389,14 @@ export const OPERATORS: Operator[] = [
     name: "LEGEND",
     aliases: [],
     label: "Legend on the map",
-    description: "Draw or remove the active terrain layer's legend, tied to the layer on the map",
+    description: "Draw or remove the active terrain or usable ground layer's legend, tied to the layer on the map",
     icon: Swatches,
     menu: "Map › Object",
     scope: "objects",
-    poll: needTerrainResult,
+    poll: needRasterResult,
     run: () => {
       const item = activeItem()
-      if (item?.kind === "terrain") setLegendShown(item.id, !legendsShown.get().has(item.id))
+      if (item?.kind === "terrain" || item?.kind === "ground") setLegendShown(item.id, !legendsShown.get().has(item.id))
     },
   },
   {
@@ -690,6 +695,17 @@ export const OPERATORS: Operator[] = [
     menu: "Analyze",
     poll: all(needArea, needWires("demand"), notRunning, engineUp, needStoreFor("demand")),
     run: () => runProduct("demand"),
+  },
+  {
+    name: "GROUND",
+    aliases: ["USABLE", "UG"],
+    label: "Usable ground",
+    description:
+      "How much of the active area a plant could stand on, by slope and by height above the drainage (Copernicus DEM)",
+    icon: CheckSquare,
+    menu: "Analyze",
+    poll: all(needArea, needWires("ground"), notRunning, engineUp),
+    run: () => runProduct("ground"),
   },
   {
     name: "GRID_STORE",

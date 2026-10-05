@@ -5,7 +5,7 @@ import { BASEMAP_FIRST_LABEL, BASEMAP_STYLE, applyGround } from "./basemap"
 import { ACTIVE, AREA, HAIRLINE, REACH, SITE, SITE_OUTLINE } from "./colors"
 import { bounds, distanceKm, ringCentre } from "./geo"
 import { clipFeatures, mapGraph, resolveRegion } from "./mapGraph"
-import { beginStep, findItem, isResult, mutate, project, type AnyItem, type DemandResult, type Polygon, type TerrainResult } from "./project"
+import { beginStep, findItem, isResult, mutate, project, type AnyItem, type DemandResult, type GroundResult, type Polygon, type TerrainResult } from "./project"
 import { runOperator } from "./operators"
 import { note } from "./reports"
 import { select, selection } from "./selection"
@@ -138,11 +138,11 @@ const terrainLayerId = (r: OverlayResult) => TERRAIN_PREFIX + r.id
  * demand layer. They share one sync because they share one rule -- newest on
  * top, all of them under the areas -- and two copies of it drifted in TERRA.
  */
-type OverlayResult = TerrainResult | DemandResult
+type OverlayResult = TerrainResult | DemandResult | GroundResult
 
 /** Where the layer is and what it covers, whichever product drew it. */
 function overlayOf(r: OverlayResult) {
-  return r.kind === "terrain" ? r.data : r.data.density
+  return r.kind === "demand" ? r.data.density : r.data
 }
 
 function create(container: HTMLDivElement): void {
@@ -963,7 +963,7 @@ function syncTerrain(m: MapLibreMap): void {
   const wanted = overlays.get().layers
     ? d.results.filter(
         (r): r is OverlayResult =>
-          (r.kind === "terrain" || r.kind === "demand") &&
+          (r.kind === "terrain" || r.kind === "demand" || r.kind === "ground") &&
           !r.hidden &&
           !findItem(d, r.sourceId)?.hidden &&
           // A demand reading over ground the register does not reach drew
@@ -1292,7 +1292,7 @@ export function frameItem(item: AnyItem): boolean {
   const target = isResult(item) ? findItem(d, item.sourceId) : item
   if (target?.kind === "site") return frame([[target.lon, target.lat]])
   if (target?.kind === "area") return frame(target.polygon.coordinates[0])
-  if (item.kind === "terrain" || item.kind === "connection") return frame(item.polygon.coordinates[0])
+  if (item.kind === "terrain" || item.kind === "connection" || item.kind === "demand" || item.kind === "ground") return frame(item.polygon.coordinates[0])
   if (item.kind === "solar" || item.kind === "wind") return frame([[item.site.lon, item.site.lat]])
   return false
 }
