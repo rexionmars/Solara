@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform as host
 import re
 import shutil
 import subprocess
@@ -67,6 +68,11 @@ def package(tag, platform):
     full, _, _ = version(tag)
     if platform not in ('darwin-arm64','darwin-amd64','windows-amd64','linux-amd64'):
         raise ValueError('Unsupported release platform.')
+    expected_os, expected_arch = platform.split('-')
+    native_os = {'Darwin':'darwin','Linux':'linux','Windows':'windows'}[host.system()]
+    native_arch = {'aarch64':'arm64','arm64':'arm64','AMD64':'amd64','x86_64':'amd64'}.get(host.machine())
+    if (native_os, native_arch) != (expected_os, expected_arch):
+        raise ValueError(f'Frozen engine platform {native_os}-{native_arch} does not match {platform}.')
     folder = f'Solara-{full}-{platform}'
     dist = ROOT / 'build/release'
     stage = dist / 'stage' / folder
