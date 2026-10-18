@@ -70,6 +70,18 @@ type Runner struct {
 
 // NewRunner locates the sidecar and the interpreter that will run it.
 func NewRunner() (*Runner, error) {
+	executable, _ := os.Executable()
+	return newRunner(executable)
+}
+
+// A distributed app prefers its adjacent frozen engine over the working directory.
+// Explicit development overrides retain the source/interpreter execution path.
+func newRunner(executable string) (*Runner, error) {
+	if os.Getenv("TERRA_ENERGY_APP_DIR") == "" && os.Getenv("TERRA_ENERGY_PYTHON") == "" {
+		if engine := bundledEngine(executable); engine != "" {
+			return &Runner{python: engine}, nil
+		}
+	}
 	dir, err := resolveAppDir()
 	if err != nil {
 		return nil, err
@@ -80,7 +92,7 @@ func NewRunner() (*Runner, error) {
 	}, nil
 }
 
-// Python is the interpreter requests run under.
+// Python is the interpreter or bundled engine executable requests run under.
 func (r *Runner) Python() string {
 	return r.python
 }
@@ -157,7 +169,11 @@ func (r *Runner) execute(ctx context.Context, req any, onProgress func(Progress)
 		return nil, fmt.Errorf("encode request: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, r.python, r.script)
+	args := []string{}
+	if r.script != "" {
+		args = append(args, r.script)
+	}
+	cmd := exec.CommandContext(ctx, r.python, args...)
 	cmd.Stdin = bytes.NewReader(body)
 	// PYTHONNOUSERSITE keeps the user's site-packages out of the import path,
 	// so the environment a request runs in does not depend on who launched the
@@ -354,4 +370,26 @@ func resolvePython(appDir string) string {
 		return venv
 	}
 	return fallback
+}
+
+// macOS keeps the engine inside Resources; Windows/Linux keep it beside the app.
+func bundledEngine(executable string) string {
+	if executable == "" {
+		return ""
+	}
+	name := "solara-engine"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	dir := filepath.Dir(executable)
+	candidates := []string{filepath.Join(dir, "engine", name)}
+	if runtime.GOOS == "darwin" {
+		candidates = append(candidates, filepath.Join(dir, "..", "Resources", "engine", name))
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
+			return candidate
+		}
+	}
+	return ""
 }

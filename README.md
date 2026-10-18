@@ -30,6 +30,12 @@ say what they were computed from and what they are not: the wind screening is
 gross and unvalidated, a connection reading is not an access opinion, and a
 modelled value is never drawn as a measured one.
 
+## Downloads
+
+[GitHub Releases](https://github.com/rexionmars/Solara/releases) provides desktop
+packages with the Python calculation engine included. See [installation and release
+workflow](docs/releases.md) for supported platforms, runtime dependencies and checksums.
+
 ## The products
 
 | product | read at | what it answers | from |

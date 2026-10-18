@@ -18,3 +18,7 @@ __pycache__/
 
 # Vite
 .vite/
+
+build/engine/
+build/release/
+build/pyinstaller/
