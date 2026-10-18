@@ -2877,7 +2877,85 @@ export namespace grid {
 
 export namespace main {
 	
+	export class GeoPackageLayer {
+	    style?: Record<string, any>;
+	    name: string;
+	    label: string;
+	    geometry: string;
+	    count: number;
+	    bbox: number[];
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageLayer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.style = source["style"];
+	        this.name = source["name"];
+	        this.label = source["label"];
+	        this.geometry = source["geometry"];
+	        this.count = source["count"];
+	        this.bbox = source["bbox"];
+	        this.error = source["error"];
+	    }
+	}
+	export class GeoPackageCatalog {
+	    path: string;
+	    name: string;
+	    layers: GeoPackageLayer[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageCatalog(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.name = source["name"];
+	        this.layers = this.convertValues(source["layers"], GeoPackageLayer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class GeoPackagePreview {
+	    geojson: Record<string, any>;
+	    limited: boolean;
+	    skipped: number;
+	    indexed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackagePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.geojson = source["geojson"];
+	        this.limited = source["limited"];
+	        this.skipped = source["skipped"];
+	        this.indexed = source["indexed"];
+	    }
+	}
 	export class OpenedProject {
+	    geopackage?: GeoPackageCatalog;
 	    path: string;
 	    content: string;
 	    run_dirs: Record<string, string>;
@@ -2888,10 +2966,29 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.geopackage = this.convertValues(source["geopackage"], GeoPackageCatalog);
 	        this.path = source["path"];
 	        this.content = source["content"];
 	        this.run_dirs = source["run_dirs"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SidecarStatus {
 	    ok: boolean;

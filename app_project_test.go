@@ -119,7 +119,7 @@ func TestSaveProject_AddsTheExtension(t *testing.T) {
 	}
 }
 
-// Only a .solara file opens; .terra is TERRA's.
+// Opening accepts .solara and .gpkg; .terra is TERRA's.
 func TestOpenProject_RefusesAnotherExtension(t *testing.T) {
 	a := &App{resultsDir: t.TempDir()}
 	for _, name := range []string{"Site.terra", "Site.json", "Site"} {
