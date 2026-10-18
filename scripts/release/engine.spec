@@ -2,7 +2,7 @@
 # travel together. Native builds on each OS/architecture; never cross-freeze.
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metadata
+from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metadata, collect_delvewheel_libs_directory
 
 root = Path(SPECPATH).parents[1]
 sys.path.insert(0, str(root / 'sidecar'))
@@ -13,6 +13,9 @@ for package in ('pypsa', 'highspy', 'rasterio', 'pyproj'):
     datas += data
     binaries += binary
     hiddenimports += hidden
+# Windows HiGHS wheels keep a renamed VC runtime in the sibling .libs folder.
+# Preserve that directory so the wheel's DLL loader can find it after relocation.
+datas, binaries = collect_delvewheel_libs_directory('highspy', datas=datas, binaries=binaries)
 for distribution in ('pypsa', 'highspy', 'linopy'):
     datas += copy_metadata(distribution)
 a = Analysis([str(root / 'scripts' / 'release' / 'engine_main.py')], pathex=[str(root / 'sidecar')],
