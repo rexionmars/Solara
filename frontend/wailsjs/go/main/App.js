@@ -18,6 +18,10 @@ export function AnalyzeSolarTerrain(arg1) {
   return window['go']['main']['App']['AnalyzeSolarTerrain'](arg1);
 }
 
+export function AnalyzeSystemPlanning(arg1) {
+  return window['go']['main']['App']['AnalyzeSystemPlanning'](arg1);
+}
+
 export function AnalyzeUsableGround(arg1) {
   return window['go']['main']['App']['AnalyzeUsableGround'](arg1);
 }
@@ -44,6 +48,10 @@ export function DisconnectGridStore() {
 
 export function ExportResultFile(arg1, arg2) {
   return window['go']['main']['App']['ExportResultFile'](arg1, arg2);
+}
+
+export function GeoPackageFeatures(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GeoPackageFeatures'](arg1, arg2, arg3);
 }
 
 export function GetAppVersion() {
@@ -76,6 +84,10 @@ export function GridStoreConnection() {
 
 export function GridTownDemand() {
   return window['go']['main']['App']['GridTownDemand']();
+}
+
+export function InspectGeoPackage(arg1) {
+  return window['go']['main']['App']['InspectGeoPackage'](arg1);
 }
 
 export function InspectGridStore() {
@@ -116,6 +128,10 @@ export function RevealInFileManager(arg1) {
 
 export function RevealMainWindow() {
   return window['go']['main']['App']['RevealMainWindow']();
+}
+
+export function SavePlanningDocument(arg1) {
+  return window['go']['main']['App']['SavePlanningDocument'](arg1);
 }
 
 export function SaveProject(arg1, arg2, arg3) {

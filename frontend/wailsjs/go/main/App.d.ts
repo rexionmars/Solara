@@ -15,6 +15,8 @@ export function AnalyzeSolarResource(arg1:energy.SolarRequest):Promise<energy.So
 
 export function AnalyzeSolarTerrain(arg1:energy.SolarTerrainRequest):Promise<energy.SolarTerrainAnalysis>;
 
+export function AnalyzeSystemPlanning(arg1:Record<string, any>):Promise<Record<string, any>>;
+
 export function AnalyzeUsableGround(arg1:energy.UsableGroundRequest):Promise<energy.UsableGroundAnalysis>;
 
 export function AnalyzeWindResource(arg1:energy.WindRequest):Promise<energy.WindAnalysis>;
@@ -28,6 +30,8 @@ export function CurrentUser():Promise<store.User>;
 export function DisconnectGridStore():Promise<grid.StoreReport>;
 
 export function ExportResultFile(arg1:string,arg2:string):Promise<string>;
+
+export function GeoPackageFeatures(arg1:string,arg2:string,arg3:Array<number>):Promise<main.GeoPackagePreview>;
 
 export function GetAppVersion():Promise<string>;
 
@@ -44,6 +48,8 @@ export function GridPlants():Promise<grid.PlantsLayer>;
 export function GridStoreConnection():Promise<grid.StoreConnection>;
 
 export function GridTownDemand():Promise<grid.TownDemandLayer>;
+
+export function InspectGeoPackage(arg1:string):Promise<main.GeoPackageCatalog>;
 
 export function InspectGridStore():Promise<grid.StoreReport>;
 
@@ -64,6 +70,8 @@ export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User
 export function RevealInFileManager(arg1:string):Promise<void>;
 
 export function RevealMainWindow():Promise<void>;
+
+export function SavePlanningDocument(arg1:Record<string, any>):Promise<string>;
 
 export function SaveProject(arg1:string,arg2:string,arg3:Array<string>):Promise<string>;
 

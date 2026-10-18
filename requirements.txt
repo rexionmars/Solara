@@ -5,6 +5,10 @@ pandas>=2.0
 scipy>=1.11
 pvlib>=0.11
 
+# Solora system planning: linear dispatch and capacity expansion, solved locally.
+pypsa==1.4.0
+highspy==1.15.1
+
 # The terrain product: the Copernicus DEM read from the Planetary Computer
 # STAC catalogue, windowed and reprojected with rasterio, clipped to the area.
 rasterio>=1.3

@@ -53,10 +53,16 @@ const (
 // projectFilter is the dialog filter for project files.
 var projectFilter = []wruntime.FileFilter{{DisplayName: "Solara project (*.solara)", Pattern: "*.solara"}}
 
+// Saving remains .solara; opening also accepts local GeoPackage datasets.
+var openProjectFilter = []wruntime.FileFilter{
+	{DisplayName: "Solara projects and GeoPackages (*.solara, *.gpkg)", Pattern: "*.solara;*.gpkg"},
+}
+
 // OpenedProject is a project file read by OpenProject.
 type OpenedProject struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	GeoPackage *GeoPackageCatalog `json:"geopackage,omitempty"`
+	Path       string             `json:"path"`
+	Content    string             `json:"content"`
 	// Run id -> absolute directory of that run inside this session's results
 	// directory, for every run restored from the project's data folder.
 	RunDirs map[string]string `json:"run_dirs"`
@@ -88,7 +94,7 @@ func (a *App) OpenProject(path string) (*OpenedProject, error) {
 	if path == "" {
 		chosen, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
 			Title:   "Open Project",
-			Filters: projectFilter,
+			Filters: openProjectFilter,
 		})
 		if err != nil || chosen == "" {
 			return nil, err
@@ -323,9 +329,8 @@ func (a *App) storeRun(data, id string) error {
 /*
 openProjectFrom reads the document at path and restores its runs.
 
-Only a .solara file is opened. The dialog filter is not the only way in -- the
-recent list hands a path straight here -- and .terra belongs to TERRA, whose
-documents this application does not read.
+The extension selects a Solara document or a GeoPackage catalog. GeoPackages
+are inspected read-only, never read as a project JSON document.
 
 A run already in the results directory is left alone rather than overwritten:
 the id names the same immutable files, and an analysis or a layer being served
@@ -338,8 +343,15 @@ func (a *App) openProjectFrom(path string) (*OpenedProject, error) {
 	if err != nil {
 		return nil, err
 	}
+	if strings.EqualFold(filepath.Ext(path), ".gpkg") {
+		catalog, err := a.InspectGeoPackage(path)
+		if err != nil {
+			return nil, err
+		}
+		return &OpenedProject{Path: path, GeoPackage: catalog, RunDirs: map[string]string{}}, nil
+	}
 	if !hasProjectExt(path) {
-		return nil, fmt.Errorf("%s is not a Solara project (*%s)", filepath.Base(path), projectExt)
+		return nil, fmt.Errorf("%s is not a Solara project or GeoPackage (*.solara, *.gpkg)", filepath.Base(path))
 	}
 	content, err := readProjectFile(path)
 	if err != nil {
