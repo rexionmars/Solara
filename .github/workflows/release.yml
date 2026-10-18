@@ -121,7 +121,9 @@ jobs:
       - name: Stamp and build desktop application
         run: |
           python scripts/release/package.py stamp --tag "$RELEASE_TAG"
-          wails build -s -m -skipbindings -platform "$TARGET_PLATFORM" -ldflags "-X main.AppVersion=$RELEASE_VERSION"
+          tags=()
+          if [[ "$ASSET_PLATFORM" == linux-* ]]; then tags+=(-tags webkit2_41); fi
+          wails build -s -m -skipbindings -platform "$TARGET_PLATFORM" -ldflags "-X main.AppVersion=$RELEASE_VERSION" "${tags[@]}"
       - name: Freeze Python calculation engine
         run: python -m PyInstaller --noconfirm --clean --distpath build/engine --workpath build/pyinstaller scripts/release/engine.spec
       - name: Package and test the relocated distribution
