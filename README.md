@@ -76,7 +76,13 @@ by subject.
 The editors are the **map**, the **outliner**, **properties**, the **run
 graph**, a **reading** per product, the **data table**, the **reports** and a
 **console**. Areas split, join, resize and maximise; the arrangement survives a
-restart.
+restart. Drag a panel by its header's grip or empty header space: dropping in
+another panel's center swaps their positions; dropping at an edge docks it
+there. A preview shows the resulting position before release. Escape cancels.
+Panel IDs and their settings travel with them. The grip also supports the
+keyboard: Enter starts, Tab chooses a target, arrows choose an edge, C chooses
+the center swap, Enter applies and Escape cancels. Restore a maximized area
+before rearranging panels.
 
 The **run graph** lays a product's request out as
 nodes, in the grammar of Blender's node editor. The fields on a node are the
@@ -89,6 +95,57 @@ Every action is an operator: reachable from a menu, a key, the operator search
 (F3) and the console, with a poll that says why it cannot run instead of
 failing after. Every change is an undo step. A project is one `name.solara`
 file, with the terrain rasters in a `name.solara-data` folder beside it.
+
+## Local GeoPackage layers
+
+Choose **Open project…** (Cmd/Ctrl+O) and select a `.gpkg` or `.solara` file.
+Solara selects a non-empty vector layer automatically (substations when present),
+frames its extent and lists the file's layers under **Map layers** in the Outliner.
+Click another layer to display it, use its eye to hide or show it, and double-click
+to frame it again. The map header's **GeoPackage** panel also offers the layer selector.
+Solara reads the visible region as the map moves. Points, lines and
+polygons are supported; click a feature to inspect its attributes. Coordinates
+are transformed to WGS84 using the file's declared reference system.
+
+The source file is opened read-only. Each visible layer previews at most 5,000
+features and 6 MB per view, clipping and simplifying geometries for display. Zoom in
+when the preview limit is reached. Without a spatial index, only the first
+50,000 records are scanned. Unsupported or oversized geometries are counted
+in the preview message. Raster tile layers are not supported.
+
+One GeoPackage can be open with multiple layers visible together. Each eye in
+the Outliner controls its own layer; the selected analysis layer is independent.
+Layer colors come from QGIS single-symbol/categorized styles or standard
+feature color attributes when available. Otherwise Solara assigns a random
+palette, with a color swatch beside each layer. Unsupported style renderers
+use this fallback. Clicked features use the grid register's existing draggable
+callout, anchored to the selected coordinate. It shows labeled attributes and
+expandable JSON tags, with a copy action; close it with its close button or Escape.
+
+Saving a `.solara` project keeps the source path, selected layer, visible layers
+and assigned colors so they can be restored on reopening. The GeoPackage remains an external, read-only source;
+keep it at the referenced location when reopening the project.
+
+### Workspaces
+
+The permanent **Workspace** bar provides **Default** (map, Outliner, properties
+and reports) and **Planning · PyPSA** (the dedicated system-planning editor).
+**More workspaces** contains the other task layouts. Panel arrangements are saved
+independently, and the last active workspace is restored at launch. **Reset layout**
+restores only the current workspace. Planning inputs, session results and the last
+planning view remain available when switching workspaces.
+
+### System planning with PyPSA
+
+Open **Analysis → Grid → Planning** for economic dispatch or single-period
+capacity expansion of generation, storage and existing transmission ratings.
+Enter an explicit network, chronological demand/availability profiles, costs and
+an optional CO₂ cap, or import a study JSON. Results include dispatch by technology,
+optimized capacities, cost decomposition, emissions, line utilization and storage
+losses. Study and reproducible run-report exports are available in the panel.
+The synthetic example is labelled as fictional. The app does not infer a power
+system model from GeoPackage geometries. Install `requirements.txt` for the local
+PyPSA/HiGHS runtime. See [model, units and references](docs/system-planning.md).
 
 ## The grid store
 
