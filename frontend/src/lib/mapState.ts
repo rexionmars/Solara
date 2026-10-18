@@ -95,3 +95,15 @@ export type PickedGrid =
   | { kind: "reach"; at: [number, number]; props: ReachProps }
 
 export const pickedGrid = createStore<PickedGrid | null>(null)
+
+/** Local features use the same anchored callout as the grid registers. */
+export type PickedGeoPackage = {
+  at: [number, number]
+  layer: string
+  label: string
+  file: string
+  color: string
+  geometry: string
+  props: Record<string, unknown>
+}
+export const pickedGeoPackage = createStore<PickedGeoPackage | null>(null)

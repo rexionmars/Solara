@@ -6,6 +6,7 @@ import { AREA_RADIUS_PX, closeArea, hoveredArea, setEditor, splitArea, toggleMax
 import { editorArt } from "../../lib/art"
 import { StudioHeaderPopoverButton } from "./HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "./Popover"
+import { beginPanelDrag, beginPanelKeyboardDrag } from "../../lib/panelDrag"
 
 /**
  * One area: a header that is a control surface, an optional toolbar, and a
@@ -140,6 +141,10 @@ export function StudioArea({
       <div
         onPointerDown={(e) => {
           if (e.button === 2) dismissedByRightPress.current = areaMenu
+          if (e.button !== 0 || maximized) return
+          const target = e.target as HTMLElement
+          if (!target.closest("[data-panel-drag]") && target.closest("button, input, select, textarea, a, [role='button'], [contenteditable='true']")) return
+          beginPanelDrag(e, areaId)
         }}
         onContextMenu={(e) => {
           if ((e.target as HTMLElement).closest("input")) return
@@ -151,9 +156,16 @@ export function StudioArea({
           }
           setAreaMenu(true)
         }}
-        className="studio-header relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1"
+        className={`studio-header relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1 ${maximized ? "" : "cursor-grab"}`}
         style={{ height: AREA_HEADER_PX, background: "var(--s-panel-head)", borderColor: "rgb(var(--p-line) / 0.22)" }}
       >
+        <button type="button" data-panel-drag="" aria-label={`Move ${meta.label} panel`} disabled={maximized}
+          title={maximized ? "Restore areas to move this panel" : "Drag to move panel. Center swaps; edges dock. Press Enter for keyboard controls."}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); beginPanelKeyboardDrag(areaId) }
+          }}
+          className="grid h-5 w-3.5 shrink-0 cursor-grab place-items-center rounded-sm text-muted-foreground/60 hover:bg-hover hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-ring active:cursor-grabbing disabled:cursor-default disabled:opacity-30"
+          style={{ touchAction: "none" }}><span aria-hidden className="text-[14px] leading-none">⠿</span></button>
         {/* The editor selector, which is where Blender's header begins. */}
         <StudioPopover
           open={typeMenu}
@@ -272,9 +284,11 @@ export function StudioArea({
 
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {fits ? (
+          {/* Keep the editor mounted when briefly undersized during rearrangement. */}
+          <div className={fits ? "contents" : "hidden"}>
             <AreaHosts.Provider value={hosts}>{children}</AreaHosts.Provider>
-          ) : (
+          </div>
+          {!fits && (
             <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
               <meta.icon className="size-4 text-muted-foreground/60" />
               <p className="text-[10px] leading-snug text-muted-foreground">

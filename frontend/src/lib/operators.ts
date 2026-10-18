@@ -1,7 +1,7 @@
 import { CheckSquare, ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "./icons"
 import { Quit, WindowIsFullscreen, WindowFullscreen, WindowUnfullscreen } from "../../wailsjs/runtime/runtime"
 import { account, logout } from "./account"
-import { cancelRun, runConnection, runDemand, runGround, runSolar, runTerrain, runWind, running } from "./analysis"
+import { cancelRun, runConnection, runDemand, runGround, runSolar, runTerrain, runWind, running, systemPlanningActive } from "./analysis"
 import { loadDefaults } from "./defaults"
 import { errorMessage } from "./errors"
 import { exportGeoTiff, exportResultCsv, exportResultJson, exportTableCsv, reveal } from "./export"
@@ -176,7 +176,7 @@ export const OPERATORS: Operator[] = [
     name: "OPEN",
     aliases: [],
     label: "Open…",
-    description: "Open a project file",
+    description: "Open a Solara project or GeoPackage dataset",
     icon: FolderOpen,
     menu: "Studio",
     keys: ["Mod+O"],
@@ -741,7 +741,7 @@ export const OPERATORS: Operator[] = [
     description: "Stop the analysis in progress",
     icon: StopCircle,
     menu: "Analyze",
-    poll: () => (running.get() ? true : "Nothing is running"),
+    poll: () => (running.get() || systemPlanningActive.get() ? true : "Nothing is running"),
     run: () => cancelRun(),
   },
   {
@@ -994,7 +994,7 @@ export function searchOperators(query: string): Operator[] {
  */
 const pollTick = createStore(0)
 const bump = () => pollTick.set((n) => n + 1)
-for (const s of [project, selection, running, sidecar, mapMounted, screen, lastOperation, account, activeTool]) {
+for (const s of [project, selection, running, systemPlanningActive, sidecar, mapMounted, screen, lastOperation, account, activeTool]) {
   s.subscribe(bump)
 }
 

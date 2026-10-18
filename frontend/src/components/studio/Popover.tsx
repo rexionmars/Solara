@@ -54,6 +54,7 @@ export function StudioPopover({
   align = "start",
   widthRem = 13.5,
   role = "menu",
+  portal = "studio",
   children,
 }: {
   open: boolean
@@ -64,9 +65,12 @@ export function StudioPopover({
   widthRem?: number
   /** A panel of prose is a dialog, not a menu: a screen reader looks for items in a menu. */
   role?: "menu" | "dialog"
+  /** App-level controls sit outside the panel surface and use viewport coordinates. */
+  portal?: "studio" | "viewport"
   children: ReactNode
 }) {
-  const surface = useSurface()
+  const studioSurface = useSurface()
+  const surface = portal === "viewport" ? document.body : studioSurface
   const anchorRef = useRef<HTMLElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -79,7 +83,9 @@ export function StudioPopover({
       return
     }
     const a = anchorRef.current?.getBoundingClientRect()
-    const s = surface.getBoundingClientRect()
+    const s = detached
+      ? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+      : surface.getBoundingClientRect()
     const p = panelRef.current
     if (!a || !p) return
     const pad = 6
@@ -95,7 +101,7 @@ export function StudioPopover({
     x = Math.min(Math.max(pad, x), Math.max(pad, s.width - w - pad))
     y = Math.min(Math.max(pad, y), Math.max(pad, s.height - h - pad))
     setPos({ x, y })
-  }, [open, surface, align])
+  }, [open, surface, align, detached])
 
   useEffect(() => {
     if (!open) return
@@ -148,6 +154,9 @@ export function StudioPopover({
               left: pos?.x ?? -9999,
               top: pos?.y ?? -9999,
               width: `${widthRem}rem`,
+              maxWidth: detached ? "calc(100vw - 12px)" : undefined,
+              maxHeight: detached ? "calc(100vh - 12px)" : undefined,
+              overflowY: detached ? "auto" : undefined,
               // Raised rather than ink: a panel the colour of the ground behind it reads as a hole.
               background: "var(--s-float)",
               borderColor: "rgb(var(--p-line-strong) / 0.5)",

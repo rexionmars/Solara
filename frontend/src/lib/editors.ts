@@ -8,7 +8,7 @@ import { ChartBar, CheckSquare, Fan, Graph, MapTrifold, Mountains, PlugsConnecte
  * the switch from an id to a component lives where the props are.
  */
 
-export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "reports" | "console" | "solar" | "wind" | "terrain" | "connection" | "demand" | "ground"
+export type EditorId = "map" | "graph" | "outliner" | "properties" | "table" | "planning" | "reports" | "console" | "solar" | "wind" | "terrain" | "connection" | "demand" | "ground"
 
 /**
  * What kind of work a thing is FOR. The workspace bar and the type menu group
@@ -45,6 +45,11 @@ export type EditorMeta = {
 }
 
 export const EDITORS: readonly EditorMeta[] = [
+  {
+    id: "planning", group: "grid", label: "System planning", icon: Graph,
+    minRem: 28, minRowRem: 16, unique: true,
+    hint: "PyPSA economic dispatch and capacity expansion with explicit network, demand and costs",
+  },
   {
     id: "map",
     group: "board",
@@ -168,5 +173,5 @@ export const EDITORS: readonly EditorMeta[] = [
 const BY_ID = new Map(EDITORS.map((e) => [e.id, e]))
 
 export function editorMeta(id: EditorId): EditorMeta {
-  return BY_ID.get(id) ?? EDITORS[0]
+  return BY_ID.get(id) ?? BY_ID.get("map")!
 }

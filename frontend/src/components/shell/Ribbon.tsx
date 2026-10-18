@@ -1,51 +1,53 @@
 import { useState, type ReactNode } from "react"
-import { CaretDown, CaretUp, Crosshair, Cube, GlobeHemisphereWest, Graph, type Icon } from "../../lib/icons"
-import { STUDIO_GROUPS, editorMeta } from "../../lib/editors"
+import {
+  CaretDown,
+  CaretUp,
+  Crosshair,
+  Cube,
+  GlobeHemisphereWest,
+  Graph,
+  FilePlus,
+  FolderOpen,
+  FloppyDisk,
+  Play,
+  StopCircle,
+  Scroll,
+  Table,
+  SlidersHorizontal,
+  type Icon,
+} from "../../lib/icons"
+import { editorMeta } from "../../lib/editors"
 import { findOperator, formatKeys, pollOperator, runOperator, usePollTick } from "../../lib/operators"
-import { PRODUCT_NAMES, type Product } from "../../lib/project"
-import { WORKSPACES, openReading, openRunGraph, screen, setWorkspace } from "../../lib/screen"
+import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
+import {
+  activeTree,
+  areaStates,
+  leaves,
+  openReading,
+  openRunGraph,
+  screen,
+  setAreaState,
+  setWorkspace,
+  toggleMaximized,
+} from "../../lib/screen"
+import { RIBBON_TABS, ribbonContext, resolveRibbonTab } from "../../lib/ribbonContext"
+import { planning, planningHasPendingProfiles, runPlanning, cancelPlanning } from "../../lib/planning"
+import { running } from "../../lib/analysis"
+import { exportTableCsv } from "../../lib/export"
+import { usePlanningFiles } from "../editors/usePlanningFiles"
 import { artSrc, operatorArt } from "../../lib/art"
 import { useStore } from "../../lib/store"
 import { activeTool, basemap, overlays, type ToolId } from "../../lib/tools"
-import { coordinatePrompt, ribbonCollapsed, ribbonTab, toggleRibbon, type RibbonTab } from "../../lib/ui"
+import { coordinatePrompt, ribbonCollapsed, workspaceRibbonTabs, toggleRibbon } from "../../lib/ui"
 import { useProductOffered } from "../../lib/capabilities"
 import { BASEMAP_ITEMS } from "../editors/MapEditor"
 import { StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
 import { AppMenu, ProjectMenu } from "./AppMenus"
 
-/**
- * The ribbon: the application's commands by kind, in tabs, and under the open
- * tab its commands in named groups, as a GIS desktop lays them out.
- *
- * A TAB IS A KIND OF COMMAND, NOT AN ARRANGEMENT. The strip this replaced had
- * one tab per workspace, nine of them, so the row said how the window was
- * divided and nothing about what could be done in it. Four tabs now answer
- * the second question -- the map, the analyses, the window, what leaves the
- * application -- and the nine arrangements are a group of the View tab, where
- * they are still all on screen at once, under their subjects.
- *
- * NOTHING HERE IS NEW. Every button runs an operator the menus already ran,
- * flips an overlay the map's popover already flipped, or opens a workspace
- * the old strip opened, and reads its label from the same table. The ribbon
- * is a way to reach them that can be seen without opening anything, which is
- * the whole of what it adds.
- *
- * A PRODUCT'S BUTTON OPENS ITS READING; it does not spend the run. An empty
- * reading lists what a run would read and carries the button, and Properties
- * holds the settings beside it. The run graph is a second view with a button
- * of its own.
- */
+/** Commands grouped by activity. WorkspaceBar switches panel layouts separately. */
 
 export const RIBBON_TABS_PX = 28
 export const RIBBON_PX = 62
-
-const TABS: { id: RibbonTab; label: string; hint: string }[] = [
-  { id: "map", label: "Map", hint: "Move over the map, place sites and areas, and choose what is drawn on it" },
-  { id: "analysis", label: "Analysis", hint: "The readings, by subject, and the run in progress" },
-  { id: "view", label: "View", hint: "The window's arrangements, by subject, and what the window shows" },
-  { id: "share", label: "Share", hint: "What leaves the application: results, tables and the project file" },
-]
-
 
 const TOOL_OF: Record<string, ToolId> = { TOOL_SELECT: "select", TOOL_SITE: "site", TOOL_MEASURE: "measure" }
 
@@ -68,13 +70,7 @@ function tone(on: boolean | undefined, disabled: boolean | undefined): string {
 }
 
 // Which drawing each product and workspace asks for; the operators' are in lib/art.ts .
-const ART_BY_PRODUCT: Record<Product, string> = { solar: "solar", terrain: "terrain", wind: "wind", connection: "connection", demand: "demand", ground: "ground" }
-/** A workspace is drawn as what it is built around: the product's art, or the editor's. */
-const ART_BY_WORKSPACE: Record<string, string> = {
-  layout: "layout",
-  graph: "run-graph",
-  data: "data",
-  scripting: "scripting",
+const ART_BY_PRODUCT: Record<Product, string> = {
   solar: "solar",
   terrain: "terrain",
   wind: "wind",
@@ -82,7 +78,6 @@ const ART_BY_WORKSPACE: Record<string, string> = {
   demand: "demand",
   ground: "ground",
 }
-
 /** One command. Tall, it is a group's principal verb; short, three of them stack in a column. */
 function Command({
   icon: IconC,
@@ -125,7 +120,12 @@ function Command({
       >
         {artSrc(art) ? (
           // Greyed with the command: a colour that stayed lit would say it can be pressed.
-          <img src={artSrc(art)} alt="" draggable={false} className={`size-5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
+          <img
+            src={artSrc(art)}
+            alt=""
+            draggable={false}
+            className={`size-5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`}
+          />
         ) : (
           IconC && <IconC className="size-[18px] shrink-0" />
         )}
@@ -151,7 +151,12 @@ function Command({
           {on && <span className="size-1.5 rounded-[1px] bg-accent" />}
         </span>
       ) : artSrc(art) ? (
-        <img src={artSrc(art)} alt="" draggable={false} className={`size-3.5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`} />
+        <img
+          src={artSrc(art)}
+          alt=""
+          draggable={false}
+          className={`size-3.5 shrink-0 ${disabled ? "opacity-40 grayscale" : ""}`}
+        />
       ) : (
         IconC && <IconC className="size-3 shrink-0 text-muted-foreground" />
       )}
@@ -192,6 +197,7 @@ function Basemap() {
       open={open}
       onOpenChange={setOpen}
       widthRem={15}
+      portal="viewport"
       trigger={(t) => (
         <Command
           buttonRef={t.ref as React.Ref<HTMLButtonElement>}
@@ -228,7 +234,10 @@ function Basemap() {
 
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex shrink-0 flex-col border-r px-1.5" style={{ borderColor: "rgb(var(--p-line) / 0.3)" }}>
+    <div
+      className="flex shrink-0 flex-col border-r px-1.5"
+      style={{ borderColor: "rgb(var(--p-line) / 0.3)" }}
+    >
       <div role="group" aria-label={label} className="flex min-h-0 flex-1 items-stretch gap-0.5 pt-1">
         {children}
       </div>
@@ -320,29 +329,45 @@ function MapTab() {
   )
 }
 
-function AnalysisTab() {
+function AnalysisTab({ products }: { products: Product[] }) {
   return (
     <>
-      <Group label="Solar">
-        <Reading product="solar" />
-        <Reading product="terrain" />
-      </Group>
-      <Group label="Wind">
-        <Reading product="wind" />
-      </Group>
-      <Group label="Grid">
-        <Reading product="connection" />
-        <Reading product="demand" />
-        <Column>
-          <Op name="GRID_STORE" label="Check the store" />
-        </Column>
-      </Group>
-      <Group label="Ground">
-        <Reading product="ground" />
-        <Column>
-          <Op name="GROUND" label="Run on the area" />
-        </Column>
-      </Group>
+      {products.some((p) => p === "solar" || p === "terrain") && (
+        <Group label="Solar">
+          {products.includes("solar") && <Reading product="solar" />}
+          {products.includes("terrain") && <Reading product="terrain" />}
+        </Group>
+      )}
+      {products.includes("wind") && (
+        <Group label="Wind">
+          <Reading product="wind" />
+        </Group>
+      )}
+      {products.some((p) => p === "connection" || p === "demand") && (
+        <Group label="Grid">
+          <Command
+            icon={Graph}
+            art="run-graph"
+            label="Planning"
+            title="Open PyPSA system planning"
+            tall
+            onClick={() => setWorkspace("planning")}
+          />
+          {products.includes("connection") && <Reading product="connection" />}
+          {products.includes("demand") && <Reading product="demand" />}
+          <Column>
+            <Op name="GRID_STORE" label="Check the store" />
+          </Column>
+        </Group>
+      )}
+      {products.includes("ground") && (
+        <Group label="Ground">
+          <Reading product="ground" />
+          <Column>
+            <Op name="GROUND" label="Run on the area" />
+          </Column>
+        </Group>
+      )}
       <Group label="Run">
         <Command
           icon={Graph}
@@ -366,58 +391,58 @@ function AnalysisTab() {
 }
 
 function ViewTab() {
-  const s = useStore(screen)
+  const state = useStore(screen)
+  const panels = leaves(activeTree())
   return (
     <>
-      {STUDIO_GROUPS.map((g) => {
-        const members = WORKSPACES.filter((w) => w.group === g.id)
-        if (!members.length) return null
-        return (
-          <Group key={g.id} label={g.label}>
-            {members.map((w) => (
-              <Command
-                key={w.id}
-                icon={w.icon}
-                art={ART_BY_WORKSPACE[w.id]}
-                label={w.label}
-                title={w.hint}
-                tall
-                on={w.id === s.active}
-                onClick={() => setWorkspace(w.id)}
-              />
-            ))}
-          </Group>
-        )
-      })}
-      <Group label="Window">
+      <Group label="Panels">
+        {panels.map((panel) => {
+          const meta = editorMeta(panel.editor)
+          return (
+            <Command
+              key={panel.id}
+              icon={meta.icon}
+              label={meta.label}
+              title={`Show ${meta.label} alone; click again to restore the layout`}
+              tall
+              on={state.maximized === panel.id}
+              onClick={() => toggleMaximized(panel.id)}
+            />
+          )
+        })}
+      </Group>
+      <Group label="Layout">
         <Column>
           <Op name="RESET_LAYOUT" label="Reset this workspace" />
           <Op name="FULLSCREEN" label="Fullscreen" />
-          <Op name="SEARCH" label="Search operators" />
         </Column>
       </Group>
     </>
   )
 }
 
-function ShareTab() {
+function ShareTab({ products }: { products: Product[] }) {
   return (
     <>
       <Group label="Active result">
         <Column>
           <Op name="EXPORT_CSV" label="As CSV" />
           <Op name="EXPORT_JSON" label="As JSON" />
-          <Op name="EXPORT_GEOTIFF" label="Terrain layer as GeoTIFF" />
+          {products.some((p) => p === "terrain" || p === "ground") && (
+            <Op name="EXPORT_GEOTIFF" label="Layer as GeoTIFF" />
+          )}
         </Column>
       </Group>
       <Group label="Comparison tables, as CSV">
-        {[TABLES.slice(0, 3), TABLES.slice(3)].map((col) => (
-          <Column key={col[0]}>
-            {col.map((p) => (
-              <Op key={p} name="EXPORT_TABLE" args={[p]} label={PRODUCT_NAMES[p]} />
-            ))}
-          </Column>
-        ))}
+        {[products.slice(0, 3), products.slice(3)]
+          .filter((col) => col.length)
+          .map((col) => (
+            <Column key={col[0]}>
+              {col.map((p) => (
+                <Op key={p} name="EXPORT_TABLE" args={[p]} label={PRODUCT_NAMES[p]} />
+              ))}
+            </Column>
+          ))}
       </Group>
       <Group label="Project">
         <Op name="SAVE" tall />
@@ -430,26 +455,323 @@ function ShareTab() {
   )
 }
 
-const BODY: Record<RibbonTab, () => React.ReactElement> = {
-  map: MapTab,
-  analysis: AnalysisTab,
-  view: ViewTab,
-  share: ShareTab,
+function PlanningStudyTab() {
+  const state = useStore(planning)
+  const files = usePlanningFiles()
+  const pending = planningHasPendingProfiles()
+  return (
+    <>
+      {files.input}
+      <Group label="Study">
+        <Command
+          icon={FilePlus}
+          art="new"
+          label="New study"
+          title="Create an empty planning study"
+          tall
+          disabled={state.busy}
+          onClick={files.newStudy}
+        />
+        <Command
+          icon={FolderOpen}
+          art="folder-open"
+          label="Import"
+          title="Import a planning study or run report JSON"
+          tall
+          disabled={state.busy}
+          onClick={files.importStudy}
+        />
+        <Column>
+          <Command
+            icon={Graph}
+            label="Synthetic example"
+            title="Load the fictional two-bus demonstration"
+            disabled={state.busy}
+            onClick={files.example}
+          />
+        </Column>
+      </Group>
+      <Group label="Inputs">
+        <Column>
+          {[
+            { id: "study", label: "Study settings", icon: SlidersHorizontal },
+            { id: "network", label: "Network & assets", icon: Graph },
+            { id: "series", label: "Demand & availability", icon: Table },
+          ].map((view) => (
+            <Command
+              key={view.id}
+              icon={view.icon}
+              label={view.label}
+              title={`Open ${view.label.toLowerCase()}`}
+              on={state.view === view.id}
+              disabled={pending && view.id !== "series"}
+              onClick={() => planning.set((s) => ({ ...s, view: view.id }))}
+            />
+          ))}
+        </Column>
+      </Group>
+    </>
+  )
+}
+
+function PlanningRunTab() {
+  const state = useStore(planning)
+  const otherRun = useStore(running)
+  const files = usePlanningFiles()
+  const pending = planningHasPendingProfiles()
+  return (
+    <>
+      <Group label="Optimization">
+        <Command
+          icon={Play}
+          label={state.busy ? "Optimizing…" : "Optimize"}
+          title={
+            pending ? "Apply edited profiles first" : "Solve the current planning study with PyPSA and HiGHS"
+          }
+          tall
+          disabled={state.busy || !!otherRun || pending}
+          onClick={() => void runPlanning()}
+        />
+        <Command
+          icon={StopCircle}
+          art="cancel"
+          label="Cancel"
+          title="Stop the planning solve"
+          tall
+          disabled={!state.busy || state.cancelling}
+          onClick={() => void cancelPlanning()}
+        />
+      </Group>
+      <Group label="Results">
+        <Command
+          icon={Scroll}
+          art="reports"
+          label="Results"
+          title="View solved planning results"
+          tall
+          disabled={pending || (!files.result && !state.busy)}
+          onClick={() => planning.set((s) => ({ ...s, view: "results" }))}
+        />
+        <Column>
+          <Command
+            icon={SlidersHorizontal}
+            label="Use solved inputs"
+            title="Restore the inputs recorded in the selected run"
+            disabled={state.busy || !files.result}
+            onClick={() => {
+              if (files.result) files.replace(structuredClone(files.result.study))
+            }}
+          />
+        </Column>
+      </Group>
+      <Group label="Engine">
+        <Op name="PING" label="Check" tall />
+        {state.busy && (
+          <div className="flex max-w-64 flex-col justify-center gap-1 px-2 text-meta text-muted-foreground">
+            <progress
+              aria-label="Planning progress"
+              max={100}
+              value={state.progress}
+              className="h-1.5 w-full"
+            />
+            <span role="status" className="truncate" title={state.message}>
+              {state.message}
+            </span>
+          </div>
+        )}
+      </Group>
+    </>
+  )
+}
+
+function PlanningExportTab() {
+  const state = useStore(planning)
+  const files = usePlanningFiles()
+  return (
+    <Group label="Planning JSON">
+      <Command
+        icon={FloppyDisk}
+        art="save"
+        label="Study"
+        title="Export the current planning inputs as JSON"
+        tall
+        disabled={planningHasPendingProfiles()}
+        onClick={files.exportStudy}
+      />
+      <Command
+        icon={Scroll}
+        art="reports"
+        label="Run report"
+        title="Export the selected run with its inputs and results"
+        tall
+        disabled={!files.result}
+        onClick={files.exportReport}
+      />
+      <div className="flex flex-col justify-center px-2 text-meta text-muted-foreground">
+        <span>{state.study.name}</span>
+        <span>
+          {files.result ? `${state.results.length} solved runs in this session` : "No solved run yet"}
+        </span>
+      </div>
+    </Group>
+  )
+}
+
+function PlanningDocument() {
+  const state = useStore(planning)
+  const files = usePlanningFiles()
+  return (
+    <div className="flex min-w-0 max-w-64 items-center gap-1 text-meta">
+      <span className="truncate px-1 text-muted-foreground" title={state.study.name}>
+        {state.study.name}
+      </span>
+      <button
+        type="button"
+        title="Export planning study JSON"
+        aria-label="Save planning study"
+        disabled={planningHasPendingProfiles()}
+        onClick={files.exportStudy}
+        className="flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-foreground hover:bg-hover disabled:opacity-40"
+      >
+        <FloppyDisk className="size-3" />
+        Save study
+      </button>
+    </div>
+  )
+}
+
+function DataTab() {
+  useStore(screen)
+  const settings = useStore(areaStates)
+  const data = useStore(project).data
+  const table = leaves(activeTree()).find((p) => p.editor === "table")
+  const storedProduct = table && (settings[table.id]?.product as Product | undefined)
+  const product = storedProduct && TABLES.includes(storedProduct) ? storedProduct : "solar"
+  return (
+    <>
+      <Group label="Result table">
+        {TABLES.map((p) => (
+          <Command
+            key={p}
+            icon={editorMeta(p).icon}
+            art={ART_BY_PRODUCT[p]}
+            label={PRODUCT_NAMES[p]}
+            title={`Show ${data.results.filter((r) => r.kind === p).length} ${PRODUCT_NAMES[p].toLowerCase()} results`}
+            tall
+            on={p === product}
+            disabled={!table}
+            onClick={() => {
+              if (table) setAreaState(table.id, { product: p })
+            }}
+          />
+        ))}
+      </Group>
+      <Group label="Export">
+        <Command
+          icon={FloppyDisk}
+          art="csv"
+          label="Table CSV"
+          title={`Export the ${PRODUCT_NAMES[product].toLowerCase()} table`}
+          tall
+          disabled={!data.results.some((r) => r.kind === product)}
+          onClick={() => void exportTableCsv(product)}
+        />
+      </Group>
+    </>
+  )
+}
+
+function ToolsTab() {
+  useStore(screen)
+  const panels = leaves(activeTree())
+  const console = panels.find((p) => p.editor === "console")
+  const reports = panels.find((p) => p.editor === "reports")
+  return (
+    <>
+      <Group label="Console">
+        <Command
+          art="scripting"
+          label="Console"
+          title="Show the console panel alone"
+          tall
+          disabled={!console}
+          onClick={() => {
+            if (console) toggleMaximized(console.id)
+          }}
+        />
+        <Op name="SEARCH" label="Operators" tall />
+        <Column>
+          <Op name="ADJUST_LAST" label="Adjust last" />
+        </Column>
+      </Group>
+      <Group label="Engine">
+        <Op name="PING" label="Check" tall />
+        <Op name="CANCEL" label="Cancel" tall />
+      </Group>
+      <Group label="Reports">
+        <Command
+          icon={Scroll}
+          art="reports"
+          label="Reports"
+          title="Show execution reports"
+          tall
+          disabled={!reports}
+          onClick={() => {
+            if (reports) toggleMaximized(reports.id)
+          }}
+        />
+      </Group>
+    </>
+  )
 }
 
 export function Ribbon() {
-  const tab = useStore(ribbonTab)
+  const state = useStore(screen)
+  const selections = useStore(workspaceRibbonTabs)
   const folded = useStore(ribbonCollapsed)
-  const Body = BODY[tab]
+  const context = ribbonContext(
+    state.active,
+    leaves(activeTree()).map((p) => p.editor),
+  )
+  const tab = resolveRibbonTab(context, selections[state.active])
+  const tabs = context.tabs.map((id) => ({ id, ...RIBBON_TABS[id] }))
+  const content =
+    tab === "map" ? (
+      <MapTab />
+    ) : tab === "analysis" ? (
+      <AnalysisTab products={context.products} />
+    ) : tab === "view" ? (
+      <ViewTab />
+    ) : tab === "share" ? (
+      context.planning ? (
+        <PlanningExportTab />
+      ) : (
+        <ShareTab products={context.products} />
+      )
+    ) : tab === "study" ? (
+      <PlanningStudyTab />
+    ) : tab === "run" ? (
+      <PlanningRunTab />
+    ) : tab === "data" ? (
+      <DataTab />
+    ) : (
+      <ToolsTab />
+    )
 
   return (
     <>
       <div
         className="relative flex shrink-0 items-stretch gap-0.5 border-b px-1"
-        style={{ height: RIBBON_TABS_PX, background: "var(--s-chrome)", borderColor: "rgb(var(--p-line) / 0.28)" }}
+        style={{
+          height: RIBBON_TABS_PX,
+          background: "var(--s-chrome)",
+          borderColor: "rgb(var(--p-line) / 0.28)",
+        }}
       >
         {/* The application's own tab, filled, where a GIS desktop keeps Project. */}
         <AppMenu
+          planningMode={context.planning}
+          products={context.products}
           trigger={(t) => (
             <button
               ref={t.ref as React.Ref<HTMLButtonElement>}
@@ -457,7 +779,11 @@ export function Ribbon() {
               onClick={t.onClick}
               aria-expanded={t["aria-expanded"]}
               aria-haspopup="menu"
-              title="Studio: the project, settings and everything not about one tab"
+              title={
+                context.planning
+                  ? "Studio: planning files, settings and application commands"
+                  : "Studio: project files, settings and application commands"
+              }
               className="my-[3px] flex shrink-0 items-center gap-1 rounded-sm bg-primary px-2.5 text-meta font-semibold text-primary-foreground"
             >
               <Cube className="size-3.5" />
@@ -467,7 +793,7 @@ export function Ribbon() {
         />
 
         <nav className="ml-1 flex min-w-0 flex-1 items-stretch gap-px" role="tablist" aria-label="Ribbon">
-          {TABS.map((t) => {
+          {tabs.map((t) => {
             const on = t.id === tab && !folded
             return (
               <button
@@ -479,7 +805,7 @@ export function Ribbon() {
                 // A tab opens its commands; the open tab, asked again, folds them away.
                 onClick={() => {
                   if (folded) toggleRibbon()
-                  ribbonTab.set(t.id)
+                  workspaceRibbonTabs.set((s) => ({ ...s, [state.active]: t.id }))
                 }}
                 onDoubleClick={toggleRibbon}
                 className={`relative -mb-px flex shrink-0 items-center whitespace-nowrap px-3 text-meta transition-colors ${
@@ -499,7 +825,7 @@ export function Ribbon() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1">
-          <ProjectMenu />
+          {context.planning ? <PlanningDocument /> : <ProjectMenu />}
           <button
             type="button"
             onClick={() => void runOperator("TOGGLE_RIBBON")}
@@ -523,9 +849,11 @@ export function Ribbon() {
             scrollbarWidth: "none",
           }}
           role="tabpanel"
-          aria-label={TABS.find((t) => t.id === tab)?.label}
+          aria-label={RIBBON_TABS[tab].label}
         >
-          <Body />
+          <div key={`${state.active}:${tab}`} className="contents">
+            {content}
+          </div>
         </div>
       )}
     </>

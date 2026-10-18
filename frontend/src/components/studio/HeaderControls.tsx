@@ -188,7 +188,7 @@ export function StudioHeaderRadio<T extends string>({
   onChange,
 }: {
   value: T
-  options: { id: T; label: string; title?: string; icon: Icon }[]
+  options: { id: T; label: string; title?: string; icon: Icon; disabled?: boolean }[]
   onChange: (id: T) => void
 }) {
   return (
@@ -202,10 +202,11 @@ export function StudioHeaderRadio<T extends string>({
           key={o.id}
           type="button"
           role="radio"
+          disabled={o.disabled}
           onClick={() => onChange(o.id)}
           aria-checked={o.id === value}
           title={o.title ?? o.label}
-          className={`flex h-full shrink-0 items-center gap-1 px-1.5 transition-colors ${
+          className={`flex h-full shrink-0 items-center gap-1 px-1.5 transition-colors disabled:opacity-40 ${
             o.id === value ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
           }`}
         >

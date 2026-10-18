@@ -1,4 +1,4 @@
-import { OpenProject, SaveProject, SetProjectDirty } from "../../wailsjs/go/main/App"
+import { InspectGeoPackage, OpenProject, SaveProject, SetProjectDirty } from "../../wailsjs/go/main/App"
 import { WindowSetTitle } from "../../wailsjs/runtime/runtime"
 import { errorMessage } from "./errors"
 import {
@@ -14,6 +14,7 @@ import { fail, info, note, warn } from "./reports"
 import { select } from "./selection"
 import { createStore } from "./store"
 import { ask, lastOperation } from "./ui"
+import { closeGeoPackage, geoPackage, loadGeoPackage, type GeoPackageCatalog } from "./geopackage"
 
 /**
  * The project on disk: a JSON document, `name.solara`, and beside it a
@@ -25,14 +26,14 @@ import { ask, lastOperation } from "./ui"
 const FORMAT = "terra-energy-project"
 const VERSION = 1
 
-type ProjectDocument = ProjectData & { format: string; version: number; savedAt: string }
+type ProjectDocument = ProjectData & { format: string; version: number; savedAt: string; geopackage?: { path: string; layer: string; visibleLayers?: string[]; colors?: Record<string, string> } }
 
-const PROJECT_EXT = /\.solara$/i
+const OPEN_EXT = /\.(solara|gpkg)$/i
 
 /** A project's name from its path: the file name without the extension. */
 export function nameFromPath(path: string): string {
   const base = path.split(/[\\/]/).pop() ?? path
-  return base.replace(PROJECT_EXT, "")
+  return base.replace(OPEN_EXT, "")
 }
 
 // ---- Recent files -----------------------------------------------------------
@@ -43,9 +44,7 @@ const MAX_RECENT = 10
 function readRecent(): string[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")
-    // Only .solara: the shell refuses anything else, so a .terra path left from
-    // before the extension changed would sit in the list failing to open.
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string" && PROJECT_EXT.test(p)) : []
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string" && OPEN_EXT.test(p)) : []
   } catch {
     return []
   }
@@ -100,7 +99,12 @@ async function write(path: string): Promise<boolean> {
   // layer lives in a run directory too, and a project saved without it
   // reopens with a raster nothing serves.
   const runIds = data.results.map(runIdOf).filter((id): id is string => !!id)
-  const doc: ProjectDocument = { format: FORMAT, version: VERSION, savedAt: new Date().toISOString(), ...data }
+  const local = geoPackage.get()
+  const doc: ProjectDocument = { format: FORMAT, version: VERSION, savedAt: new Date().toISOString(), ...data,
+    ...(local.file ? { geopackage: { path: local.file.path, layer: local.layer,
+      visibleLayers: Object.keys(local.views).filter(name => local.views[name].visible),
+      colors: Object.fromEntries(Object.entries(local.views).map(([name, view]) => [name, view.color])),
+    } } : {}) }
   try {
     const saved = await SaveProject(path, JSON.stringify(doc, null, 2), runIds)
     if (!saved) return false
@@ -142,6 +146,7 @@ export async function settleUnsaved(): Promise<boolean> {
 
 export async function newProject(): Promise<void> {
   if (!(await settleUnsaved())) return
+  closeGeoPackage()
   loadProject(emptyProject(), null)
   select(null)
   lastOperation.set(null)
@@ -180,12 +185,31 @@ function parse(content: string, runDirs: Record<string, string>): ProjectData {
 }
 
 export async function openProject(path = ""): Promise<void> {
+  if (geoPackage.get().opening) return
   if (!(await settleUnsaved())) return
+  geoPackage.set(s => ({ ...s, opening: true }))
   try {
     const opened = await OpenProject(path)
     if (!opened) return
+    if (opened.geopackage) {
+      loadProject({ ...emptyProject(), name: nameFromPath(opened.path) }, null)
+      loadGeoPackage(opened.geopackage as GeoPackageCatalog)
+      select(null)
+      lastOperation.set(null)
+      remember(opened.path)
+      info(`Opened "${opened.path}": ${opened.geopackage.layers.length} vector layers.`)
+      return
+    }
     const data = parse(opened.content, opened.run_dirs ?? {})
+    const reference = (JSON.parse(opened.content) as Partial<ProjectDocument>).geopackage
+    let source: GeoPackageCatalog | null = null
+    if (reference && typeof reference.path === "string") {
+      try { source = await InspectGeoPackage(reference.path) as GeoPackageCatalog }
+      catch (e) { warn(`Could not restore GeoPackage "${reference.path}": ${errorMessage(e)}`) }
+    }
+    closeGeoPackage()
     loadProject({ ...data, name: nameFromPath(opened.path) }, opened.path)
+    if (source) loadGeoPackage(source, reference?.layer, reference)
     select(null)
     lastOperation.set(null)
     remember(opened.path)
@@ -215,5 +239,7 @@ export async function openProject(path = ""): Promise<void> {
     if (path && /no such file|cannot find/i.test(msg)) {
       recentFiles.set((list) => list.filter((p) => p !== path))
     }
+  } finally {
+    geoPackage.set(s => ({ ...s, opening: false }))
   }
 }

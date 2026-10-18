@@ -50,6 +50,8 @@ import { LABEL_SOURCE, WindParticles, drawLabels, drawSpeed, removeLabels, remov
 import { SERVICES, applyServices } from "./services"
 import { activeTool, basemap, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
+import { attachGeoPackage, pickGeoPackage } from "./geopackage"
+import { pickedGeoPackage } from "./mapState"
 
 /**
  * The one map, and everything drawn on it.
@@ -185,6 +187,7 @@ function create(container: HTMLDivElement): void {
 
   m.on("load", () => {
     addLayers(m)
+    attachGeoPackage(m)
     mapLoaded.set(true)
     syncAll()
     project.subscribe(syncAll)
@@ -1181,8 +1184,10 @@ function onClick(e: MapMouseEvent): void {
     case "select": {
       const item = pick(e.target, e.point)
       select(item?.id ?? null)
+      const local = item ? null : pickGeoPackage(e.target, e.point, [at.lon, at.lat])
+      pickedGeoPackage.set(local)
       // The project's own objects are what a click is for; a grid feature answers only where there is none.
-      pickedGrid.set(item ? null : pickGrid(e.target, e.point, [at.lon, at.lat]))
+      pickedGrid.set(item || local ? null : pickGrid(e.target, e.point, [at.lon, at.lat]))
       return
     }
     case "site":
@@ -1341,8 +1346,9 @@ function frameIfUnseen(item: AnyItem): boolean {
 export function cancelGesture(): boolean {
   const tool = activeTool.get()
   if (tool === "select") {
-    if (!pickedGrid.get()) return false
+    if (!pickedGrid.get() && !pickedGeoPackage.get()) return false
     pickedGrid.set(null)
+    pickedGeoPackage.set(null)
     return true
   }
   setTool("select")

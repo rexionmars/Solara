@@ -4,7 +4,8 @@ import { CaretRight, X } from "../../lib/icons"
 import { Marker } from "maplibre-gl"
 import type { energy } from "../../../wailsjs/go/models"
 import { currentMap } from "../../lib/mapEngine"
-import { legendsShown, mapLoaded, pickedGrid, type PickedGrid } from "../../lib/mapState"
+import { legendsShown, mapLoaded, pickedGrid, pickedGeoPackage, type PickedGrid } from "../../lib/mapState"
+import { featureCaption } from "../../lib/geopackageCaption"
 import { seasonLabel } from "../../lib/params"
 import { groundRules } from "../../lib/ground"
 import { findItem, project, type GroundResult, type TerrainResult } from "../../lib/project"
@@ -58,13 +59,17 @@ export type Caption = {
   subject: string
   area: string
   detail?: string
+  color?: string
+  action?: { label: string; run: () => Promise<void> }
   body:
     | { kind: "ramp"; scale: energy.RenderScale }
     | { kind: "classes"; classes: energy.GroundClass[] }
-    | { kind: "stats"; rows: { label: string; value: string }[]; note?: string }
+    | { kind: "stats"; rows: StatRow[]; note?: string; sections?: { label: string; rows: StatRow[] }[] }
   /** Drawn as a close button; a legend is closed from where it was asked for instead. */
   onClose?: () => void
 }
+
+type StatRow = { label: string; value: string }
 
 /** What the ramp's endpoints are the endpoints of, in the fewest words that keep the claim. */
 function basisShort(scale: energy.RenderScale): string {
@@ -198,8 +203,10 @@ function useCaptions(): { key: string; at: [number, number]; caption: Caption }[
   const o = useStore(overlays)
   const shown = useStore(legendsShown)
   const picked = useStore(pickedGrid)
+  const local = useStore(pickedGeoPackage)
   // On the ground where it was clicked, and first, so a new pick is the box added last and drawn over the legends.
   const pick = picked ? [{ key: `picked:${picked.kind}`, at: picked.at, caption: pickedCaption(picked) }] : []
+  if (local) pick.push({ key: `picked:geopackage:${local.layer}`, at: local.at, caption: { ...featureCaption(local), onClose: () => pickedGeoPackage.set(null) } })
   if (!o.legend || !o.layers) return pick
   const legends = d.results
     .filter((r): r is TerrainResult | GroundResult => (r.kind === "terrain" || r.kind === "ground") && !r.hidden && !findItem(d, r.sourceId)?.hidden && shown.has(r.id))
@@ -339,18 +346,28 @@ function Disclosed({ text, className = "" }: { text: string; className?: string 
 }
 
 /** A few figures and the qualification they are read under. */
-function Stats({ rows, note }: { rows: { label: string; value: string }[]; note?: string }) {
+function Stats({ rows, note, sections }: { rows: StatRow[]; note?: string; sections?: { label: string; rows: StatRow[] }[] }) {
   return (
     <div className="mt-1.5 flex flex-col gap-0.5">
       {rows.map((r) => (
         <div key={r.label} className="flex items-baseline justify-between gap-2">
-          <span className="min-w-0 truncate text-micro text-muted-foreground">{r.label}</span>
-          <span className="telemetry selectable shrink-0 text-micro text-foreground">{r.value}</span>
+          <span className="min-w-0 truncate text-micro text-muted-foreground" title={r.label}>{r.label}</span>
+          {r.value.length > 30 ? <div className="min-w-0 max-w-[65%] flex-1 text-right"><Disclosed text={r.value} className="telemetry selectable text-micro text-foreground [overflow-wrap:anywhere]" /></div> : <span className="telemetry selectable shrink-0 text-micro text-foreground">{r.value}</span>}
         </div>
       ))}
       {note && <Disclosed text={note} className="text-micro leading-snug text-muted-foreground" />}
+      {sections?.map(section => <details key={section.label} className="mt-1.5" onPointerDown={e => e.stopPropagation()}>
+        <summary className="cursor-pointer text-micro text-muted-foreground">{section.label}</summary>
+        <Stats rows={section.rows} />
+      </details>)}
     </div>
   )
+}
+
+function CalloutAction({ action }: { action: NonNullable<Caption["action"]> }) {
+  const [status, setStatus] = useState("")
+  return <button type="button" className="mt-2 text-micro text-primary hover:underline" onPointerDown={e => e.stopPropagation()}
+    onClick={() => { void action.run().then(() => setStatus("Copied"), () => setStatus("Could not copy")) }}>{status || action.label}</button>
 }
 
 /** The ramp the layer was drawn on, its two ends, and the reference value where the quantity has one. */
@@ -434,7 +451,7 @@ function CalloutBody({ id, caption }: { id: string; caption: Caption }) {
       <span
         aria-hidden
         className="absolute size-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ background: "rgb(var(--p-text))", boxShadow: "0 0 0 1.5px rgb(var(--p-ink) / 0.9)" }}
+        style={{ background: caption.color ?? "rgb(var(--p-text))", boxShadow: "0 0 0 1.5px rgb(var(--p-ink) / 0.9)" }}
       />
 
       <div
@@ -484,8 +501,12 @@ function CalloutBody({ id, caption }: { id: string; caption: Caption }) {
         ) : caption.body.kind === "classes" ? (
           <ClassLegend classes={caption.body.classes} />
         ) : (
-          <Stats rows={caption.body.rows} note={caption.body.note} />
+          <div className={caption.body.rows.length > 8 || caption.body.sections?.length ? "panel-scroll max-h-[45vh] overflow-y-auto" : undefined}
+            onPointerDown={caption.body.rows.length > 8 || caption.body.sections?.length ? e => e.stopPropagation() : undefined}>
+            <Stats rows={caption.body.rows} note={caption.body.note} sections={caption.body.sections} />
+          </div>
         )}
+        {caption.action && <CalloutAction key={`${caption.subject}:${caption.area}`} action={caption.action} />}
       </div>
     </div>
   )
