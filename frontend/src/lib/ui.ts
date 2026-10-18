@@ -1,5 +1,8 @@
 import type { Icon } from "./icons"
 import { createStore } from "./store"
+import { RIBBON_TABS } from "./ribbonContext"
+import type { RibbonTab } from "./ribbonContext"
+export type { RibbonTab } from "./ribbonContext"
 
 /**
  * Transient interface state that no editor owns: the open context menu, the
@@ -23,9 +26,15 @@ export type MenuItem =
   | { type: "sep" }
   | { type: "heading"; label: string }
 
-export const contextMenu = createStore<{ x: number; y: number; title?: string; items: MenuItem[] } | null>(null)
+export const contextMenu = createStore<{ x: number; y: number; title?: string; items: MenuItem[] } | null>(
+  null,
+)
 
-export function openContextMenu(e: { clientX: number; clientY: number }, items: MenuItem[], title?: string): void {
+export function openContextMenu(
+  e: { clientX: number; clientY: number },
+  items: MenuItem[],
+  title?: string,
+): void {
   contextMenu.set({ x: e.clientX, y: e.clientY, items, title })
 }
 
@@ -81,7 +90,7 @@ export const sidebarCollapsed = createStore<boolean>(
     } catch {
       return false
     }
-  })()
+  })(),
 )
 
 export function toggleSidebar(): void {
@@ -106,11 +115,10 @@ export const ribbonCollapsed = createStore<boolean>(
     } catch {
       return false
     }
-  })()
+  })(),
 )
 
 /** The ribbon's tabs: what kind of command is wanted, not which arrangement is on screen. */
-export type RibbonTab = "map" | "analysis" | "view" | "share"
 
 const RIBBON_TAB_KEY = "terra-energy.ribbon-tab.v1"
 
@@ -122,7 +130,7 @@ export const ribbonTab = createStore<RibbonTab>(
     } catch {
       return "map"
     }
-  })()
+  })(),
 )
 
 ribbonTab.subscribe(() => {
@@ -130,6 +138,31 @@ ribbonTab.subscribe(() => {
     localStorage.setItem(RIBBON_TAB_KEY, ribbonTab.get())
   } catch {
     /* a convenience only */
+  }
+})
+
+/** Each workspace remembers its own active command tab. Retain the legacy Default choice. */
+const WORKSPACE_RIBBON_KEY = "solora.workspace-ribbon.v1"
+export const workspaceRibbonTabs = createStore<Record<string, RibbonTab>>(
+  (() => {
+    const initial: Record<string, RibbonTab> = { layout: ribbonTab.get() }
+    try {
+      const saved = JSON.parse(localStorage.getItem(WORKSPACE_RIBBON_KEY) ?? "null")
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        for (const [id, tab] of Object.entries(saved))
+          if (typeof tab === "string" && Object.hasOwn(RIBBON_TABS, tab)) initial[id] = tab as RibbonTab
+      }
+    } catch {
+      /* Start with contextual defaults when storage is unavailable. */
+    }
+    return initial
+  })(),
+)
+workspaceRibbonTabs.subscribe(() => {
+  try {
+    localStorage.setItem(WORKSPACE_RIBBON_KEY, JSON.stringify(workspaceRibbonTabs.get()))
+  } catch {
+    /* Session choices still work. */
   }
 })
 

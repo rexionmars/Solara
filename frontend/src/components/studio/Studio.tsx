@@ -17,6 +17,7 @@ import { ReadingEditor } from "../editors/ReadingEditor"
 import { ReportsEditor } from "../editors/ReportsEditor"
 import { RunGraphEditor } from "../editors/RunGraphEditor"
 import { TableEditor } from "../editors/TableEditor"
+import { SystemPlanningEditor } from "../editors/SystemPlanningEditor"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
 import { AreaTree } from "./AreaTree"
 import { ConfirmDialog, CoordinatesDialog, OperatorSearch, PlaceDialog } from "./Dialogs"
@@ -24,9 +25,12 @@ import { ContextMenuHost, StudioSurface } from "./Popover"
 import { Settings } from "./Settings"
 import { StartSplash } from "./StartSplash"
 import { StudioArea } from "./StudioArea"
+import { WorkspaceBar } from "./WorkspaceBar"
 import { Ribbon } from "../shell/Ribbon"
 import { TitleBar } from "./TitleBar"
 import { Toasts } from "./Toasts"
+import { PanelDragOverlay } from "./PanelDragOverlay"
+import { cancelPanelDrag } from "../../lib/panelDrag"
 
 /**
  * Which component an area's editor is.
@@ -48,6 +52,8 @@ function Editor({ areaId, editor }: { areaId: string; editor: EditorId }): React
       return <PropertiesEditor />
     case "table":
       return <TableEditor areaId={areaId} />
+    case "planning":
+      return <SystemPlanningEditor />
     case "reports":
       return <ReportsEditor areaId={areaId} />
     case "console":
@@ -97,6 +103,7 @@ export function Studio() {
   useEffect(() => listenForProgress(), [])
   useEffect(() => installKeymap(), [])
   useEffect(() => watchProjectState(), [])
+  useEffect(() => () => cancelPanelDrag(), [])
 
   // A desktop window offers no webview menu (Reload, Inspect), except in fields, where Copy and Paste live.
   useEffect(() => {
@@ -135,9 +142,10 @@ export function Studio() {
     <div className="app-shell-enter flex h-full flex-col" style={{ background: "var(--s-app)" }}>
       <TitleBar />
       <StudioSurface.Provider value={surface}>
+        <WorkspaceBar />
         {/* The commands by kind, in tabs, between the window's band and the work. */}
         <Ribbon />
-        <div ref={setSurface} className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-gutter)" }}>
+        <div ref={setSurface} data-studio-surface="" className="app-no-drag relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--s-gutter)" }}>
           {size.w > 0 &&
             (maximized
               ? renderArea({
@@ -148,6 +156,7 @@ export function Studio() {
               : <AreaTree key={s.active} tree={tree} viewport={viewport} surface={surface} renderArea={renderArea} />)}
           <StartSplash />
           <ContextMenuHost />
+          <PanelDragOverlay surface={surface} />
         </div>
       </StudioSurface.Provider>
       <OperatorSearch />

@@ -4,6 +4,8 @@ import { runOperator } from "../../lib/operators"
 import { PRODUCT_NAMES, project, type Product } from "../../lib/project"
 import { nameFromPath, openProject, recentFiles } from "../../lib/projectFile"
 import { useStore } from "../../lib/store"
+import { planning, planningHasPendingProfiles } from "../../lib/planning"
+import { usePlanningFiles } from "../editors/usePlanningFiles"
 import {
   OperatorMenuItem,
   StudioMenuGroup,
@@ -12,27 +14,27 @@ import {
   StudioPopover,
 } from "../studio/Popover"
 
-/**
- * The two menus the workspace bar used to carry, lifted out of it unchanged.
- *
- * MOVED, NOT REWRITTEN. Every entry below is the same operator the menu bar
- * invoked, in the same order. A rewrite here would drop an operator quietly
- * and nobody would notice until the day they reached for it, so the JSX was
- * carried across rather than retyped: the application menu now hangs off the
- * sidebar's wordmark, and the project data-block off the page header, but
- * neither learned or forgot anything on the way.
- */
-
-/** Everything the application can do that is not about one page. */
+/** Workspace file actions alongside application-wide settings. */
 export function AppMenu({
   trigger,
+  planningMode = false,
+  products = ["solar", "terrain", "wind", "connection", "demand", "ground"],
 }: {
-  trigger: (t: { ref: React.Ref<HTMLElement>; onClick: () => void; "aria-expanded": boolean }) => React.ReactElement
+  planningMode?: boolean
+  products?: Product[]
+  trigger: (t: {
+    ref: React.Ref<HTMLElement>
+    onClick: () => void
+    "aria-expanded": boolean
+  }) => React.ReactElement
 }) {
+  const files = usePlanningFiles()
+  const plan = useStore(planning)
   const [open, setOpen] = useState(false)
   const done = () => setOpen(false)
   const exportTable = (product: Product) => (
     <OperatorMenuItem
+      key={product}
       name="EXPORT_TABLE"
       args={[product]}
       label={`${PRODUCT_NAMES[product]} table as CSV…`}
@@ -40,39 +42,91 @@ export function AppMenu({
     />
   )
   return (
-    <StudioPopover open={open} onOpenChange={setOpen} widthRem={16} trigger={trigger}>
-      <OperatorMenuItem name="NEW" label="New project" onDone={done} />
-      <OperatorMenuItem name="OPEN" label="Open project…" onDone={done} />
-      <OperatorMenuItem name="SAVE" onDone={done} />
-      <OperatorMenuItem name="SAVEAS" label="Save as…" onDone={done} />
-      <OperatorMenuItem name="REVEAL_PROJECT" label="Reveal project file" onDone={done} />
-      <StudioMenuRule />
-      <StudioMenuGroup label="Export">
-        <OperatorMenuItem name="EXPORT_CSV" label="Active result as CSV…" onDone={done} />
-        <OperatorMenuItem name="EXPORT_JSON" label="Active result as JSON…" onDone={done} />
-        <OperatorMenuItem name="EXPORT_GEOTIFF" label="Layer as GeoTIFF…" onDone={done} />
-        {exportTable("solar")}
-        {exportTable("wind")}
-        {exportTable("terrain")}
-        {exportTable("connection")}
-        {exportTable("demand")}
-        {exportTable("ground")}
-      </StudioMenuGroup>
-      <StudioMenuRule />
-      <OperatorMenuItem name="UNDO" onDone={done} />
-      <OperatorMenuItem name="REDO" onDone={done} />
-      <OperatorMenuItem name="ADJUST_LAST" onDone={done} />
-      <OperatorMenuItem name="SEARCH" label="Search operators…" onDone={done} />
-      <StudioMenuRule />
-      <OperatorMenuItem name="RESET_LAYOUT" label="Reset this workspace" onDone={done} />
-      <OperatorMenuItem name="PREFERENCES" label="Settings…" onDone={done} />
-      <OperatorMenuItem name="KEYMAP" label="Keymap" onDone={done} />
-      <OperatorMenuItem name="PING" label="Check the engine" onDone={done} />
-      <OperatorMenuItem name="SPLASH" label="Splash screen" onDone={done} />
-      <OperatorMenuItem name="ABOUT" label="About" onDone={done} />
-      <StudioMenuRule />
-      <OperatorMenuItem name="QUIT" onDone={done} />
-    </StudioPopover>
+    <>
+      {files.input}
+      <StudioPopover open={open} onOpenChange={setOpen} widthRem={16} trigger={trigger} portal="viewport">
+        {planningMode ? (
+          <>
+            <StudioMenuItem
+              icon={Plus}
+              label="New study"
+              disabled={plan.busy}
+              onSelect={() => {
+                files.newStudy()
+                done()
+              }}
+            />
+            <StudioMenuItem
+              icon={FolderOpen}
+              label="Import planning study…"
+              disabled={plan.busy}
+              onSelect={() => {
+                files.importStudy()
+                done()
+              }}
+            />
+            <StudioMenuItem
+              label="Synthetic example"
+              disabled={plan.busy}
+              onSelect={() => {
+                files.example()
+                done()
+              }}
+            />
+            <StudioMenuRule />
+            <StudioMenuItem
+              icon={FloppyDisk}
+              label="Export study…"
+              disabled={planningHasPendingProfiles()}
+              onSelect={() => {
+                files.exportStudy()
+                done()
+              }}
+            />
+            <StudioMenuItem
+              label="Export run report…"
+              disabled={!files.result}
+              onSelect={() => {
+                files.exportReport()
+                done()
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <OperatorMenuItem name="NEW" label="New project" onDone={done} />
+            <OperatorMenuItem name="OPEN" label="Open project…" onDone={done} />
+            <OperatorMenuItem name="SAVE" onDone={done} />
+            <OperatorMenuItem name="SAVEAS" label="Save as…" onDone={done} />
+            <OperatorMenuItem name="REVEAL_PROJECT" label="Reveal project file" onDone={done} />
+            <StudioMenuRule />
+            <StudioMenuGroup label="Export">
+              <OperatorMenuItem name="EXPORT_CSV" label="Active result as CSV…" onDone={done} />
+              <OperatorMenuItem name="EXPORT_JSON" label="Active result as JSON…" onDone={done} />
+              {products.some((p) => p === "terrain" || p === "ground") && (
+                <OperatorMenuItem name="EXPORT_GEOTIFF" label="Layer as GeoTIFF…" onDone={done} />
+              )}
+              {products.map(exportTable)}
+            </StudioMenuGroup>
+            <StudioMenuRule />
+            <OperatorMenuItem name="UNDO" onDone={done} />
+            <OperatorMenuItem name="REDO" onDone={done} />
+            <OperatorMenuItem name="ADJUST_LAST" onDone={done} />
+          </>
+        )}
+        <StudioMenuRule />
+        <OperatorMenuItem name="SEARCH" label="Search operators…" onDone={done} />
+        <StudioMenuRule />
+        <OperatorMenuItem name="RESET_LAYOUT" label="Reset this workspace" onDone={done} />
+        <OperatorMenuItem name="PREFERENCES" label="Settings…" onDone={done} />
+        <OperatorMenuItem name="KEYMAP" label="Keymap" onDone={done} />
+        <OperatorMenuItem name="PING" label="Check the engine" onDone={done} />
+        <OperatorMenuItem name="SPLASH" label="Splash screen" onDone={done} />
+        <OperatorMenuItem name="ABOUT" label="About" onDone={done} />
+        <StudioMenuRule />
+        <OperatorMenuItem name="QUIT" onDone={done} />
+      </StudioPopover>
+    </>
   )
 }
 

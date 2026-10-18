@@ -35,6 +35,7 @@ import { AreaHeader } from "../studio/StudioArea"
 import { availableLayers, mapRegion } from "../../lib/capabilities"
 import { concessions, gridStore, networkRegister, plantRegister, townDemand } from "../../lib/grid"
 import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS, layerNote } from "./MapEditor"
+import { choosePackageLayer, closeGeoPackage, geoPackage, togglePackageVisibility, type PackageLayer } from "../../lib/geopackage"
 
 /**
  * The project's outliner, as an object explorer: ONE tree, from the project
@@ -97,6 +98,8 @@ type Row = {
   item?: AnyItem
   layer?: keyof Overlays
   folder?: boolean
+  packageLayer?: PackageLayer
+  packageFile?: boolean
 }
 
 function itemMenu(item: AnyItem): MenuItem[] {
@@ -139,6 +142,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   const job = useStore(running)
   const legends = useStore(legendsShown)
   const shown = useStore(overlays)
+  const local = useStore(geoPackage)
   // Read so a layer's note is redrawn when its register answers; layerNote reads the stores itself.
   useStore(plantRegister)
   useStore(networkRegister)
@@ -157,6 +161,16 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   const [draft, setDraft] = useState("")
   // Where the keys are, for a row that is not a thing of the project and so cannot be the selection.
   const [cursor, setCursor] = useState<string | null>(null)
+
+  // Opening a file must reveal its rows even when the map folders were collapsed.
+  useEffect(() => {
+    if (!local.file) return
+    const current = areaStates.get()[areaId] ?? {}
+    setAreaState(areaId, {
+      collapsed: ((current.collapsed as string[] | undefined) ?? []).filter(key => !["root", "f:layers", "f:geopackage"].includes(key)),
+    })
+    setCursor(`gpkg:${local.layer}`)
+  }, [local.file, areaId])
 
   const rows: Row[] = []
   const folder = (key: string, depth: number, label: string, count: number, icon?: Icon): boolean => {
@@ -183,11 +197,20 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
     objects("f:sites", "Sites", data.sites)
     objects("f:areas", "Areas", data.areas)
     const groups = LAYER_GROUPS.map((g) => ({ ...g, items: availableLayers(g.items, storeNow, ground).filter((it) => !onlyVisible || shown[it.key]) })).filter((g) => g.items.length)
-    if (folder("f:layers", 1, "Map layers", groups.length)) {
+    if (folder("f:layers", 1, "Map layers", groups.length + (local.file ? 1 : 0))) {
       for (const g of groups) {
         if (!folder(g.id, 2, g.label, g.items.length)) continue
         for (const it of g.items) {
           rows.push({ key: `l:${it.key}`, depth: 3, label: it.label, icon: g.icon, art: GROUP_ART[g.id], tint: "var(--node-socket-value)", expandable: false, open: false, layer: it.key })
+        }
+      }
+      if (local.file) {
+        const layers = local.file.layers.filter(l => !onlyVisible || local.views[l.name]?.visible)
+        const expanded = folder("f:geopackage", 2, local.file.name, layers.length, Database)
+        rows[rows.length - 1].packageFile = true
+        if (expanded) for (const layer of layers) {
+          rows.push({ key: `gpkg:${layer.name}`, depth: 3, label: layer.label, icon: Stack,
+            tint: "var(--node-socket-value)", expandable: false, open: false, packageLayer: layer, count: layer.count })
         }
       }
     }
@@ -221,6 +244,12 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   const take = (row: Row) => {
     setCursor(row.item ? null : row.key)
     if (row.item) select(row.item.id)
+    if (row.packageLayer && !row.packageLayer.error && local.layer !== row.packageLayer.name) choosePackageLayer(row.packageLayer.name)
+  }
+
+  const togglePackageLayer = (layer: PackageLayer) => {
+    if (layer.error) return
+    togglePackageVisibility(layer.name)
   }
 
   const setLayer = (key: keyof Overlays, on: boolean) => overlays.set((cur) => ({ ...cur, [key]: on }))
@@ -247,6 +276,9 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
     if ((e.key === "F2" || e.key === "Enter") && row.item) {
       e.preventDefault()
       renaming.set(row.item.id)
+    } else if ((e.key === "Enter" || e.key === " ") && row.packageLayer) {
+      e.preventDefault()
+      togglePackageLayer(row.packageLayer)
     } else if ((e.key === "Enter" || e.key === " ") && row.layer) {
       e.preventDefault()
       setLayer(row.layer, !shown[row.layer])
@@ -263,7 +295,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
     }
   }
 
-  const empty = !data.sites.length && !data.areas.length
+  const empty = !data.sites.length && !data.areas.length && !local.file
 
   return (
     <>
@@ -287,7 +319,9 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
           const busy = !!item && !!job && job.sourceId === item.id
           // What the eye is about: a thing on the map, or one of the map's layers. A reading with nothing drawn has none.
           const eye =
-            item && item.kind !== "solar" && item.kind !== "wind" && item.kind !== "connection"
+            row.packageLayer && !row.packageLayer.error
+              ? { on: !!local.views[row.packageLayer.name]?.visible, set: () => togglePackageLayer(row.packageLayer!) }
+              : item && item.kind !== "solar" && item.kind !== "wind" && item.kind !== "connection"
               ? { on: !item.hidden, set: (on: boolean) => setHidden(item.id, !on) }
               : row.layer
                 ? { on: shown[row.layer], set: (on: boolean) => setLayer(row.layer!, on) }
@@ -309,10 +343,19 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
               onClick={() => take(row)}
               onDoubleClick={() => {
                 if (item) renaming.set(item.id)
+                else if (row.packageLayer && !row.packageLayer.error) choosePackageLayer(row.packageLayer.name)
                 else if (row.layer) setLayer(row.layer, !shown[row.layer])
                 else if (row.expandable) toggle(row.key)
               }}
               onContextMenu={(e) => {
+                if (row.packageLayer || row.packageFile) {
+                  e.preventDefault()
+                  openContextMenu(e, [
+                    ...(row.packageLayer && !row.packageLayer.error ? [{ type: "action" as const, label: "Frame layer", run: () => choosePackageLayer(row.packageLayer!.name) }] : []),
+                    { type: "action", label: "Close GeoPackage", run: closeGeoPackage },
+                  ], row.label)
+                  return
+                }
                 if (!item) return
                 e.preventDefault()
                 select(item.id)
@@ -366,7 +409,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
               ) : (
                 <span
                   className={`min-w-0 flex-1 truncate text-emphasis ${dim ? "text-muted-foreground/50" : row.folder || isActive ? "text-foreground" : "text-muted-foreground"}`}
-                  title={item ? `${KIND[item.kind]} — double-click to rename` : row.layer ? "Double-click to draw it or take it off the map" : undefined}
+                  title={row.packageLayer ? row.packageLayer.error ?? `${row.packageLayer.geometry} · Click to select; use the eye to toggle independently. Double-click to frame.` : row.packageFile ? local.file?.path : item ? `${KIND[item.kind]} — double-click to rename` : row.layer ? "Double-click to draw it or take it off the map" : undefined}
                 >
                   {row.label}
                 </span>
@@ -386,6 +429,14 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
                   ) : null
                 })()}
               {row.count !== undefined && <span className="telemetry shrink-0 text-micro tabular-nums text-muted-foreground/70">{row.count}</span>}
+              {row.packageLayer && <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: local.views[row.packageLayer.name]?.color }} title="Layer color" />}
+              {row.packageLayer && (() => {
+                const view = local.views[row.packageLayer.name]
+                const error = row.packageLayer.error || view?.error
+                return error || view?.visible && (view.loading || view.message) ? <span className={`telemetry max-w-24 truncate text-micro ${error ? "text-destructive-quiet" : "text-muted-foreground/70"}`} title={error || view?.message}>
+                  {error ? "unavailable" : view?.loading ? "reading…" : view?.message}
+                </span> : null
+              })()}
               {busy && <span className="size-1.5 shrink-0 animate-pulse rounded-[1px] bg-accent" title="Running" />}
               {stale && (
                 <span className="shrink-0" style={{ color: "var(--warning)" }} title={`${stale}. Its figures describe the source as it was.`}>

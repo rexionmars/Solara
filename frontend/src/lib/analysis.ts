@@ -43,6 +43,9 @@ export type Running = {
 /** The analysis in flight. The Go side runs one at a time and refuses a second. */
 export const running = createStore<Running | null>(null)
 
+/** Planning shares the same cancellable sidecar slot as the site analyses. */
+export const systemPlanningActive = createStore(false)
+
 /** A run that failed, and what it was given. */
 export type RunFailure = {
   product: Product
@@ -98,6 +101,10 @@ async function run(
   summary: (r: ResultObject) => string,
   replace?: string
 ): Promise<string | null> {
+  if (systemPlanningActive.get()) {
+    fail("System planning is still running. Finish or cancel it first.")
+    return null
+  }
   const busy = running.get()
   if (busy) {
     fail(`${PRODUCT_NAMES[busy.product]} is still running. Cancel it first.`)
@@ -324,7 +331,7 @@ export function runDemand(area: AreaObject, replace?: string): Promise<string | 
 }
 
 export async function cancelRun(): Promise<void> {
-  if (!running.get()) return
+  if (!running.get() && !systemPlanningActive.get()) return
   const stopped = await CancelRun()
   if (!stopped) info("Nothing was running.")
 }

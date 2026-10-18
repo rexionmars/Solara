@@ -83,6 +83,7 @@ export const operatorArt = (name: string): string | undefined => OPERATOR_ART[na
 
 /** Which drawing each editor asks for, on its area's header and in the menu that changes it. */
 const EDITOR_ART: Record<string, string> = {
+  planning: "run-graph",
   map: "area",
   graph: "run-graph",
   outliner: "legend",

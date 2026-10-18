@@ -23,6 +23,7 @@ import { AddressSearch } from "./AddressSearch"
 import { OverlayCallouts } from "./OverlayCallouts"
 import { WeatherTimeline } from "./WeatherTimeline"
 import { ParamFields } from "./ParamFields"
+import { GeoPackageControl } from "./GeoPackageControl"
 
 /*
   THE HEADER CARRIES NO MENUS. It had View, Select, Add and Object, and every
@@ -371,6 +372,7 @@ export function MapEditor() {
   return (
     <>
       <AreaHeader
+        options={<GeoPackageControl />}
         centre={
           <span className="telemetry header-label text-[9px] text-muted-foreground">
             {formatLat(view.lat, 3)} {formatLng(view.lng, 3)}

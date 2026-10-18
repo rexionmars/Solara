@@ -3,6 +3,7 @@ import { EDITORS, editorMeta, type EditorId, type StudioGroup } from "./editors"
 import type { Product } from "./project"
 import { select } from "./selection"
 import { createStore } from "./store"
+import { rearrangeAreas, type DockPosition } from "./panelLayout"
 
 /**
  * The studio's arrangement, as TERRA's: named workspaces, each a tree of
@@ -68,8 +69,13 @@ const sideColumn = () => split("col", 0.42, area("outliner"), area("properties")
 */
 export const WORKSPACES: WorkspacePreset[] = [
   {
+    id: "planning", label: "Planning", group: "grid", icon: Graph,
+    hint: "System planning with PyPSA: study inputs, dispatch, capacity expansion and reports",
+    build: () => area("planning"),
+  },
+  {
     id: "layout",
-    label: "Layout",
+    label: "Default",
     group: "board",
     icon: Cube,
     hint: "The map at full size, the project beside it and the reports under it",
@@ -150,6 +156,12 @@ export const WORKSPACES: WorkspacePreset[] = [
   },
 ]
 
+// Keep the existing layout ID so saved general-purpose arrangements still load.
+export const DEFAULT_WORKSPACE_ID = "layout"
+export const PRIMARY_WORKSPACE_IDS = [DEFAULT_WORKSPACE_ID, "planning"] as const
+
+const defaultWorkspace = () => WORKSPACES.find(w => w.id === DEFAULT_WORKSPACE_ID)!
+
 const STORAGE_KEY = "terra-energy.studio.v2"
 
 function validNode(n: LayoutNode): boolean {
@@ -158,16 +170,24 @@ function validNode(n: LayoutNode): boolean {
   return false
 }
 
+/** Retire the removed editor without discarding the rest of a saved layout. */
+function migrateWorkspaceTree(n: LayoutNode): LayoutNode {
+  if (n?.type === "area" && (n.editor as string) === "geopackage") return { ...n, editor: "reports" }
+  if (n?.type === "split") return { ...n, a: migrateWorkspaceTree(n.a), b: migrateWorkspaceTree(n.b) }
+  return n
+}
+
 function restore(): ScreenState {
-  const fallback: ScreenState = { trees: {}, active: "layout", maximized: null }
+  const fallback: ScreenState = { trees: {}, active: DEFAULT_WORKSPACE_ID, maximized: null }
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as ScreenState | null
     if (!parsed || typeof parsed.trees !== "object") return fallback
     const trees: Record<string, LayoutNode> = {}
     for (const [id, tree] of Object.entries(parsed.trees)) {
-      if (WORKSPACES.some((w) => w.id === id) && validNode(tree)) trees[id] = tree
+      const migrated = migrateWorkspaceTree(tree)
+      if (WORKSPACES.some((w) => w.id === id) && validNode(migrated)) trees[id] = migrated
     }
-    const active = WORKSPACES.some((w) => w.id === parsed.active) ? parsed.active : "layout"
+    const active = WORKSPACES.some((w) => w.id === parsed.active) ? parsed.active : DEFAULT_WORKSPACE_ID
     return { trees, active, maximized: null }
   } catch {
     return fallback
@@ -200,14 +220,14 @@ export function workspaceTree(id: string): LayoutNode {
   if (s.trees[id]) return s.trees[id]
   let tree = built.get(id)
   if (!tree) {
-    tree = (WORKSPACES.find((w) => w.id === id) ?? WORKSPACES[0]).build()
+    tree = (WORKSPACES.find((w) => w.id === id) ?? defaultWorkspace()).build()
     built.set(id, tree)
   }
   return tree
 }
 
 export function activeWorkspace(): WorkspacePreset {
-  return WORKSPACES.find((w) => w.id === screen.get().active) ?? WORKSPACES[0]
+  return WORKSPACES.find((w) => w.id === screen.get().active) ?? defaultWorkspace()
 }
 
 export function activeTree(): LayoutNode {
@@ -215,6 +235,7 @@ export function activeTree(): LayoutNode {
 }
 
 export function setWorkspace(id: string): void {
+  if (!WORKSPACES.some(w => w.id === id)) return
   screen.set((s) => (s.active === id ? s : { ...s, active: id, maximized: null }))
 }
 
@@ -263,6 +284,15 @@ export function setEditor(areaId: string, editor: EditorId): void {
   if (!current || current.editor === editor) return
   if (editorMeta(editor).unique && takenUnique().has(editor)) return
   updateActive((root) => mapNode(root, areaId, (n) => ({ ...(n as AreaNode), editor })))
+}
+
+/** Dock or swap panels in one persisted layout change; editor identities stay intact. */
+export function moveArea(sourceId: string, targetId: string, position: DockPosition): void {
+  const root = activeTree()
+  const next = rearrangeAreas(root, sourceId, targetId, position, nid("s"))
+  if (next === root) return
+  updateActive(() => next)
+  screen.set(s => ({ ...s, maximized: null }))
 }
 
 /** Split an area in two; the new half takes the same editor, or the reports where that one is unique. */
