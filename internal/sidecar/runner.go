@@ -66,6 +66,21 @@ type Runner struct {
 
 	mu     sync.Mutex
 	cancel context.CancelFunc // non-nil while Run is executing
+
+	// The interpreters that serve reads (worker.go).
+	warm *pool
+}
+
+func newRunnerFor(python, script string) *Runner {
+	return &Runner{python: python, script: script, warm: newPool()}
+}
+
+// args are the interpreter's arguments before any of a request's own.
+func (r *Runner) args() []string {
+	if r.script == "" {
+		return nil
+	}
+	return []string{r.script}
 }
 
 // NewRunner locates the sidecar and the interpreter that will run it.
@@ -79,17 +94,14 @@ func NewRunner() (*Runner, error) {
 func newRunner(executable string) (*Runner, error) {
 	if os.Getenv("TERRA_ENERGY_APP_DIR") == "" && os.Getenv("TERRA_ENERGY_PYTHON") == "" {
 		if engine := bundledEngine(executable); engine != "" {
-			return &Runner{python: engine}, nil
+			return newRunnerFor(engine, ""), nil
 		}
 	}
 	dir, err := resolveAppDir()
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{
-		python: resolvePython(dir),
-		script: filepath.Join(dir, "sidecar", "main.py"),
-	}, nil
+	return newRunnerFor(resolvePython(dir), filepath.Join(dir, "sidecar", "main.py")), nil
 }
 
 // Python is the interpreter or bundled engine executable requests run under.
@@ -151,16 +163,17 @@ func (r *Runner) Probe(ctx context.Context) (json.RawMessage, error) {
 // default while a run was in progress. Cancel does not reach it; the caller's
 // context bounds it.
 func (r *Runner) Query(ctx context.Context, action string) (json.RawMessage, error) {
-	return r.execute(ctx, map[string]any{"action": action}, nil)
+	return r.readWarm(ctx, map[string]any{"action": action})
 }
 
 // Read runs a request that only reads, such as a layer from the grid store, and
 // returns its raw result. Exempt from the one-request rule because it would
 // otherwise refuse to draw a map layer for as long as an analysis runs; its
 // progress is dropped, so no line of it can be taken for the analysis's own.
-// Cancel does not reach it; the caller's context bounds it.
+// Cancel does not reach it; the caller's context bounds it. It is answered by
+// an interpreter kept running for reads (worker.go), not one started for it.
 func (r *Runner) Read(ctx context.Context, req any) (json.RawMessage, error) {
-	return r.execute(ctx, req, nil)
+	return r.readWarm(ctx, req)
 }
 
 func (r *Runner) execute(ctx context.Context, req any, onProgress func(Progress)) (json.RawMessage, error) {
@@ -169,11 +182,7 @@ func (r *Runner) execute(ctx context.Context, req any, onProgress func(Progress)
 		return nil, fmt.Errorf("encode request: %w", err)
 	}
 
-	args := []string{}
-	if r.script != "" {
-		args = append(args, r.script)
-	}
-	cmd := exec.CommandContext(ctx, r.python, args...)
+	cmd := exec.CommandContext(ctx, r.python, r.args()...)
 	cmd.Stdin = bytes.NewReader(body)
 	// PYTHONNOUSERSITE keeps the user's site-packages out of the import path,
 	// so the environment a request runs in does not depend on who launched the

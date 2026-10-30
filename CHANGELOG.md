@@ -54,6 +54,17 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 ## Unreleased
 
+### Faster reads
+
+- **A map layer or a clicked feature no longer waits for Python to start.**
+  Every read started an interpreter and imported what it needed, about
+  0.1 s on a development machine before any work. Reads now go to up to two
+  interpreters kept running: a small GeoPackage layer answers in 9 ms
+  instead of 119, a clicked feature in 3 ms instead of 110. Analyses still
+  start a process of their own, so cancelling one stops it alone. A worker
+  that dies under a read sends that read down the old path, so a fault there
+  costs time and never a result.
+
 ### GeoPackage layers
 
 - **A crowded view is counted, not cut.** A layer with more than 5,000

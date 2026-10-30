@@ -282,4 +282,7 @@ go test ./...                                       # the shell; the grid tests 
 The sidecar speaks the protocol TERRA's does: one JSON request on stdin,
 progress on stderr, one JSON result on stdout. Its actions carry TERRA's names
 and result shapes where the two applications share a product, so an action can
-move between them unchanged.
+move between them unchanged. An analysis starts its own process, which Cancel
+can stop alone. Reads (map layers, a clicked feature, the grid store) go to up
+to two interpreters kept running with `--serve`, one JSON request and one JSON
+answer per line, so a pan does not wait for Python to start.
