@@ -279,3 +279,22 @@ async function readWhole(path: string, picked: PickedGeoPackage, fid: number): P
     pickedGeoPackage.set(p => p === picked ? { ...p, status: "failed", error: errorMessage(e) } : p)
   }
 }
+
+/** Past this many layers, a GeoPackage's are grouped by the prefix of their names. */
+export const GROUP_PAST = 15
+
+/**
+ * A GeoPackage's layers in the order the file lists them, with those sharing a
+ * name's prefix (before the first underscore) gathered into one group when the
+ * file has more than GROUP_PAST of them. A prefix only one layer has stays a
+ * layer: a group of one is a folder to open for nothing.
+ */
+export function groupLayers(layers: PackageLayer[]): (PackageLayer | { prefix: string; layers: PackageLayer[] })[] {
+  if (layers.length <= GROUP_PAST) return layers
+  const byPrefix = new Map<string, PackageLayer[]>()
+  for (const layer of layers) {
+    const prefix = layer.name.split("_")[0]
+    byPrefix.set(prefix, [...(byPrefix.get(prefix) ?? []), layer])
+  }
+  return [...byPrefix].map(([prefix, members]) => (members.length > 1 ? { prefix, layers: members } : members[0]))
+}

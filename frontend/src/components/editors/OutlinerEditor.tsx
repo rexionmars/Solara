@@ -11,6 +11,7 @@ import { CheckSquare,
   Folder,
   FolderOpen,
   Globe,
+  MagnifyingGlass,
   MapPin,
   Mountains,
   Pentagon,
@@ -35,7 +36,7 @@ import { AreaHeader } from "../studio/StudioArea"
 import { availableLayers, mapRegion } from "../../lib/capabilities"
 import { concessions, gridStore, networkRegister, plantRegister, townDemand } from "../../lib/grid"
 import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS, layerNote } from "./MapEditor"
-import { choosePackageLayer, closeGeoPackage, geoPackage, PREVIEW_LIMIT, togglePackageVisibility, type PackageLayer } from "../../lib/geopackage"
+import { choosePackageLayer, closeGeoPackage, geoPackage, groupLayers, PREVIEW_LIMIT, togglePackageVisibility, type PackageLayer } from "../../lib/geopackage"
 
 /**
  * The project's outliner, as an object explorer: ONE tree, from the project
@@ -93,8 +94,8 @@ type Row = {
   tint: string
   expandable: boolean
   open: boolean
-  /** How many a folder holds. */
-  count?: number
+  /** How many a folder holds, or how many of them are drawn: "3 of 9". */
+  count?: number | string
   item?: AnyItem
   layer?: keyof Overlays
   folder?: boolean
@@ -156,7 +157,17 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   // Folders are open until closed, except the layer groups, which are closed until opened.
   const collapsed = new Set((state.collapsed as string[] | undefined) ?? [])
   const opened = new Set((state.opened as string[] | undefined) ?? [])
-  const isOpen = (key: string) => (key.startsWith("g:") ? opened.has(key) : !collapsed.has(key))
+  // What the filter field holds. While it holds anything every folder is open, and only the rows whose name
+  // holds it are listed, with the folders above them.
+  const typed = String(state.query ?? "")
+  const query = typed.trim().toLowerCase()
+  // A group of a GeoPackage's layers is open while it holds a drawn one and closed while it does not, until the reader says otherwise.
+  const groupsDrawn = new Map<string, boolean>()
+  const isOpen = (key: string) =>
+    query ? true
+    : key.startsWith("p:") ? (groupsDrawn.get(key) ? !collapsed.has(key) : opened.has(key))
+    : key.startsWith("g:") ? opened.has(key)
+    : !collapsed.has(key)
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const [draft, setDraft] = useState("")
   // Where the keys are, for a row that is not a thing of the project and so cannot be the selection.
@@ -208,12 +219,36 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
         const layers = local.file.layers.filter(l => !onlyVisible || local.views[l.name]?.visible)
         const expanded = folder("f:geopackage", 2, local.file.name, layers.length, Database)
         rows[rows.length - 1].packageFile = true
-        if (expanded) for (const layer of layers) {
-          rows.push({ key: `gpkg:${layer.name}`, depth: 3, label: layer.label, icon: Stack,
-            tint: "var(--node-socket-value)", expandable: false, open: false, packageLayer: layer, count: layer.count })
+        const layerRow = (layer: PackageLayer, depth: number): Row => ({ key: `gpkg:${layer.name}`, depth, label: layer.label, icon: Stack,
+          tint: "var(--node-socket-value)", expandable: false, open: false, packageLayer: layer, count: layer.count })
+        if (expanded) for (const entry of groupLayers(layers)) {
+          if (!("prefix" in entry)) {
+            rows.push(layerRow(entry, 3))
+            continue
+          }
+          const key = `p:${entry.prefix}`
+          const drawn = entry.layers.filter(l => local.views[l.name]?.visible).length
+          groupsDrawn.set(key, drawn > 0)
+          const open = isOpen(key)
+          rows.push({ key, depth: 3, label: entry.prefix, icon: open ? FolderOpen : Folder, art: open ? "folder-open" : "folder", tint: FOLDER_TINT,
+            expandable: true, open, folder: true, count: drawn ? `${drawn} of ${entry.layers.length}` : entry.layers.length })
+          if (open) for (const layer of entry.layers) rows.push(layerRow(layer, 4))
         }
       }
     }
+  }
+
+  if (query) {
+    // Each row that matches keeps the rows above it in the tree; the rest go.
+    const keep = new Set<number>()
+    const above: number[] = []
+    rows.forEach((row, i) => {
+      while (above.length && rows[above[above.length - 1]].depth >= row.depth) above.pop()
+      if (row.label.toLowerCase().includes(query)) for (const j of [...above, i]) keep.add(j)
+      above.push(i)
+    })
+    const matched = rows.filter((_, i) => keep.has(i))
+    rows.splice(0, rows.length, ...matched)
   }
 
   // A folder under the keys does not take the selection away: Properties stays on what it was showing.
@@ -234,7 +269,9 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   }, [editing])
 
   const toggle = (key: string) => {
-    const [name, held] = key.startsWith("g:") ? (["opened", opened] as const) : (["collapsed", collapsed] as const)
+    if (query) return
+    const closedUntilOpened = key.startsWith("g:") || (key.startsWith("p:") && !groupsDrawn.get(key))
+    const [name, held] = closedUntilOpened ? (["opened", opened] as const) : (["collapsed", collapsed] as const)
     const next = new Set(held)
     if (!next.delete(key)) next.add(key)
     setAreaState(areaId, { [name]: [...next] })
@@ -310,7 +347,24 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
           />
         }
       />
-      <div role="tree" aria-label="The project" onKeyDown={onKeyDown} className="panel-scroll h-full min-h-0 overflow-y-auto py-1">
+      <div className="flex h-full min-h-0 flex-col">
+      <label className="mx-2 mb-1 mt-2 flex h-7 shrink-0 items-center gap-1.5 rounded-[6px] border px-2 text-muted-foreground" style={{ background: "var(--s-sunk)", borderColor: "var(--s-line)" }}>
+        <MagnifyingGlass className="size-3.5 shrink-0" />
+        <input
+          type="search"
+          value={typed}
+          onChange={(e) => setAreaState(areaId, { query: e.target.value })}
+          // Typing is the field's: the tree's keys and the window's shortcuts wait until it lets go.
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === "Escape") setAreaState(areaId, { query: "" })
+          }}
+          placeholder="Filter by name"
+          aria-label="Filter the outliner by name"
+          className="min-w-0 flex-1 bg-transparent text-body text-foreground outline-none placeholder:text-muted-foreground"
+        />
+      </label>
+      <div role="tree" aria-label="The project" onKeyDown={onKeyDown} className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1">
         {rows.map((row, index) => {
           const item = row.item
           const isActive = active(row)
@@ -503,6 +557,8 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
             Nothing in the project yet. Place a site on the map, or take an area from a published boundary with Area from a place (Shift+D).
           </p>
         )}
+        {query && rows.length === 0 && <p className="px-3 py-2 text-body text-muted-foreground">Nothing is named “{typed.trim()}”.</p>}
+      </div>
       </div>
     </>
   )

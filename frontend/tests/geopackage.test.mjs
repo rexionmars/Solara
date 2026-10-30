@@ -246,3 +246,13 @@ test("a click on a counted cell frames the cell instead of identifying a feature
   assert.equal(api.frameCountedCell(map, {}), false)
   api.closeGeoPackage()
 })
+
+test("a file of many layers groups them by the prefix of their names, and a prefix of one stays a layer", async () => {
+  const { api } = await controller()
+  const few = ["a_1", "a_2", "b_1"].map(name => layer(name))
+  assert.equal(api.groupLayers(few).length, 3)
+  const names = ["gas_a", "gas_b", "other_pump", "substation", ...Array.from({ length: 13 }, (_, i) => `voltage_${i}`)]
+  const grouped = JSON.parse(JSON.stringify(api.groupLayers(names.map(name => layer(name)))))
+  assert.deepEqual(grouped.map(e => e.prefix ?? e.name), ["gas", "other_pump", "substation", "voltage"])
+  assert.equal(grouped[3].layers.length, 13)
+})
