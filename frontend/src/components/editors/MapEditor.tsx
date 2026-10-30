@@ -3,7 +3,6 @@ import { CaretDown, CaretRight, Stack } from "../../lib/icons"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { runConnection, runGround, runSolar, runTerrain, runWind } from "../../lib/analysis"
 import { BASEMAPS, IMAGERY_TILES, type BasemapId } from "../../lib/basemap"
-import { formatLat, formatLng } from "../../lib/format"
 import { distanceKm } from "../../lib/geo"
 import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
 import { mountMap } from "../../lib/mapEngine"
@@ -411,7 +410,6 @@ function Foot() {
 
 export function MapEditor() {
   const container = useRef<HTMLDivElement>(null)
-  const view = useStore(mapView)
 
   useEffect(() => {
     const el = container.current
@@ -423,11 +421,6 @@ export function MapEditor() {
     <>
       <AreaHeader
         options={<GeoPackageControl />}
-        centre={
-          <span className="telemetry header-label text-[9px] text-muted-foreground">
-            {formatLat(view.lat, 3)} {formatLng(view.lng, 3)}
-          </span>
-        }
       />
       <div className="relative min-h-0 flex-1" style={{ background: "var(--s-field)" }}>
         {/*

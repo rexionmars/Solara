@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react"
+import { formatLat, formatLng } from "../../lib/format"
+import { geoPackage } from "../../lib/geopackage"
 import { gridStore, storeReport } from "../../lib/grid"
-import { mapMounted, mapView } from "../../lib/mapState"
+import { cursor, mapMounted, mapView } from "../../lib/mapState"
+import { sidecar } from "../../lib/sidecarStatus"
 import { formatKeys } from "../../lib/operators"
 import { project } from "../../lib/project"
 import { hoveredArea } from "../../lib/screen"
@@ -9,7 +13,7 @@ import { TOOLS, activeTool } from "../../lib/tools"
 import type { EditorId } from "../../lib/editors"
 
 /** The strip's height, which the area tree subtracts from its rectangle. */
-export const STATUS_BAR_PX = 22
+export const STATUS_BAR_PX = 26
 
 const BINDINGS: Partial<Record<EditorId, [string, string][]>> = {
   outliner: [
@@ -36,11 +40,29 @@ const BINDINGS: Partial<Record<EditorId, [string, string][]>> = {
   ],
 }
 
+/** Whether the machine says it has a network, kept current by its events. */
+function useOnline(): boolean {
+  const [online, setOnline] = useState(() => navigator.onLine)
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener("online", on)
+    window.addEventListener("offline", off)
+    return () => {
+      window.removeEventListener("online", on)
+      window.removeEventListener("offline", off)
+    }
+  }, [])
+  return online
+}
+
 /**
- * The one strip across the studio's foot, as TERRA's: LEFT what the pointer
- * does here, RIGHT what is in the project and how much of it is picked. No
- * middle: a run's progress is drawn where the run was started, and the latest
- * report is a toast.
+ * The one strip across the studio's foot. LEFT where the pointer is on the map
+ * (the map's centre when it is elsewhere), the ground a pixel covers, and what
+ * the pointer does here. RIGHT the reads in progress, then the state of what
+ * the readings depend on -- the engine, the grid store, the network -- and what
+ * is in the project. A run's progress is drawn where the run was started, and
+ * the latest report is a toast.
  */
 export function StatusBar() {
   const { editor } = useStore(hoveredArea)
@@ -50,6 +72,12 @@ export function StatusBar() {
   const d = useStore(project).data
   const { id } = useStore(selection)
   const held = storeReport(useStore(gridStore))
+  const pointer = useStore(cursor)
+  const engine = useStore(sidecar)
+  const online = useOnline()
+  const local = useStore(geoPackage)
+  const reading = local.file?.layers.filter((l) => local.views[l.name]?.loading).map((l) => l.label) ?? []
+  const at = pointer ?? { lat: view.lat, lng: view.lng }
 
   const bindings: [string, string][] =
     editor === "map"
@@ -64,17 +92,20 @@ export function StatusBar() {
 
   return (
     <div
-      className="flex shrink-0 items-center gap-2 border-t px-2"
-      style={{ height: STATUS_BAR_PX, background: "var(--s-app)", borderColor: "rgb(var(--p-line) / 0.28)" }}
+      className="flex shrink-0 items-center gap-3 border-t px-3"
+      style={{ height: STATUS_BAR_PX, background: "var(--s-chrome)", borderColor: "var(--s-line-soft)" }}
     >
       {mounted && (
-        <span className="telemetry flex shrink-0 items-center gap-2 text-[9px] text-muted-foreground">
+        <span className="telemetry flex shrink-0 items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="text-foreground" title={pointer ? "Under the pointer" : "The centre of the map"}>
+            {formatLat(at.lat, 3)}  {formatLng(at.lng, 3)}
+          </span>
           <Figure label="zoom" value={view.zoom.toFixed(1)} />
-          <Figure label="ground" value={ground} />
+          <Figure label="a pixel" value={ground} />
         </span>
       )}
       {mounted && bindings.length > 0 && <span className="hidden h-3 w-px shrink-0 self-center border-l lg:block" style={{ borderColor: "var(--hairline)" }} />}
-      <span className="telemetry flex min-w-0 items-center gap-2 overflow-hidden text-[9px] text-muted-foreground">
+      <span className="telemetry flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-muted-foreground">
         {bindings.map(([keys, what]) => (
           <Binding key={keys + what} keys={keys} what={what} />
         ))}
@@ -82,11 +113,29 @@ export function StatusBar() {
 
       <span className="flex-1" />
 
+      {reading.length > 0 && (
+        <span className="telemetry flex min-w-0 shrink items-center gap-1.5 text-[11px] text-muted-foreground" title={reading.join(", ")}>
+          <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-accent" />
+          <span className="truncate">Reading {reading.length === 1 ? reading[0] : `${reading.length} layers`}</span>
+        </span>
+      )}
+      <span
+        className="telemetry flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground"
+        title={engine.kind === "failed" ? engine.message : engine.kind === "ready" ? `Python ${engine.version}` : "Starting the calculation engine"}
+      >
+        <span className={`size-1.5 rounded-full ${engine.kind === "ready" ? "bg-success" : engine.kind === "failed" ? "bg-destructive-quiet" : "animate-pulse bg-warning"}`} />
+        {engine.kind === "ready" ? "Engine ready" : engine.kind === "failed" ? "Engine failed" : "Engine starting"}
+      </span>
+      <span className="telemetry flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground" title="Weather, imagery and public data need the network">
+        <span className={`size-1.5 rounded-full ${online ? "bg-success" : "bg-warning"}`} />
+        {online ? "Online" : "Offline"}
+      </span>
+
       {/* Which store the map's layers and the grid readings are read from, said
           wherever the reader is: data on the map with nothing naming its source
           is data nobody can account for. */}
-      <span className="telemetry flex shrink-0 items-center gap-1.5 text-[9px] text-muted-foreground" title={held?.reachable ? held.dsn : "Connect one in Settings › Grid store"}>
-        <span className={`size-1.5 rounded-full ${held?.reachable ? "bg-success" : "bg-muted-foreground/50"}`} />
+      <span className="telemetry flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground" title={held?.reachable ? held.dsn : "Connect one in Settings › Grid store"}>
+        <span className={`size-1.5 rounded-full ${held?.reachable ? "bg-success" : "bg-warning"}`} />
         {held?.reachable ? (
           <span className="max-w-[22rem] truncate">
             store <span className="text-foreground">{held.coverage?.store?.name ?? held.dsn}</span>
@@ -97,7 +146,7 @@ export function StatusBar() {
       </span>
       <span className="h-3 w-px shrink-0 self-center border-l" style={{ borderColor: "var(--hairline)" }} />
 
-      <span className="telemetry flex shrink-0 items-center gap-2 text-[9px] text-muted-foreground">
+      <span className="telemetry flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
         <span>
           <span className={picked ? "text-foreground" : ""}>{picked}</span>/{objects + d.results.length} picked
         </span>
