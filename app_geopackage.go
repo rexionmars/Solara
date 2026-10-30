@@ -6,14 +6,25 @@ import (
 	"time"
 )
 
+// GeoPackageField is one attribute column and the type it declares: integer,
+// real, text, boolean, date, datetime or blob. Title is the alias recorded in
+// gpkg_data_columns, when there is one.
+type GeoPackageField struct {
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	Title string `json:"title,omitempty"`
+}
+
 type GeoPackageLayer struct {
-	Style    map[string]any `json:"style,omitempty"`
-	Name     string         `json:"name"`
-	Label    string         `json:"label"`
-	Geometry string         `json:"geometry"`
-	Count    int64          `json:"count"`
-	BBox     []float64      `json:"bbox"`
-	Error    *string        `json:"error"`
+	Style    map[string]any    `json:"style,omitempty"`
+	Name     string            `json:"name"`
+	Label    string            `json:"label"`
+	Geometry string            `json:"geometry"`
+	Count    int64             `json:"count"`
+	BBox     []float64         `json:"bbox"`
+	Error    *string           `json:"error"`
+	Fields   []GeoPackageField `json:"fields"`
+	PK       *string           `json:"pk"`
 }
 
 type GeoPackageCatalog struct {
@@ -42,9 +53,13 @@ func (a *App) InspectGeoPackage(path string) (*GeoPackageCatalog, error) {
 	return &result, nil
 }
 
-// GeoPackageFeatures reads a bounded preview of one layer in the visible map extent.
-func (a *App) GeoPackageFeatures(path, layer string, bbox []float64) (*GeoPackagePreview, error) {
-	out, err := a.readGeoPackage(map[string]any{"action": "gpkg_features", "path": path, "layer": layer, "bbox": bbox})
+// GeoPackageFeatures reads a bounded preview of one layer in the visible map
+// extent, carrying only the attributes named in fields and the primary key.
+func (a *App) GeoPackageFeatures(path, layer string, bbox []float64, fields []string) (*GeoPackagePreview, error) {
+	if fields == nil {
+		fields = []string{}
+	}
+	out, err := a.readGeoPackage(map[string]any{"action": "gpkg_features", "path": path, "layer": layer, "bbox": bbox, "fields": fields})
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +68,20 @@ func (a *App) GeoPackageFeatures(path, layer string, bbox []float64) (*GeoPackag
 		return nil, err
 	}
 	return &result, nil
+}
+
+// GeoPackageFeature reads one feature whole, by its primary key: every
+// attribute uncut and the geometry neither clipped nor simplified.
+func (a *App) GeoPackageFeature(path, layer string, fid int64) (map[string]any, error) {
+	out, err := a.readGeoPackage(map[string]any{"action": "gpkg_feature", "path": path, "layer": layer, "fid": fid})
+	if err != nil {
+		return nil, err
+	}
+	var result map[string]any
+	if err := json.Unmarshal(out, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (a *App) readGeoPackage(req map[string]any) (json.RawMessage, error) {

@@ -1,5 +1,6 @@
 """Exercise real GeoPackage blobs, spatial filtering, reprojection and read-only access."""
 import hashlib
+import json
 import sqlite3
 import struct
 
@@ -7,7 +8,7 @@ import pytest
 from pyproj import Transformer
 from shapely.geometry import Point
 
-from terra_energy_engine.geopackage import database, inspect, read_features
+from terra_energy_engine.geopackage import database, inspect, read_feature, read_features
 
 
 @pytest.fixture
@@ -117,3 +118,71 @@ def test_qgis_layer_colors_are_preserved_and_invalid_styles_are_ignored(package)
     with sqlite3.connect(path) as conn:
         conn.execute("update layer_styles set styleQML='invalid XML'")
     assert inspect(path)['layers'][0]['style'] == {}
+
+
+def test_catalog_declares_each_attribute_type_and_the_primary_key(package):
+    path = package()
+    with sqlite3.connect(path) as conn:
+        for column in ('active BOOLEAN', 'opened DATE', 'seen DATETIME', 'code MEDIUMINT',
+                       'load DOUBLE', 'note TEXT(20)', 'photo BLOB', 'odd WHATEVER'):
+            conn.execute(f'alter table assets add column {column}')
+        conn.execute('create table gpkg_data_columns (table_name text, column_name text, name text, title text)')
+        conn.execute("insert into gpkg_data_columns values ('assets', 'load', 'load', 'Peak load (MW)')")
+    layer = inspect(path)['layers'][0]
+    assert layer['pk'] == 'fid'
+    assert [(f['name'], f['type']) for f in layer['fields']] == [
+        ('fid', 'integer'), ('name', 'text'), ('active', 'boolean'), ('opened', 'date'), ('seen', 'datetime'),
+        ('code', 'integer'), ('load', 'real'), ('note', 'text'), ('photo', 'blob'), ('odd', 'text')]
+    assert next(f for f in layer['fields'] if f['name'] == 'load')['title'] == 'Peak load (MW)'
+    assert 'title' not in layer['fields'][0]
+
+
+def test_preview_carries_only_the_attributes_the_map_draws_with(package):
+    path = package()
+    with sqlite3.connect(path) as conn:
+        conn.execute('alter table assets add column kind text')
+        conn.execute("update assets set kind = 'wind'")
+    feature = read_features(path, 'assets', [-39, -5, -37, -3], ['kind'])['geojson']['features'][0]
+    assert feature['properties'] == {'fid': 1, 'kind': 'wind'}
+    with pytest.raises(ValueError, match='list of strings'):
+        read_features(path, 'assets', [-39, -5, -37, -3], 'kind')
+
+
+def test_a_non_finite_attribute_does_not_drop_its_feature(package):
+    path = package()
+    with sqlite3.connect(path) as conn:
+        conn.execute('alter table assets add column load real')
+        conn.execute('update assets set load = 9e999')
+    result = read_features(path, 'assets', [-39, -5, -37, -3])
+    assert result['skipped'] == 0
+    assert result['geojson']['features'][0]['properties']['load'] == 'Infinity'
+
+
+@pytest.mark.parametrize('srs', [4326, 3857])
+def test_a_clicked_feature_is_read_whole(package, srs):
+    path = package(srs)
+    with sqlite3.connect(path) as conn:
+        conn.execute('alter table assets add column tags text')
+        conn.execute('alter table assets add column photo blob')
+        conn.execute('update assets set tags = ?, photo = ? where fid = 2', ('x' * 9000, b'\x00' * 300))
+    feature = read_feature(path, 'assets', 2)
+    assert feature['id'] == 2
+    assert feature['geometry_error'] is None
+    assert feature['geometry']['coordinates'] == pytest.approx([-40, -6])
+    assert len(feature['properties']['tags']) == 9000
+    assert feature['properties']['photo'] == 300
+    json.dumps(feature, allow_nan=False)
+    with pytest.raises(ValueError, match='does not exist'):
+        read_feature(path, 'assets', 99)
+    with pytest.raises(ValueError, match='feature id'):
+        read_feature(path, 'assets', True)
+
+
+def test_a_clicked_feature_keeps_its_attributes_when_its_geometry_is_unreadable(package):
+    path = package()
+    with sqlite3.connect(path) as conn:
+        conn.execute("update assets set geom = x'00010203' where fid = 1")
+    feature = read_feature(path, 'assets', 1)
+    assert feature['geometry'] is None
+    assert 'Unsupported' in feature['geometry_error']
+    assert feature['properties']['name'] == 'Asset 1'

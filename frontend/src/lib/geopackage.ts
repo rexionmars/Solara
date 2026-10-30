@@ -1,12 +1,12 @@
 import type { FeatureCollection } from "geojson"
 import type { Map as MapLibreMap, GeoJSONSource, ExpressionSpecification, PointLike } from "maplibre-gl"
-import { GeoPackageFeatures } from "../../wailsjs/go/main/App"
+import { GeoPackageFeature, GeoPackageFeatures } from "../../wailsjs/go/main/App"
 import { errorMessage } from "./errors"
 import { createStore } from "./store"
-import { featureColor, normalizeColor, paletteColor, type PackageStyle } from "./geopackageStyle"
+import { drawnFields, featureColor, normalizeColor, paletteColor, titleField, type PackageField, type PackageStyle } from "./geopackageStyle"
 import { pickedGeoPackage, type PickedGeoPackage } from "./mapState"
 
-export type PackageLayer = { name: string; label: string; geometry: string; count: number; bbox: number[] | null; error: string | null; style?: PackageStyle }
+export type PackageLayer = { name: string; label: string; geometry: string; count: number; bbox: number[] | null; error: string | null; style?: PackageStyle; fields?: PackageField[]; pk?: string | null }
 export type GeoPackageCatalog = { path: string; name: string; layers: PackageLayer[] }
 export type LayerView = { visible: boolean; color: string; loading: boolean; message: string; error: string }
 export type PackageDisplay = { visibleLayers?: string[]; colors?: Record<string, string> }
@@ -26,6 +26,18 @@ let version = 0
 let pending = false
 let active = false
 let timer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * What a preview carries besides the primary key: the attributes the map
+ * colours by and the one a feature is called by. A click reads the rest.
+ * A layer without a primary key cannot be read feature by feature, so its
+ * preview carries every attribute instead.
+ */
+function previewFields(layer: PackageLayer): string[] {
+  if (!layer.pk) return (layer.fields ?? []).map(f => f.name)
+  const title = titleField(layer.fields)
+  return [...drawnFields(layer.style, layer.fields), ...(title ? [title] : [])]
+}
 
 function updateView(name: string, patch: Partial<LayerView>) {
   geoPackage.set(s => s.views[name] ? { ...s, views: { ...s.views, [name]: { ...s.views[name], ...patch } } } : s)
@@ -140,7 +152,7 @@ async function refresh(): Promise<void> {
     while (queue.length && token === version) {
       const layer = queue.shift()!
       try {
-        const result = await GeoPackageFeatures(state.file!.path, layer.name, bbox) as Preview
+        const result = await GeoPackageFeatures(state.file!.path, layer.name, bbox, previewFields(layer)) as Preview
         if (token !== version || !geoPackage.get().views[layer.name]?.visible) continue
         const renderer = ensureRenderer(layer.name)
         const color = state.views[layer.name].color
@@ -172,7 +184,10 @@ export function attachGeoPackage(m: MapLibreMap): void {
   schedule()
 }
 
-/** Identify the feature; OverlayCallouts owns its presentation, like the grid's. */
+/**
+ * Identify the feature; OverlayCallouts owns its presentation, like the grid's.
+ * The pick shows what the preview holds at once, and the whole feature when it arrives.
+ */
 export function pickGeoPackage(m: MapLibreMap, point: PointLike, at: [number, number]): PickedGeoPackage | null {
   const state = geoPackage.get()
   const ids = [...renderers].filter(([name]) => state.views[name]?.visible).flatMap(([, r]) => r.ids)
@@ -181,10 +196,26 @@ export function pickGeoPackage(m: MapLibreMap, point: PointLike, at: [number, nu
   if (!feature) return null
   const layer = [...renderers].find(([, r]) => r.ids.includes(feature.layer.id))?.[0]
   if (!layer) return null
-  return {
-    at, layer, label: state.file.layers.find(l => l.name === layer)?.label ?? layer,
+  const source = state.file.layers.find(l => l.name === layer)
+  const props = Object.fromEntries(Object.entries(feature.properties ?? {}).filter(([key]) => !key.startsWith("__solara_")))
+  const id = source?.pk ? props[source.pk] : undefined
+  const fid = typeof id === "number" && Number.isInteger(id) ? id : null
+  const picked: PickedGeoPackage = {
+    at, layer, label: source?.label ?? layer,
     file: state.file.name, geometry: feature.geometry.type,
     color: normalizeColor(feature.properties?.[COLOR]) ?? state.views[layer].color,
-    props: Object.fromEntries(Object.entries(feature.properties ?? {}).filter(([key]) => !key.startsWith("__solara_"))),
+    props, fields: source?.fields ?? [], fid, status: fid === null ? "preview" : "reading", shape: null,
+  }
+  if (fid !== null) void readWhole(state.file.path, picked, fid)
+  return picked
+}
+
+/** Replaces the pick's preview attributes with the feature's own, unless another pick has taken its place. */
+async function readWhole(path: string, picked: PickedGeoPackage, fid: number): Promise<void> {
+  try {
+    const whole = await GeoPackageFeature(path, picked.layer, fid)
+    pickedGeoPackage.set(p => p === picked ? { ...p, props: whole.properties ?? p.props, shape: whole.geometry ?? null, status: "whole" } : p)
+  } catch (e) {
+    pickedGeoPackage.set(p => p === picked ? { ...p, status: "failed", error: errorMessage(e) } : p)
   }
 }

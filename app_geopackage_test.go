@@ -54,8 +54,19 @@ func TestOpenProject_GeoPackageCatalogWithoutChangingSource(t *testing.T) {
 	if opened.Content != "" || len(opened.RunDirs) != 0 {
 		t.Fatal("GeoPackage was treated as a JSON project or restored raster runs")
 	}
-	if opened.GeoPackage.Layers[0].Count != 1 || opened.GeoPackage.Layers[0].Name != "assets" {
+	layer := opened.GeoPackage.Layers[0]
+	if layer.Count != 1 || layer.Name != "assets" {
 		t.Fatalf("wrong catalog: %+v", opened.GeoPackage)
+	}
+	if layer.PK == nil || *layer.PK != "fid" || len(layer.Fields) != 2 || layer.Fields[1] != (GeoPackageField{Name: "name", Type: "text"}) {
+		t.Fatalf("wrong schema: pk %v, fields %+v", layer.PK, layer.Fields)
+	}
+	feature, err := a.GeoPackageFeature(path, "assets", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if props, _ := feature["properties"].(map[string]any); props["name"] != "Substation" || feature["geometry"] == nil {
+		t.Fatalf("wrong feature: %+v", feature)
 	}
 
 	after, err := os.ReadFile(path)

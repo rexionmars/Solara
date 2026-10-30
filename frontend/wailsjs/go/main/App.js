@@ -50,8 +50,12 @@ export function ExportResultFile(arg1, arg2) {
   return window['go']['main']['App']['ExportResultFile'](arg1, arg2);
 }
 
-export function GeoPackageFeatures(arg1, arg2, arg3) {
-  return window['go']['main']['App']['GeoPackageFeatures'](arg1, arg2, arg3);
+export function GeoPackageFeature(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GeoPackageFeature'](arg1, arg2, arg3);
+}
+
+export function GeoPackageFeatures(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GeoPackageFeatures'](arg1, arg2, arg3, arg4);
 }
 
 export function GetAppVersion() {

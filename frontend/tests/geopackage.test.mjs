@@ -4,7 +4,7 @@ import test from "node:test"
 import vm from "node:vm"
 import ts from "typescript"
 
-async function controller(read) {
+async function controller(read, readFeature) {
   const timers = new Map()
   let timerId = 0
   const context = vm.createContext({ setTimeout: fn => { timers.set(++timerId, fn); return timerId }, clearTimeout: id => timers.delete(id) })
@@ -12,7 +12,10 @@ async function controller(read) {
   const calls = []
   const pickedLocal = createStore(null)
   const mocks = {
-    "../../wailsjs/go/main/App": { GeoPackageFeatures: async (...args) => { calls.push(args); return read ? read(...args) : { geojson: { type: "FeatureCollection", features: [] }, indexed: true, limited: false, skipped: 0 } } },
+    "../../wailsjs/go/main/App": {
+      GeoPackageFeatures: async (...args) => { calls.push(args); return read ? read(...args) : { geojson: { type: "FeatureCollection", features: [] }, indexed: true, limited: false, skipped: 0 } },
+      GeoPackageFeature: async (...args) => readFeature ? readFeature(...args) : { type: "Feature", id: args[2], geometry: null, properties: { fid: args[2] } },
+    },
     "./errors": { errorMessage: String }, "./store": { createStore },
     "./mapState": { pickedGeoPackage: pickedLocal },
   }
@@ -120,5 +123,74 @@ test("unsupported and empty layers are skipped; saved all-hidden state is respec
   assert.equal(api.geoPackage.get().layer, "roads")
   api.loadGeoPackage(file([layer("roads")]), "roads", { visibleLayers: [] })
   assert.equal(api.geoPackage.get().views.roads.visible, false)
+  api.closeGeoPackage()
+})
+
+const keyed = (name, extra = {}) => layer(name, { pk: "fid", fields: [{ name: "fid", type: "integer" }, { name: "name", type: "text" }, { name: "color", type: "text" }, { name: "notes", type: "text" }], ...extra })
+
+test("a preview asks for the attributes it colours and names by; a layer without a key asks for all", async () => {
+  const { api, map, calls, flush } = await controller()
+  api.attachGeoPackage(map)
+  api.loadGeoPackage(file([keyed("substation"), keyed("roads", { pk: null })]), "substation", { visibleLayers: ["substation", "roads"] })
+  await flush()
+  const asked = JSON.parse(JSON.stringify(Object.fromEntries(calls.map(args => [args[1], args[3]]))))
+  assert.deepEqual(asked.substation, ["color", "name"])
+  assert.deepEqual(asked.roads, ["fid", "name", "color", "notes"])
+  api.closeGeoPackage()
+})
+
+function clickOn(map, layers, props) {
+  const id = [...layers.keys()][2]
+  map.queryRenderedFeatures = () => [{ type: "Feature", layer: { id }, geometry: { type: "Point", coordinates: [12, 42] }, properties: props }]
+}
+
+test("a click shows the preview at once and the whole feature when it arrives", async () => {
+  const whole = { type: "Feature", id: 5, geometry: { type: "Point", coordinates: [12, 42] }, properties: { fid: 5, name: "Station", notes: "x".repeat(9000) } }
+  const { api, map, layers, pickedLocal } = await controller(undefined, async () => whole)
+  api.attachGeoPackage(map)
+  api.loadGeoPackage(file([keyed("substation")]))
+  clickOn(map, layers, { fid: 5, name: "Station", __solara_display_color: "#ff0000" })
+  const picked = api.pickGeoPackage(map, {}, [12, 42])
+  assert.equal(picked.fid, 5)
+  assert.equal(picked.status, "reading")
+  assert.deepEqual(Object.keys(picked.props), ["fid", "name"])
+  pickedLocal.set(picked)
+  await new Promise(setImmediate)
+  assert.equal(pickedLocal.get().status, "whole")
+  assert.equal(pickedLocal.get().props.notes.length, 9000)
+  assert.deepEqual(pickedLocal.get().shape, whole.geometry)
+  api.closeGeoPackage()
+})
+
+test("an earlier click's answer does not replace a later pick, and a failed read says so", async () => {
+  const answers = []
+  const { api, map, layers, pickedLocal } = await controller(undefined, () => new Promise((resolve, reject) => answers.push({ resolve, reject })))
+  api.attachGeoPackage(map)
+  api.loadGeoPackage(file([keyed("substation")]))
+  clickOn(map, layers, { fid: 1 })
+  pickedLocal.set(api.pickGeoPackage(map, {}, [12, 42]))
+  clickOn(map, layers, { fid: 2 })
+  const later = api.pickGeoPackage(map, {}, [12, 42])
+  pickedLocal.set(later)
+  answers[0].resolve({ type: "Feature", id: 1, geometry: null, properties: { fid: 1, name: "First" } })
+  await new Promise(setImmediate)
+  assert.equal(pickedLocal.get(), later)
+  answers[1].reject(new Error("The feature does not exist."))
+  await new Promise(setImmediate)
+  assert.equal(pickedLocal.get().status, "failed")
+  assert.match(pickedLocal.get().error, /does not exist/)
+  api.closeGeoPackage()
+})
+
+test("a layer without a primary key keeps its preview attributes on a click", async () => {
+  let asked = false
+  const { api, map, layers } = await controller(undefined, () => { asked = true })
+  api.attachGeoPackage(map)
+  api.loadGeoPackage(file([keyed("substation", { pk: null })]))
+  clickOn(map, layers, { fid: 3, name: "Station" })
+  const picked = api.pickGeoPackage(map, {}, [12, 42])
+  assert.equal(picked.status, "preview")
+  assert.equal(picked.fid, null)
+  assert.equal(asked, false)
   api.closeGeoPackage()
 })
