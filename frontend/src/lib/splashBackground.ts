@@ -34,7 +34,7 @@ export const SPLASH_STILLS: SplashStill[] = [
     subject: "four turbines on a wooded ridge under a storm sky, a house among pines below",
     source: "https://www.pexels.com/photo/15207536/",
     photographer: "Francesco Ungaro",
-    since: "0.1.0",
+    since: "1.0.0",
   },
 ]
 
