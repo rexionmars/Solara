@@ -693,9 +693,9 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .reading-chip {
   display: inline-block;
-  border: 1px solid var(--s-line);
-  border-radius: 6px;
-  background: var(--s-panel-head);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: rgb(var(--p-surface-raised));
   padding: 0 6px;
   font-size: 11px;
   font-weight: 500;
@@ -703,9 +703,9 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--s-text);
 }
 .reading-chip[data-tone="warn"] {
-  border-color: rgb(213 190 75 / 0.35);
-  background: rgb(213 190 75 / 0.12);
-  color: var(--warning);
+  border-color: rgb(224 145 58 / 0.3);
+  background: rgb(224 145 58 / 0.14);
+  color: #eca460;
 }
 .reading-kpis {
   display: grid;
@@ -718,6 +718,7 @@ input[type="number"]::-webkit-outer-spin-button {
   flex-direction: column;
   border: 1px solid var(--s-line);
   border-radius: 10px;
+  background: var(--s-card);
 }
 .reading-kpi > header {
   border-bottom: 1px solid var(--s-line-soft);
@@ -746,10 +747,10 @@ input[type="number"]::-webkit-outer-spin-button {
   padding: 10px 12px 11px;
 }
 .reading-num {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
   line-height: 1.05;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
 }
 /*
@@ -781,6 +782,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .reading-panel {
   border: 1px solid var(--s-line);
   border-radius: 10px;
+  background: var(--s-card);
 }
 .reading-panel-head {
   display: flex;
@@ -825,6 +827,7 @@ input[type="number"]::-webkit-outer-spin-button {
   gap: 2px;
   border: 1px solid var(--s-line);
   border-radius: 8px;
+  background: var(--s-sunk);
   padding: 2px;
 }
 .reading-seg button {
@@ -835,8 +838,9 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--s-text-muted);
 }
 .reading-seg button[aria-pressed="true"] {
-  background: var(--s-panel-head);
-  color: var(--s-text);
+  background: rgb(var(--p-accent));
+  font-weight: 600;
+  color: rgb(var(--p-ink));
 }
 .reading-details {
   border-top: 1px solid var(--s-line-soft);
@@ -857,7 +861,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .reading-details > summary::after {
   content: "Show";
   font-weight: 400;
-  color: var(--s-text-faint);
+  color: var(--accent-quiet);
 }
 .reading-details[open] > summary::after {
   content: "Hide";
@@ -907,9 +911,45 @@ input[type="number"]::-webkit-outer-spin-button {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/*
+  In a narrow area the four indicators stay abreast as one strip: the figure,
+  its unit and its chip, cells divided by hairlines, with what each one is
+  over and its line of description in the card's tooltip. Two cards a row with
+  all their prose pushed the reading's main panel below the fold.
+*/
 @container (max-width: 760px) {
   .reading-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid var(--s-line);
+    border-radius: 10px;
+    background: var(--s-card);
+  }
+  .reading-kpi {
+    border: none;
+    border-radius: 0;
+    background: none;
+  }
+  .reading-kpi + .reading-kpi {
+    border-left: 1px solid var(--s-line-soft);
+  }
+  .reading-kpi > header {
+    border-bottom: none;
+    padding: 9px 10px 0;
+  }
+  .reading-kpi h3 {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--s-text-muted);
+  }
+  .reading-kpi > header p,
+  .reading-kpi > div > p {
+    display: none;
+  }
+  .reading-kpi > div {
+    padding: 4px 10px 10px;
+  }
+  .reading-num {
+    font-size: 20px;
   }
   .reading-page {
     padding: 14px;
@@ -921,14 +961,20 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 @container (max-width: 420px) {
   .reading-kpis {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reading-kpi:nth-child(odd) {
+    border-left: none;
+  }
+  .reading-kpi:nth-child(n + 3) {
+    border-top: 1px solid var(--s-line-soft);
   }
 }
 
 .reading-notice {
-  border: 1px solid rgb(213 190 75 / 0.3);
+  border: 1px solid rgb(224 145 58 / 0.3);
   border-radius: 10px;
-  background: rgb(213 190 75 / 0.08);
+  background: rgb(224 145 58 / 0.08);
   padding: 6px 10px 6px 12px;
   font-size: 12px;
   color: var(--warning);
@@ -963,7 +1009,7 @@ input[type="number"]::-webkit-outer-spin-button {
   height: 8px;
   min-width: 1px;
   border-radius: 2px;
-  background: #d9d9d9;
+  background: #d9d6cc;
 }
 .reading-bars .figure {
   text-align: right;

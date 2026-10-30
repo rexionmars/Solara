@@ -244,7 +244,8 @@ export function IndicatorCard({
   children?: ReactNode
 }) {
   return (
-    <article className="reading-kpi">
+    // In a narrow area the card shows only its figure; the tooltip keeps what it is over and what it means.
+    <article className="reading-kpi" title={[title, sub, typeof children === "string" ? children : ""].filter(Boolean).join(" — ")}>
       <header>
         <h3 title={title}>{title}</h3>
         <p title={sub}>{sub}</p>
