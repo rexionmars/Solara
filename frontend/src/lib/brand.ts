@@ -5,7 +5,7 @@
  * splash in index.html, which paints before any bundle loads and so cannot
  * import this module. See the splash-constants plugin in vite.config.ts.
  */
-export const BRAND_TAGLINE = "energy engine"
+export const BRAND_TAGLINE = "Energy engine"
 
 /**
  * The name of this release, fixed for the version. It names the still the
