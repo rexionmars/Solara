@@ -132,7 +132,14 @@
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /*
+    One face for the interface: labels, figures and readouts are all Inter, the
+    figures in tabular numerals so they still line up. --font-telemetry keeps
+    its name for the classes that read it. The terminal face is spent on code
+    alone -- the console, a study's JSON -- as --font-code, Tailwind's font-mono.
+  */
+  --font-telemetry: var(--font-sans);
+  --font-code: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-brand: "RoundSans", var(--font-display);
 }
 
@@ -200,7 +207,7 @@
   --text-heading--line-height: 1.4;
 
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-telemetry);
+  --font-mono: var(--font-code);
   --font-display: var(--font-display);
   --font-brand: var(--font-brand);
 }
@@ -339,26 +346,23 @@
 .brand-sub {
   padding-left: 0.5rem;
   border-left: 1px solid rgb(var(--p-line) / 0.4);
-  font-family: var(--font-telemetry);
-  font-size: 9px;
-  letter-spacing: 0.14em;
+  font-family: var(--font-sans);
+  font-size: 11px;
   line-height: 1.25;
-  text-transform: uppercase;
   color: rgb(var(--p-muted));
 }
 
+/* A label over a group: sentence case in the interface's own face, never tracked capitals. */
 .eyebrow {
-  font-family: var(--font-telemetry);
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
   color: rgb(var(--p-muted));
 }
 
 .telemetry {
   font-family: var(--font-telemetry);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
 }
 
 .hairline {

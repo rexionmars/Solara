@@ -972,7 +972,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const grid = showRead
     ? "10px minmax(120px, 200px) minmax(90px, 240px) minmax(90px, 240px) 60px"
     : "10px minmax(120px, 200px) minmax(90px, 280px) 60px"
-  const head = "truncate text-[9px] uppercase tracking-wide text-muted-foreground"
+  const head = "truncate text-[10.5px] font-medium text-muted-foreground"
 
   const wires = (board: CanvasBoard) => (
     <div className="flex min-h-0 flex-col">

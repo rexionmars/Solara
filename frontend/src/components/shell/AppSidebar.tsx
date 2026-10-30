@@ -122,7 +122,7 @@ export function AppSidebar({
             {!collapsed && (
               <>
                 <span className="min-w-0 flex-1 truncate">Search</span>
-                <kbd className="shrink-0 rounded-[3px] bg-control px-1 py-px font-mono text-[10px]">{searchHint}</kbd>
+                <kbd className="shrink-0 rounded-[3px] bg-control px-1 py-px text-[10px]">{searchHint}</kbd>
               </>
             )}
           </button>
@@ -138,7 +138,7 @@ export function AppSidebar({
                 <button
                   type="button"
                   onClick={() => setShut((s) => ({ ...s, [g.label]: !s[g.label] }))}
-                  className="flex w-full items-center justify-between px-1.5 py-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-foreground hover:text-foreground"
+                  className="flex w-full items-center justify-between px-1.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground"
                 >
                   {g.label}
                   <CaretDown size={10} className={closed ? "-rotate-90 transition-transform" : "transition-transform"} />
@@ -169,7 +169,7 @@ export function AppSidebar({
                       <Ico size={16} weight={on ? "fill" : "regular"} className="shrink-0" />
                       {!collapsed && <span className="min-w-0 flex-1 truncate text-left">{it.label}</span>}
                       {!collapsed && it.badge && (
-                        <span className="shrink-0 rounded-[3px] bg-control px-1.5 py-px font-mono text-[10px] tabular-nums text-muted-foreground">
+                        <span className="shrink-0 rounded-[3px] bg-control px-1.5 py-px text-[10px] tabular-nums text-muted-foreground">
                           {it.badge}
                         </span>
                       )}

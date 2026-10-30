@@ -139,11 +139,11 @@ function Tooltip({
       className="pointer-events-none absolute z-10 min-w-[7rem] rounded-[4px] border border-border bg-float px-2 py-1.5 shadow-lg"
       style={{ left: flip ? undefined : x + 12, right: flip ? width - x + 12 : undefined, top: Math.max(0, y - 8) }}
     >
-      <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{title}</div>
+      <div className="text-[10px] text-muted-foreground">{title}</div>
       {rows.map((r) => (
         <div key={r.label} className="mt-1 flex items-baseline gap-1.5">
           {r.color ? <span className="h-[2px] w-3 shrink-0 rounded-full" style={{ background: r.color }} /> : null}
-          <span className="font-mono text-xs tabular-nums text-foreground">{r.value}</span>
+          <span className="text-xs tabular-nums text-foreground">{r.value}</span>
           <span className="truncate text-[10px] text-muted-foreground">{r.label}</span>
         </div>
       ))}
@@ -205,7 +205,7 @@ function TwinTable({
             {head.map((h, i) => (
               <th
                 key={h}
-                className={`border-b border-border py-1 text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground ${i ? "text-right" : ""}`}
+                className={`border-b border-border py-1 text-[10px] font-normal text-muted-foreground ${i ? "text-right" : ""}`}
               >
                 {h}
               </th>
@@ -218,7 +218,7 @@ function TwinTable({
               {r.map((c, j) => (
                 <td
                   key={j}
-                  className={`py-0.5 text-xs ${j ? "text-right font-mono tabular-nums text-foreground" : "text-muted-foreground"}`}
+                  className={`py-0.5 text-xs ${j ? "text-right tabular-nums text-foreground" : "text-muted-foreground"}`}
                 >
                   {c}
                 </td>
@@ -476,7 +476,7 @@ export function RankedBars({
                 }}
               />
             </div>
-            <div className="w-20 shrink-0 text-right font-mono text-xs tabular-nums text-foreground">
+            <div className="w-20 shrink-0 text-right text-xs tabular-nums text-foreground">
               {format(b.value)}
             </div>
           </div>

@@ -5,7 +5,7 @@ export const number = (value: number | null | undefined) =>
 export const selectStyle =
   "h-8 w-full min-w-0 rounded-sm border border-line/40 bg-transparent px-2 text-meta text-foreground outline-none focus:border-accent/55"
 export const thStyle =
-  "whitespace-nowrap border-b border-line/30 px-2 py-1.5 text-left text-[9px] uppercase tracking-wider font-normal text-muted-foreground"
+  "whitespace-nowrap border-b border-line/30 px-2 py-1.5 text-left text-[10.5px] font-medium text-muted-foreground"
 export const tdStyle = "border-b border-line/20 px-2 py-1 text-foreground"
 
 export function Metric({ label, children }: { label: string; children: ReactNode }) {

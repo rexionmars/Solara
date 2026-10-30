@@ -797,7 +797,7 @@ export function NodeCanvas({
         {listed.map((section) => (
           <div key={section.id}>
             <div className="flex h-5 items-center px-1.5 pt-1">
-              <span className="truncate text-[9px] uppercase tracking-wide text-muted-foreground">{section.label}</span>
+              <span className="truncate text-[10.5px] font-medium text-muted-foreground">{section.label}</span>
             </div>
             {section.ids.map((id) => {
               const n = byId.get(id)
@@ -836,7 +836,7 @@ export function NodeCanvas({
         {!!removed?.length && onRestore && (
           <div>
             <div className="flex h-5 items-center px-1.5 pt-1">
-              <span className="truncate text-[9px] uppercase tracking-wide text-muted-foreground">Removed</span>
+              <span className="truncate text-[10.5px] font-medium text-muted-foreground">Removed</span>
             </div>
             {removed.map((n) => (
               <button

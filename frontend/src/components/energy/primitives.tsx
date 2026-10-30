@@ -12,7 +12,7 @@ import { Info } from "../../lib/icons"
  * panel on a wide screen the layout of a wide one.
  */
 
-export const EYEBROW = "text-[11px] uppercase tracking-[0.1em] text-muted-foreground"
+export const EYEBROW = "text-[11px] text-muted-foreground"
 
 /** A label and its value on one baseline, for a dense run of parameters. */
 export function Stat({ label, value }: { label: string; value: string }) {
@@ -22,7 +22,7 @@ export function Stat({ label, value }: { label: string; value: string }) {
     // unlabelled figure, which is worse than a wrapped one.
     <div className="flex flex-wrap items-baseline justify-between gap-x-2 py-0.5">
       <span className="min-w-[8rem] flex-1 text-xs text-muted-foreground">{label}</span>
-      <span className="shrink-0 font-mono text-xs tabular-nums text-foreground">{value}</span>
+      <span className="shrink-0 text-xs tabular-nums text-foreground">{value}</span>
     </div>
   )
 }
@@ -34,7 +34,7 @@ export function Stat({ label, value }: { label: string; value: string }) {
  */
 export function Chip({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-[3px] bg-warning/15 px-1.5 py-px text-[11px] font-medium uppercase tracking-wide text-warning">
+    <span className="rounded-[3px] bg-warning/15 px-1.5 py-px text-[11px] font-medium text-warning">
       {children}
     </span>
   )
@@ -117,7 +117,7 @@ export function Panel({
       className={`flex min-w-0 flex-col rounded-[5px] border border-border bg-sunk ${span ? "@xl:col-span-2" : ""}`}
     >
       <header className="flex items-center gap-2 border-b border-hairline px-3 py-1.5">
-        <h3 className="min-w-0 flex-1 truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{title}</h3>
+        <h3 className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">{title}</h3>
         {right}
         {note && (
           <button

@@ -318,7 +318,7 @@ function ProfileView({ user }: { user: User }) {
         <NameControl user={user} />
       </SettingRow>
       <SettingRow title="Email" description="Identifies the account on this computer. Not editable.">
-        <span className="font-mono text-meta text-muted-foreground">{user.email}</span>
+        <span className="text-meta text-muted-foreground">{user.email}</span>
       </SettingRow>
       <SettingRow title="Sign out" description="Continue as the guest. The account stays on this computer.">
         <button type="button" className={BUTTON} onClick={() => void runOperator("LOGOUT")}>
