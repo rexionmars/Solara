@@ -1,8 +1,8 @@
 # Changelog
 
 What Solara can read, and when each reading became possible. Dates are the
-unit rather than versions: there is no release yet, and a date is what a
-reader can check against the history.
+unit rather than versions, because a date is what a reader can check against
+the history. A date a release was cut from also names its version and tag.
 
 Entries say what became possible, not which files moved. Where a reading
 carries a caveat that changes how its numbers must be read, the caveat is
@@ -52,9 +52,73 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 ---
 
-## Unreleased
+## 2026-10-18 · 1.0.0
 
-In the working tree, not yet committed.
+The first release, tagged `v1.0.0`. It is built for macOS on Apple Silicon and
+Intel, Windows and Linux, with the calculation engine inside.
+
+### Releases
+
+- **Packages that run without Python.** Each platform's archive carries the
+  calculation engine, frozen with Python 3.12 and its scientific and
+  geospatial libraries. Besides the archive, only the system's webview has to
+  be installed. GitHub Actions builds and publishes a release from a `v*` tag,
+  and only when all four platforms pass their tests and a smoke test of the
+  relocated engine. Each archive comes with its SHA-256.
+  `4dca5db` `287f462` `14b862f` `98ce6cf` `731c609`
+  - The packages are not signed. macOS is ad-hoc signed and not notarized;
+    Windows has no Authenticode signature.
+  - The grid store is not distributed. The grid products still need a PostGIS
+    store loaded separately; `contract/` describes what it has to hold.
+
+### Local GeoPackage layers
+
+- **A GeoPackage opens as map layers.** *Open project…* accepts a `.gpkg`.
+  The outliner lists its vector layers, each with its own eye and colour.
+  Each layer is read for the region in view and transformed to WGS84 from the
+  file's declared reference system. Clicking a feature captions its
+  attributes. `910056c` `ec3be4f`
+  - The file is opened read-only. A `.solara` project keeps its path, the
+    layers shown and their colours, not a copy of the file.
+  - A view previews at most 5,000 features and 6 MB, and past that asks for a
+    closer zoom. Without a spatial index, only the first 50,000 records are
+    scanned. Raster layers are not read.
+  - Colours come from the file's QGIS styles or colour attributes where it has
+    them, and otherwise from a random palette.
+
+### System planning
+
+- **Economic dispatch and single-period capacity expansion with PyPSA**,
+  solved locally with HiGHS. A study covers generation, storage and the
+  ratings of existing lines over a chronological horizon of demand and
+  availability, with costs and an optional CO₂ cap. The result gives dispatch
+  by technology, optimised capacities, the cost decomposition, emissions, line
+  utilisation and storage losses. It exports as a run report that carries its
+  own inputs. `910056c` `ec3be4f` `0f7359c`
+  - The network is entered, not inferred. A GeoPackage can be cited as a
+    geographic reference, but its geometries do not make an electrical model.
+  - A solve that is infeasible or not optimal is an error, never a partial
+    result.
+  - The synthetic example is fictional, and says so.
+  - Draft studies are kept in the webview's storage, not in the `.solara`
+    project.
+
+### The studio
+
+- **A permanent workspace bar**, with Default and Planning · PyPSA, and the
+  other layouts under *More workspaces*. Each workspace keeps its own
+  arrangement, and the last one used comes back at launch. `ec3be4f`
+- **The ribbon follows the workspace.** Its tabs and the analyses it offers
+  are those of the panels on screen, and a Map tab appears only where there is
+  a map. `ec3be4f`
+- **A panel is moved by its header.** Dropped on another panel's centre, it
+  swaps places with it; dropped at an edge, it docks there. A preview shows
+  the result before release, and the keyboard can make the same moves.
+  `ec3be4f`
+
+---
+
+## 2026-10-02 to 2026-10-05
 
 ### Usable ground
 
