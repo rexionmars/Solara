@@ -24,7 +24,7 @@ import { beginPanelDrag, beginPanelKeyboardDrag } from "../../lib/panelDrag"
  */
 
 /** The header's height. */
-export const AREA_HEADER_PX = 26
+export const AREA_HEADER_PX = 30
 
 type Hosts = {
   menus: HTMLElement | null
@@ -124,6 +124,8 @@ export function StudioArea({
         height: rect.h,
         borderRadius: AREA_RADIUS_PX,
         background: "var(--s-panel)",
+        // A panel is drawn by its own edge as well as by the ground around it.
+        border: "1px solid var(--s-line)",
         // So an editor responds to the AREA's width rather than the window's.
         containerType: "inline-size",
       }}
@@ -157,7 +159,7 @@ export function StudioArea({
           setAreaMenu(true)
         }}
         className={`studio-header relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1 ${maximized ? "" : "cursor-grab"}`}
-        style={{ height: AREA_HEADER_PX, background: "var(--s-panel-head)", borderColor: "rgb(var(--p-line) / 0.22)" }}
+        style={{ height: AREA_HEADER_PX, background: "var(--s-panel-head)", borderColor: "var(--s-line-soft)" }}
       >
         <button type="button" data-panel-drag="" aria-label={`Move ${meta.label} panel`} disabled={maximized}
           title={maximized ? "Restore areas to move this panel" : "Drag to move panel. Center swaps; edges dock. Press Enter for keyboard controls."}

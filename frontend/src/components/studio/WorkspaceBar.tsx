@@ -35,12 +35,12 @@ export function WorkspaceBar() {
   }
 
   return <nav aria-label="Workspaces" className="app-no-drag flex shrink-0 items-center gap-1 border-b px-2"
-    style={{ height: WORKSPACE_BAR_PX, background: 'var(--s-chrome)', borderColor: 'rgb(var(--p-line) / 0.28)' }}>
+    style={{ height: WORKSPACE_BAR_PX, background: 'var(--s-chrome)', borderColor: 'var(--s-line-soft)' }}>
     <span className="mr-2 hidden text-meta text-muted-foreground sm:inline">Workspace</span>
     <div role="tablist" aria-label="Workspace layouts" className="flex min-w-0 items-center gap-1 overflow-x-auto" onKeyDown={navigate}>
       {visible.map(w => <button key={w.id} type="button" role="tab" aria-selected={state.active === w.id}
         tabIndex={state.active === w.id ? 0 : -1} title={w.hint} onClick={() => setWorkspace(w.id)}
-        className={`flex h-6 shrink-0 items-center gap-1.5 rounded-sm px-3 text-meta focus-visible:outline focus-visible:outline-1 focus-visible:outline-ring ${state.active === w.id ? 'bg-selected text-accent' : 'text-muted-foreground hover:bg-hover hover:text-foreground'}`}>
+        className={`flex h-6 shrink-0 items-center gap-1.5 rounded-sm px-3 text-meta focus-visible:outline focus-visible:outline-1 focus-visible:outline-ring ${state.active === w.id ? 'bg-selected font-medium text-accent-quiet' : 'text-muted-foreground hover:bg-hover hover:text-foreground'}`}>
         <w.icon className="size-3.5" />{w.id === 'planning' ? 'Planning · PyPSA' : w.label}
       </button>)}
     </div>

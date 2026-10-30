@@ -340,9 +340,9 @@ export function resetWorkspace(): void {
 export type Rect = { x: number; y: number; w: number; h: number }
 
 /** The gap of the window's own ground between two areas, which is what says they are two. */
-export const AREA_GUTTER_PX = 5
+export const AREA_GUTTER_PX = 6
 /** The corner the gap turns, cut on each area's own box. */
-export const AREA_RADIUS_PX = 6
+export const AREA_RADIUS_PX = 8
 
 export type Seam = { id: string; dir: "row" | "col"; bounds: Rect; ratio: number }
 

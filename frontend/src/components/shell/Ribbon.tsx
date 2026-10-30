@@ -65,7 +65,7 @@ const TABLES: Product[] = ["solar", "terrain", "wind", "connection", "demand", "
 
 function tone(on: boolean | undefined, disabled: boolean | undefined): string {
   if (disabled) return "cursor-not-allowed text-muted-foreground/40"
-  if (on) return "bg-selected text-foreground"
+  if (on) return "bg-selected text-accent-quiet"
   return "text-foreground/85 hover:bg-hover hover:text-foreground"
 }
 
@@ -235,13 +235,13 @@ function Basemap() {
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div
-      className="flex shrink-0 flex-col border-r px-1.5"
-      style={{ borderColor: "rgb(var(--p-line) / 0.3)" }}
+      className="flex shrink-0 flex-col border-r px-2"
+      style={{ borderColor: "var(--s-line-soft)" }}
     >
       <div role="group" aria-label={label} className="flex min-h-0 flex-1 items-stretch gap-0.5 pt-1">
         {children}
       </div>
-      <p className="eyebrow !text-[9px] text-center leading-[13px]">{label}</p>
+      <p className="text-center text-[10.5px] leading-[14px]" style={{ color: "var(--s-text-faint)" }}>{label}</p>
     </div>
   )
 }
@@ -759,13 +759,13 @@ export function Ribbon() {
     )
 
   return (
-    <>
+    // The tabs and their commands are one card, edged and cornered as a panel is.
+    <div className="mx-[6px] mt-[6px] shrink-0 overflow-hidden rounded-[8px] border" style={{ background: "var(--s-band)", borderColor: "var(--s-line)" }}>
       <div
-        className="relative flex shrink-0 items-stretch gap-0.5 border-b px-1"
+        className="relative flex shrink-0 items-stretch gap-0.5 px-1.5"
         style={{
           height: RIBBON_TABS_PX,
-          background: "var(--s-chrome)",
-          borderColor: "rgb(var(--p-line) / 0.28)",
+          borderBottom: folded ? undefined : "1px solid var(--s-line-soft)",
         }}
       >
         {/* The application's own tab, filled, where a GIS desktop keeps Project. */}
@@ -784,7 +784,7 @@ export function Ribbon() {
                   ? "Studio: planning files, settings and application commands"
                   : "Studio: project files, settings and application commands"
               }
-              className="my-[3px] flex shrink-0 items-center gap-1 rounded-sm bg-primary px-2.5 text-meta font-semibold text-primary-foreground"
+              className="my-[4px] flex shrink-0 items-center gap-1 rounded-[5px] bg-olive-deep px-2.5 text-meta font-semibold text-foreground"
             >
               <Cube className="size-3.5" />
               Studio
@@ -808,15 +808,11 @@ export function Ribbon() {
                   workspaceRibbonTabs.set((s) => ({ ...s, [state.active]: t.id }))
                 }}
                 onDoubleClick={toggleRibbon}
-                className={`relative -mb-px flex shrink-0 items-center whitespace-nowrap px-3 text-meta transition-colors ${
-                  on ? "text-accent" : "text-muted-foreground hover:text-foreground"
+                className={`relative flex shrink-0 items-center whitespace-nowrap px-3 text-meta transition-colors ${
+                  on ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
-                style={
-                  on
-                    ? // The ground of the ribbon below: the tab and its commands are one surface.
-                      { background: "var(--s-band)", borderTopLeftRadius: 3, borderTopRightRadius: 3 }
-                    : undefined
-                }
+                // The open tab is underlined in the accent; the card below is already its ground.
+                style={on ? { boxShadow: "inset 0 -2px 0 rgb(var(--p-accent))" } : undefined}
               >
                 {t.label}
               </button>
@@ -841,11 +837,9 @@ export function Ribbon() {
 
       {!folded && (
         <div
-          className="app-no-drag flex shrink-0 items-stretch overflow-x-auto border-b px-1"
+          className="app-no-drag flex shrink-0 items-stretch overflow-x-auto px-1"
           style={{
             height: RIBBON_PX,
-            background: "var(--s-band)",
-            borderColor: "rgb(var(--p-line) / 0.28)",
             scrollbarWidth: "none",
           }}
           role="tabpanel"
@@ -856,6 +850,6 @@ export function Ribbon() {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

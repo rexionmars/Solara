@@ -31,8 +31,8 @@ export function TitleBar() {
     <header
       className="app-draggable relative flex h-11 shrink-0 items-center justify-between border-b pr-2"
       style={{
-        background: "var(--s-app)",
-        borderColor: "rgb(var(--p-line) / 0.28)",
+        background: "var(--s-chrome)",
+        borderColor: "var(--s-line-soft)",
         // The traffic lights own the first 4.5rem, and the wordmark keeps a centimetre clear of them.
         paddingLeft: onMac ? "calc(4.5rem + 1cm)" : "0.75rem",
       }}
