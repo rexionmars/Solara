@@ -23,7 +23,7 @@ import { OverlayCallouts } from "./OverlayCallouts"
 import { WeatherTimeline } from "./WeatherTimeline"
 import { ParamFields } from "./ParamFields"
 import { GeoPackageControl } from "./GeoPackageControl"
-import { countRadius, geoPackage, PREVIEW_LIMIT } from "../../lib/geopackage"
+import { MapLegend } from "./MapLegend"
 
 /*
   THE HEADER CARRIES NO MENUS. It had View, Select, Add and Object, and every
@@ -167,55 +167,6 @@ function MeasurePlate() {
       <p className="telemetry text-emphasis text-foreground">
         {km === null ? (pts.length ? "press the end point" : "press the start point") : km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(km < 10 ? 2 : 1)} km`}
       </p>
-    </div>
-  )
-}
-
-/** A legend's reference counts are rounded to two figures: they are sizes to read against, not readings. */
-function twoFigures(n: number): number {
-  const step = 10 ** Math.max(0, Math.floor(Math.log10(n)) - 1)
-  return Math.round(n / step) * step
-}
-
-/**
- * How to read the GeoPackage layers that are counted per cell: a view with
- * more than PREVIEW_LIMIT of a layer's features draws a circle per cell, its
- * area grown with the count, so each layer's largest cell sets its scale.
- */
-function CountLegend() {
-  const state = useStore(geoPackage)
-  const counted = (state.file?.layers ?? []).flatMap(l => {
-    const view = state.views[l.name]
-    return view?.visible && view.counted ? [{ name: l.label, color: view.color, largest: view.counted.largest }] : []
-  })
-  if (!counted.length) return null
-  return (
-    <div className={`${PLATE} flex w-64 flex-col gap-3 px-3 pb-3 pt-2.5`} style={plateStyle}>
-      <div className="flex flex-col gap-0.5">
-        <p className="text-emphasis font-medium text-foreground">Counted per cell</p>
-        <p className="text-meta text-muted-foreground">More than {PREVIEW_LIMIT.toLocaleString()} in view. Zoom in to draw each one.</p>
-      </div>
-      {counted.map(layer => (
-        <div key={layer.name} className="flex flex-col gap-1.5">
-          <p className="flex items-center gap-1.5 text-meta text-foreground">
-            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: layer.color }} />
-            <span className="truncate">{layer.name}</span>
-          </p>
-          <div className="flex items-end gap-4 pl-0.5">
-            {[layer.largest, twoFigures(layer.largest / 4), twoFigures(layer.largest / 16)].filter((n, i, all) => n >= 1 && all.indexOf(n) === i).map(n => {
-              const r = countRadius(n, layer.largest)
-              return (
-                <div key={n} className="flex flex-col items-center gap-1">
-                  <svg width={2 * r + 2} height={2 * r + 2} aria-hidden>
-                    <circle cx={r + 1} cy={r + 1} r={r} fill={layer.color} fillOpacity={0.7} stroke="#14181c" strokeWidth={0.8} />
-                  </svg>
-                  <span className="telemetry text-micro tabular-nums text-muted-foreground">{n.toLocaleString()}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ))}
     </div>
   )
 }
@@ -433,6 +384,10 @@ export function MapEditor() {
         <div className="pointer-events-none absolute inset-0">
           <WindReadout />
           {/* The address field, while Locate has it open, and the measure's figure while that tool is on. */}
+          {/* Every layer's key in one place, docked where the ground is least often the subject. */}
+          <div className="absolute right-2 top-2">
+            <MapLegend />
+          </div>
           <div className="absolute left-1.5 top-1.5 flex flex-col items-start gap-2">
             <AddressSearch />
             <MeasurePlate />
@@ -440,7 +395,6 @@ export function MapEditor() {
           <div className="absolute bottom-7 left-2 flex items-end gap-2">
             <BasemapSwitch />
             <RedoPlate />
-            <CountLegend />
           </div>
           <Foot />
         </div>

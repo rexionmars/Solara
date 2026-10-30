@@ -4,14 +4,13 @@ import { CaretRight, X } from "../../lib/icons"
 import { Marker } from "maplibre-gl"
 import type { energy } from "../../../wailsjs/go/models"
 import { currentMap } from "../../lib/mapEngine"
-import { legendsShown, mapLoaded, pickedGrid, pickedGeoPackage, type PickedGrid } from "../../lib/mapState"
+import { mapLoaded, pickedGrid, pickedGeoPackage, type PickedGrid } from "../../lib/mapState"
 import { featureCaption } from "../../lib/geopackageCaption"
 import { seasonLabel } from "../../lib/params"
 import { groundRules } from "../../lib/ground"
 import { findItem, project, type GroundResult, type TerrainResult } from "../../lib/project"
 import { ClassLegend } from "../energy/Legend"
 import { useStore } from "../../lib/store"
-import { overlays } from "../../lib/tools"
 
 /**
  * A layer's legend, tied to the ground it measures, as TERRA's OverlayCallout.
@@ -78,7 +77,7 @@ function basisShort(scale: energy.RenderScale): string {
   return "own range, relative contrast"
 }
 
-function captionOf(d: ReturnType<typeof project.get>["data"], r: TerrainResult | GroundResult): Caption {
+export function captionOf(d: ReturnType<typeof project.get>["data"], r: TerrainResult | GroundResult): Caption {
   if (r.kind === "ground") {
     return {
       subject: "Usable ground",
@@ -197,24 +196,18 @@ function pickedCaption(p: PickedGrid): Caption {
   }
 }
 
-/** The legends to draw: layers on the map whose legend was asked for, while the Legend overlay is on. */
+/**
+ * The captions anchored to the map: what was clicked, a plant, a line, a bus
+ * or a GeoPackage feature, on the ground where it was clicked. The legends of
+ * the layers are not here: they are docked together in MapLegend.
+ */
 function useCaptions(): { key: string; at: [number, number]; caption: Caption }[] {
-  const d = useStore(project).data
-  const o = useStore(overlays)
-  const shown = useStore(legendsShown)
   const picked = useStore(pickedGrid)
   const local = useStore(pickedGeoPackage)
   // On the ground where it was clicked, and first, so a new pick is the box added last and drawn over the legends.
   const pick = picked ? [{ key: `picked:${picked.kind}`, at: picked.at, caption: pickedCaption(picked) }] : []
   if (local) pick.push({ key: `picked:geopackage:${local.layer}`, at: local.at, caption: { ...featureCaption(local), onClose: () => pickedGeoPackage.set(null) } })
-  if (!o.legend || !o.layers) return pick
-  const legends = d.results
-    .filter((r): r is TerrainResult | GroundResult => (r.kind === "terrain" || r.kind === "ground") && !r.hidden && !findItem(d, r.sourceId)?.hidden && shown.has(r.id))
-    .map((r) => {
-      const e = r.data.extent
-      return { key: r.id, at: [(e.lon_min + e.lon_max) / 2, (e.lat_min + e.lat_max) / 2] as [number, number], caption: captionOf(d, r) }
-    })
-  return [...legends, ...pick]
+  return pick
 }
 
 export function OverlayCallouts() {
@@ -371,7 +364,7 @@ function CalloutAction({ action }: { action: NonNullable<Caption["action"]> }) {
 }
 
 /** The ramp the layer was drawn on, its two ends, and the reference value where the quantity has one. */
-function Ramp({ scale }: { scale: energy.RenderScale }) {
+export function Ramp({ scale }: { scale: energy.RenderScale }) {
   const gradient = scale.stops?.length ? `linear-gradient(to right, ${scale.stops.join(", ")})` : "rgb(var(--p-line))"
   const ref = scale.reference
   const refPos = ref != null && scale.max > scale.min ? ((ref - scale.min) / (scale.max - scale.min)) * 100 : null

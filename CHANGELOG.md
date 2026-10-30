@@ -54,6 +54,32 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 ## Unreleased
 
+### The studio's look
+
+- **The colours come from the logo.** The sunflower leaf is the accent --
+  the open tab, what is chosen, the button that commits -- and the olive leaf
+  marks the Studio menu and what went well. The chassis is a graphite warmed
+  towards both. A warning is orange, so it is never read as a selection.
+  The logo and its wordmark are unchanged.
+- **Panels are edged and cornered as one family**: 6 px apart, 8 px
+  corners, a hairline edge, and the ribbon set as a card of the same cut, its
+  open tab underlined rather than filled.
+- **One face, in sentence case.** Labels, readouts and figures are all
+  Inter, figures in tabular numerals; the terminal face and tracked capitals
+  are gone from the interface, kept for code in the console.
+- **A reading's cards and panels stand on their own step**, and in a narrow
+  area its four figures stay abreast as one strip, with what each is over in
+  its tooltip.
+- **One legend, docked in the map's corner**, for every layer drawn and in
+  view: a reading's ramp or classes and each GeoPackage layer, with the sizes
+  of the circles where a layer is counted. It replaces the boxes anchored to
+  each area, which piled up over the ground they explained.
+- **The outliner can be filtered by name**, and a GeoPackage of more than 15
+  layers lists them by the prefix of their names, each group saying how many
+  of its layers are drawn.
+- **The status bar says where the pointer is** and what the readings rely
+  on: the engine, the grid store, the network, and the layers being read.
+
 ### Faster reads
 
 - **A map layer or a clicked feature no longer waits for Python to start.**
