@@ -54,8 +54,8 @@ export function GeoPackageFeature(arg1, arg2, arg3) {
   return window['go']['main']['App']['GeoPackageFeature'](arg1, arg2, arg3);
 }
 
-export function GeoPackageFeatures(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['GeoPackageFeatures'](arg1, arg2, arg3, arg4);
+export function GeoPackageFeatures(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['GeoPackageFeatures'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function GetAppVersion() {

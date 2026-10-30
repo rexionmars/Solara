@@ -8,15 +8,52 @@ import { pickedGeoPackage, type PickedGeoPackage } from "./mapState"
 
 export type PackageLayer = { name: string; label: string; geometry: string; count: number; bbox: number[] | null; error: string | null; style?: PackageStyle; fields?: PackageField[]; pk?: string | null }
 export type GeoPackageCatalog = { path: string; name: string; layers: PackageLayer[] }
-export type LayerView = { visible: boolean; color: string; loading: boolean; message: string; error: string }
+/** A view too crowded to draw one by one: how many features it holds, and the most any cell holds. */
+export type Counted = { inView: number; largest: number }
+export type LayerView = { visible: boolean; color: string; loading: boolean; message: string; error: string; counted: Counted | null }
 export type PackageDisplay = { visibleLayers?: string[]; colors?: Record<string, string> }
-type Preview = { geojson: FeatureCollection; limited: boolean; skipped: number; indexed: boolean }
+type Cells = { zoom: number; items: number[][] }
+type Preview = { geojson: FeatureCollection; cells?: Cells; in_view?: number; limited: boolean; skipped: number; indexed: boolean }
 export const geoPackage = createStore<{
   file: GeoPackageCatalog | null; layer: string; opening: boolean; views: Record<string, LayerView>
 }>({ file: null, layer: "", opening: false, views: {} })
 
 const PREFIX = "local-geopackage-"
 const COLOR = "__solara_display_color"
+const COUNT = "__solara_count"
+const RADIUS = "__solara_radius"
+const CELL = "__solara_cell"
+
+/** Features the sidecar draws one by one in a view; past this it counts them per cell. */
+export const PREVIEW_LIMIT = 5000
+
+/** A counted cell's radius in px: its area grows with its count, up to the largest cell in view. */
+export function countRadius(count: number, largest: number): number {
+  return 2 + 11 * Math.sqrt(count / largest)
+}
+
+/** The ground a counted cell covers, from its tile address. */
+export function cellBounds(z: number, x: number, y: number): [[number, number], [number, number]] {
+  const n = 2 ** z
+  const lon = (i: number) => i / n * 360 - 180
+  const lat = (j: number) => Math.atan(Math.sinh(Math.PI * (1 - 2 * j / n))) * 180 / Math.PI
+  return [[lon(x), lat(y + 1)], [lon(x + 1), lat(y)]]
+}
+
+/** A crowded view's cells as points for the count layer, each at the mean of its features. */
+function cellCollection(cells: Cells, color: string): { collection: FeatureCollection; largest: number } {
+  const largest = cells.items.reduce((most, c) => Math.max(most, c[2]), 1)
+  return {
+    largest,
+    collection: {
+      type: "FeatureCollection",
+      features: cells.items.map(([x, y, count, lon, lat]) => ({
+        type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] },
+        properties: { [COUNT]: count, [RADIUS]: countRadius(count, largest), [CELL]: `${cells.zoom}/${x}/${y}`, [COLOR]: color },
+      })),
+    },
+  }
+}
 const empty = (): FeatureCollection => ({ type: "FeatureCollection", features: [] })
 type Renderer = { source: string; ids: string[] }
 const renderers = new Map<string, Renderer>()
@@ -59,7 +96,7 @@ export function loadGeoPackage(file: GeoPackageCatalog, selectedLayer?: string, 
   const start = Math.random() * 360
   const views: Record<string, LayerView> = {}
   file.layers.forEach((l, i) => {
-    views[l.name] = { visible: false, color: normalizeColor(l.style?.color) ?? normalizeColor(display?.colors?.[l.name]) ?? paletteColor(i, start), loading: false, message: "", error: "" }
+    views[l.name] = { visible: false, color: normalizeColor(l.style?.color) ?? normalizeColor(display?.colors?.[l.name]) ?? paletteColor(i, start), loading: false, message: "", error: "", counted: null }
   })
   const available = file.layers.filter(l => !l.error && l.count > 0)
   const initial = available.find(l => l.name === selectedLayer) ?? available.find(l => l.name === "substation") ?? available.find(l => l.bbox) ?? available[0]
@@ -76,13 +113,14 @@ function ensureRenderer(name: string): Renderer | undefined {
   const previous = renderers.get(name)
   if (previous) return previous
   const source = PREFIX + nextId++
-  const ids = [source + "-fill", source + "-line", source + "-point"]
+  const ids = [source + "-fill", source + "-line", source + "-point", source + "-count"]
   const fallback = geoPackage.get().views[name]?.color ?? "#80bfff"
   const color: ExpressionSpecification = ["coalesce", ["get", COLOR], fallback]
   map.addSource(source, { type: "geojson", data: empty() })
   map.addLayer({ id: ids[0], type: "fill", source, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.24 } }, "area-fill")
   map.addLayer({ id: ids[1], type: "line", source, filter: ["!=", ["geometry-type"], "Point"], paint: { "line-color": color, "line-width": 1.8 } }, "area-fill")
-  map.addLayer({ id: ids[2], type: "circle", source, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": "#17252b", "circle-stroke-width": 1 } }, "area-fill")
+  map.addLayer({ id: ids[2], type: "circle", source, filter: ["all", ["==", ["geometry-type"], "Point"], ["!", ["has", COUNT]]], paint: { "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": "#17252b", "circle-stroke-width": 1 } }, "area-fill")
+  map.addLayer({ id: ids[3], type: "circle", source, filter: ["has", COUNT], paint: { "circle-color": color, "circle-opacity": 0.7, "circle-radius": ["get", RADIUS], "circle-stroke-color": "#14181c", "circle-stroke-width": 0.8 } }, "area-fill")
   const renderer = { source, ids }
   renderers.set(name, renderer)
   return renderer
@@ -108,7 +146,7 @@ export function choosePackageLayer(name: string): void {
 export function setPackageLayerVisible(name: string, visible: boolean): void {
   const state = geoPackage.get()
   if (!state.views[name] || state.file?.layers.find(l => l.name === name)?.error) return
-  updateView(name, { visible, loading: false })
+  updateView(name, { visible, loading: false, ...(visible ? {} : { counted: null }) })
   const renderer = visible ? ensureRenderer(name) : renderers.get(name)
   for (const id of renderer?.ids ?? []) if (map?.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none")
   if (!visible && renderer) map?.getSource<GeoJSONSource>(renderer.source)?.setData(empty())
@@ -143,6 +181,7 @@ async function refresh(): Promise<void> {
   const token = version
   const b = map.getBounds()
   const bbox = [Math.max(-180, b.getWest()), Math.max(-90, b.getSouth()), Math.min(180, b.getEast()), Math.min(90, b.getNorth())]
+  const zoom = Math.min(24, Math.max(0, map.getZoom()))
   if (bbox[0] >= bbox[2]) return
   const queue = state.file.layers.filter(l => state.views[l.name]?.visible && !l.error)
   if (!queue.length) return
@@ -152,19 +191,25 @@ async function refresh(): Promise<void> {
     while (queue.length && token === version) {
       const layer = queue.shift()!
       try {
-        const result = await GeoPackageFeatures(state.file!.path, layer.name, bbox, previewFields(layer)) as Preview
+        const result = await GeoPackageFeatures(state.file!.path, layer.name, bbox, previewFields(layer), zoom) as unknown as Preview
         if (token !== version || !geoPackage.get().views[layer.name]?.visible) continue
         const renderer = ensureRenderer(layer.name)
         const color = state.views[layer.name].color
-        for (const feature of result.geojson.features) feature.properties = { ...feature.properties, [COLOR]: featureColor(feature, layer.style, color) }
-        if (renderer) map?.getSource<GeoJSONSource>(renderer.source)?.setData(result.geojson)
-        const count = result.geojson.features.length.toLocaleString()
-        updateView(layer.name, { loading: false, message: `${count} features in view${result.limited ? " · Preview limit reached; zoom in" : ""}${result.skipped ? ` · ${result.skipped} geometries could not be displayed` : ""}${!result.indexed ? " · No spatial index; scans up to 50,000 records" : ""}` })
+        const cells = result.cells ? cellCollection(result.cells, color) : null
+        if (!cells) for (const feature of result.geojson.features) feature.properties = { ...feature.properties, [COLOR]: featureColor(feature, layer.style, color) }
+        if (renderer) map?.getSource<GeoJSONSource>(renderer.source)?.setData(cells?.collection ?? result.geojson)
+        // Said only when something is missing from the map: a view drawn whole, or counted, needs no note.
+        const notes = [
+          result.limited ? "Preview limit reached; zoom in" : "",
+          result.skipped ? `${result.skipped} geometries could not be displayed` : "",
+          !result.indexed ? "No spatial index; scans up to 50,000 records" : "",
+        ].filter(Boolean)
+        updateView(layer.name, { loading: false, message: notes.join(" · "), counted: cells ? { inView: result.in_view ?? 0, largest: cells.largest } : null })
       } catch (e) {
         if (token !== version) continue
         const renderer = renderers.get(layer.name)
         if (renderer) map?.getSource<GeoJSONSource>(renderer.source)?.setData(empty())
-        updateView(layer.name, { loading: false, error: errorMessage(e), message: "" })
+        updateView(layer.name, { loading: false, error: errorMessage(e), message: "", counted: null })
       }
     }
   }
@@ -185,12 +230,27 @@ export function attachGeoPackage(m: MapLibreMap): void {
 }
 
 /**
+ * A click on a counted cell frames the cell, which is how its features are
+ * reached: a view of one cell holds fewer of them. True when it did.
+ */
+export function frameCountedCell(m: MapLibreMap, point: PointLike): boolean {
+  const ids = [...renderers].filter(([name]) => geoPackage.get().views[name]?.visible).map(([, r]) => r.ids[3])
+  if (!ids.length) return false
+  const cell = m.queryRenderedFeatures(point, { layers: ids })[0]?.properties?.[CELL]
+  if (typeof cell !== "string") return false
+  const [z, x, y] = cell.split("/").map(Number)
+  m.fitBounds(cellBounds(z, x, y), { padding: 48, duration: 400 })
+  return true
+}
+
+/**
  * Identify the feature; OverlayCallouts owns its presentation, like the grid's.
  * The pick shows what the preview holds at once, and the whole feature when it arrives.
  */
 export function pickGeoPackage(m: MapLibreMap, point: PointLike, at: [number, number]): PickedGeoPackage | null {
   const state = geoPackage.get()
-  const ids = [...renderers].filter(([name]) => state.views[name]?.visible).flatMap(([, r]) => r.ids)
+  // The count layer is the fourth; a counted cell is framed, not identified (frameCountedCell).
+  const ids = [...renderers].filter(([name]) => state.views[name]?.visible).flatMap(([, r]) => r.ids.slice(0, 3))
   if (!ids.length || !state.file) return null
   const feature = m.queryRenderedFeatures(point, { layers: ids })[0]
   if (!feature) return null

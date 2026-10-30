@@ -50,7 +50,7 @@ import { LABEL_SOURCE, WindParticles, drawLabels, drawSpeed, removeLabels, remov
 import { SERVICES, applyServices } from "./services"
 import { activeTool, basemap, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
-import { attachGeoPackage, pickGeoPackage } from "./geopackage"
+import { attachGeoPackage, frameCountedCell, pickGeoPackage } from "./geopackage"
 import { pickedGeoPackage } from "./mapState"
 
 /**
@@ -1184,6 +1184,11 @@ function onClick(e: MapMouseEvent): void {
     case "select": {
       const item = pick(e.target, e.point)
       select(item?.id ?? null)
+      if (!item && frameCountedCell(e.target, e.point)) {
+        pickedGeoPackage.set(null)
+        pickedGrid.set(null)
+        return
+      }
       const local = item ? null : pickGeoPackage(e.target, e.point, [at.lon, at.lat])
       pickedGeoPackage.set(local)
       // The project's own objects are what a click is for; a grid feature answers only where there is none.

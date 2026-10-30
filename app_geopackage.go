@@ -33,11 +33,21 @@ type GeoPackageCatalog struct {
 	Layers []GeoPackageLayer `json:"layers"`
 }
 
+// GeoPackageCells counts a crowded view per Web Mercator cell: Items holds
+// [x, y, count, lon, lat] for each cell of tile zoom Zoom, placed at the mean
+// of its features.
+type GeoPackageCells struct {
+	Zoom  int         `json:"zoom"`
+	Items [][]float64 `json:"items"`
+}
+
 type GeoPackagePreview struct {
-	GeoJSON map[string]any `json:"geojson"`
-	Limited bool           `json:"limited"`
-	Skipped int            `json:"skipped"`
-	Indexed bool           `json:"indexed"`
+	GeoJSON map[string]any   `json:"geojson"`
+	Cells   *GeoPackageCells `json:"cells,omitempty"`
+	InView  int64            `json:"in_view,omitempty"`
+	Limited bool             `json:"limited"`
+	Skipped int              `json:"skipped"`
+	Indexed bool             `json:"indexed"`
 }
 
 // InspectGeoPackage lists a source's layers when restoring a project reference.
@@ -55,11 +65,13 @@ func (a *App) InspectGeoPackage(path string) (*GeoPackageCatalog, error) {
 
 // GeoPackageFeatures reads a bounded preview of one layer in the visible map
 // extent, carrying only the attributes named in fields and the primary key.
-func (a *App) GeoPackageFeatures(path, layer string, bbox []float64, fields []string) (*GeoPackagePreview, error) {
+// Past 5,000 features in view, an indexed layer comes back counted per cell
+// at the map's zoom instead.
+func (a *App) GeoPackageFeatures(path, layer string, bbox []float64, fields []string, zoom float64) (*GeoPackagePreview, error) {
 	if fields == nil {
 		fields = []string{}
 	}
-	out, err := a.readGeoPackage(map[string]any{"action": "gpkg_features", "path": path, "layer": layer, "bbox": bbox, "fields": fields})
+	out, err := a.readGeoPackage(map[string]any{"action": "gpkg_features", "path": path, "layer": layer, "bbox": bbox, "fields": fields, "zoom": zoom})
 	if err != nil {
 		return nil, err
 	}

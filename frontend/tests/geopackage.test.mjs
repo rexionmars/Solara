@@ -35,6 +35,7 @@ async function controller(read, readFeature) {
     setLayoutProperty: (id, key, value) => { layers.get(id)[key] = value },
     fitBounds: bounds => frames.push(bounds), queryRenderedFeatures: () => [],
     getBounds: () => ({ getWest: () => 6, getSouth: () => 35, getEast: () => 19, getNorth: () => 48 }),
+    getZoom: () => 5.2,
   }
   const flush = async () => { const tasks = [...timers.values()]; timers.clear(); tasks.forEach(fn => fn()); await new Promise(setImmediate) }
   return { api: module.namespace, frames, map, sources, layers, calls, pickedLocal, events, flush }
@@ -192,5 +193,56 @@ test("a layer without a primary key keeps its preview attributes on a click", as
   assert.equal(picked.status, "preview")
   assert.equal(picked.fid, null)
   assert.equal(asked, false)
+  api.closeGeoPackage()
+})
+
+test("a crowded view draws its cells sized by count, and the outliner and legend learn it is counted", async () => {
+  const cells = { zoom: 9, items: [[270, 190, 4000, 10.1, 44.2], [271, 190, 1000, 10.9, 44.3]] }
+  const { api, map, sources, calls, flush } = await controller(async () => ({ geojson: { type: "FeatureCollection", features: [] }, cells, in_view: 5000, indexed: true, limited: false, skipped: 0 }))
+  api.attachGeoPackage(map)
+  api.loadGeoPackage(file([keyed("substation")]))
+  await flush()
+  assert.equal(calls[0][4], 5.2)
+  const drawn = [...sources.values()][0].data.features
+  assert.equal(drawn.length, 2)
+  assert.deepEqual(JSON.parse(JSON.stringify(drawn[0].geometry.coordinates)), [10.1, 44.2])
+  assert.equal(drawn[0].properties.__solara_count, 4000)
+  assert.equal(drawn[0].properties.__solara_radius, api.countRadius(4000, 4000))
+  assert.equal(drawn[1].properties.__solara_radius, 2 + 11 * 0.5)
+  const view = api.geoPackage.get().views.substation
+  assert.deepEqual(JSON.parse(JSON.stringify(view.counted)), { inView: 5000, largest: 4000 })
+  assert.equal(view.message, "")
+  api.togglePackageVisibility("substation")
+  assert.equal(api.geoPackage.get().views.substation.counted, null)
+  api.closeGeoPackage()
+})
+
+test("a view drawn whole says nothing, and one cut short says why", async () => {
+  const { api, map, flush } = await controller(async (path, name) => ({ geojson: { type: "FeatureCollection", features: [] }, indexed: name !== "roads", limited: name === "roads", skipped: 0 }))
+  api.attachGeoPackage(map)
+  api.loadGeoPackage(file([keyed("substation"), keyed("roads")]), "substation", { visibleLayers: ["substation", "roads"] })
+  await flush()
+  assert.equal(api.geoPackage.get().views.substation.message, "")
+  assert.match(api.geoPackage.get().views.roads.message, /Preview limit reached.*No spatial index/)
+  api.closeGeoPackage()
+})
+
+test("a click on a counted cell frames the cell instead of identifying a feature", async () => {
+  const { api, map, layers, frames } = await controller()
+  api.attachGeoPackage(map)
+  api.loadGeoPackage(file([keyed("substation")]))
+  const ids = [...layers.keys()]
+  assert.equal(ids.length, 4)
+  let asked = []
+  map.queryRenderedFeatures = (point, options) => { asked = options.layers; return options.layers.includes(ids[3]) ? [{ properties: { __solara_cell: "1/0/0" } }] : [] }
+  const before = frames.length
+  assert.equal(api.frameCountedCell(map, {}), true)
+  const [[west, south], [east, north]] = JSON.parse(JSON.stringify(frames[before]))
+  assert.deepEqual([west, south, east], [-180, 0, 0])
+  assert.ok(Math.abs(north - 85.0511) < 1e-3)
+  api.pickGeoPackage(map, {}, [0, 0])
+  assert.equal(asked.includes(ids[3]), false)
+  map.queryRenderedFeatures = () => []
+  assert.equal(api.frameCountedCell(map, {}), false)
   api.closeGeoPackage()
 })

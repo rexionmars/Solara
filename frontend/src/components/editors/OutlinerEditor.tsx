@@ -35,7 +35,7 @@ import { AreaHeader } from "../studio/StudioArea"
 import { availableLayers, mapRegion } from "../../lib/capabilities"
 import { concessions, gridStore, networkRegister, plantRegister, townDemand } from "../../lib/grid"
 import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS, layerNote } from "./MapEditor"
-import { choosePackageLayer, closeGeoPackage, geoPackage, togglePackageVisibility, type PackageLayer } from "../../lib/geopackage"
+import { choosePackageLayer, closeGeoPackage, geoPackage, PREVIEW_LIMIT, togglePackageVisibility, type PackageLayer } from "../../lib/geopackage"
 
 /**
  * The project's outliner, as an object explorer: ONE tree, from the project
@@ -428,6 +428,18 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
                     </span>
                   ) : null
                 })()}
+              {row.packageLayer && (() => {
+                // A view too crowded to draw one by one is counted per cell; the map's legend says how to read it.
+                const counted = local.views[row.packageLayer.name]?.visible ? local.views[row.packageLayer.name]?.counted : null
+                return counted ? (
+                  <span
+                    className="shrink-0 rounded-[4px] bg-accent/15 px-1.5 text-micro text-accent-quiet"
+                    title={`${counted.inView.toLocaleString()} in view, more than the ${PREVIEW_LIMIT.toLocaleString()} drawn one by one. Counted per cell; zoom in to draw each one.`}
+                  >
+                    counts
+                  </span>
+                ) : null
+              })()}
               {row.count !== undefined && <span className="telemetry shrink-0 text-micro tabular-nums text-muted-foreground/70">{row.count}</span>}
               {row.packageLayer && <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: local.views[row.packageLayer.name]?.color }} title="Layer color" />}
               {row.packageLayer && (() => {

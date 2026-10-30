@@ -182,12 +182,74 @@ def layer_style(conn, name):
     return {}
 
 
-def read_features(path, name, bbox, wanted=None):
+# Features drawn one by one in a view; past this a preview counts them per cell.
+LIMIT = 5000
+
+
+def mercator(lon, lat):
+    """Web Mercator in the unit square, x east and y south, for arrays or numbers."""
+    import numpy as np
+    sin = np.sin(np.radians(np.clip(lat, -85.0511, 85.0511)))
+    return (np.asarray(lon) + 180) / 360, 0.5 - np.log((1 + sin) / (1 - sin)) / (4 * math.pi)
+
+
+def count_cells(conn, rtree, bounds, forward, bbox, zoom):
+    """How many features each Web Mercator cell holds, read from the spatial index alone.
+
+    The cells are the tiles of zoom round(zoom) + 4, so 22 to 45 px on screen
+    and fixed to the ground: panning moves them with the map instead of
+    regrouping. Each is placed at the mean of its features' envelope centres,
+    which keeps a cell of towers on its line rather than at the cell's middle.
+
+    SQLite first sums the envelope centres over a grid four times finer than
+    the cells, in the layer's own coordinates, so Python handles thousands of
+    rows rather than every feature; each fine bin then joins the cell its mean
+    falls in. A feature within a fine bin of a cell's edge can be counted in
+    the neighbouring cell; the total is exact.
+    Returns the cell zoom, [x, y, count, lon, lat] per cell, and the total.
+    """
+    import numpy as np
+    west, south, east, north = bounds
+    cz = min(int(math.floor(zoom + 0.5)) + 4, 28)
+    n = 2 ** cz
+    (x0, x1), (y0, y1) = mercator([bbox[0], bbox[2]], [bbox[3], bbox[1]])
+    fx = min(512, math.ceil(4 * max(1.0, (x1 - x0) * n)))
+    fy = min(512, math.ceil(4 * max(1.0, (y1 - y0) * n)))
+    dx, dy = (east - west) / fx, (north - south) / fy
+    rows = conn.execute(
+        f'select count(*), sum(cx), sum(cy) from (select (minx + maxx) / 2 cx, (miny + maxy) / 2 cy '
+        f'from {quoted(rtree)} where maxx >= ? and minx <= ? and maxy >= ? and miny <= ?) '
+        'group by cast((cx - ?) / ? as int), cast((cy - ?) / ? as int)',
+        (west, east, south, north, west, dx, south, dy)).fetchall()
+    if not rows:
+        return cz, [], 0
+    bins = np.asarray(rows, dtype=float)
+    count = bins[:, 0]
+    lon, lat = (np.asarray(v, dtype=float) for v in forward.transform(bins[:, 1] / count, bins[:, 2] / count))
+    keep = np.isfinite(lon) & np.isfinite(lat)
+    count, lon, lat = count[keep], lon[keep], lat[keep]
+    mx, my = mercator(lon, lat)
+    ix = np.clip(np.floor(mx * n), 0, n - 1).astype(np.int64)
+    iy = np.clip(np.floor(my * n), 0, n - 1).astype(np.int64)
+    cells, inverse = np.unique(ix * n + iy, return_inverse=True)
+    total = np.bincount(inverse, count)
+    mean_lon = np.bincount(inverse, lon * count) / total
+    mean_lat = np.bincount(inverse, lat * count) / total
+    items = [[int(c // n), int(c % n), int(k), round(float(x), 6), round(float(y), 6)]
+             for c, k, x, y in zip(cells, total, mean_lon, mean_lat)]
+    return cz, items, int(count.sum())
+
+
+def read_features(path, name, bbox, wanted=None, zoom=None):
     """A bounded preview of one layer in the map's extent.
 
     `wanted` names the attributes the map draws with; the rest are read when a
     feature is clicked (read_feature), so a preview does not carry them all.
     None sends every attribute but blobs, cut at 4,000 characters.
+
+    Given the map's `zoom`, an indexed layer with more than LIMIT features in
+    view is counted per cell (count_cells) instead of cut at the first LIMIT,
+    which drew whichever rows came first and left the rest of the map empty.
     """
     from shapely.geometry import box, mapping
     from shapely.ops import transform
@@ -198,6 +260,8 @@ def read_features(path, name, bbox, wanted=None):
         raise ValueError('Invalid map extent.')
     if wanted is not None and not (isinstance(wanted, list) and all(isinstance(k, str) for k in wanted)):
         raise ValueError('Attribute names must be a list of strings.')
+    if zoom is not None and not (isinstance(zoom, (int, float)) and not isinstance(zoom, bool) and 0 <= zoom <= 24):
+        raise ValueError('The map zoom must be between 0 and 24.')
     with database(path) as conn:
         layer = layer_named(conn, name)
         forward, reverse = projection(conn, layer)
@@ -213,12 +277,19 @@ def read_features(path, name, bbox, wanted=None):
             sql += (f' join {quoted(rtree_name)} r on t.{quoted(pk)} = r.id'
                     ' where r.maxx >= ? and r.minx <= ? and r.maxy >= ? and r.miny <= ?')
             params = [west, east, south, north]
+            window = ' where maxx >= ? and minx <= ? and maxy >= ? and miny <= ?'
+            over = conn.execute(f'select count(*) from (select 1 from {quoted(rtree_name)}{window} limit {LIMIT + 1})',
+                                params).fetchone()[0] > LIMIT
+            if over and zoom is not None:
+                cz, items, total = count_cells(conn, rtree_name, (west, south, east, north), forward, bbox, zoom)
+                return dict(geojson=dict(type='FeatureCollection', features=[]), cells=dict(zoom=cz, items=items),
+                            in_view=total, limited=False, skipped=0, indexed=True)
         sql += ' limit 50001'
         features, skipped, scanned, size, limited = [], 0, 0, 0, False
         view = box(*bbox)
         for row in conn.execute(sql, params):
             scanned += 1
-            if scanned > 50000 or len(features) >= 5000:
+            if scanned > 50000 or len(features) >= LIMIT:
                 limited = True
                 break
             blob = row[layer['column_name']]
@@ -290,7 +361,7 @@ def action(req):
         elif req['action'] == 'gpkg_feature':
             result = read_feature(req['path'], req['layer'], req['fid'])
         else:
-            result = read_features(req['path'], req['layer'], req['bbox'], req.get('fields'))
+            result = read_features(req['path'], req['layer'], req['bbox'], req.get('fields'), req.get('zoom'))
         protocol.reply(result)
     except Exception as exc:
         raise protocol.Unavailable(f'Could not read GeoPackage: {exc}') from exc

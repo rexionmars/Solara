@@ -113,11 +113,16 @@ Solara reads the visible region as the map moves. Points, lines and
 polygons are supported; click a feature to inspect its attributes. Coordinates
 are transformed to WGS84 using the file's declared reference system.
 
-The source file is opened read-only. Each visible layer previews at most 5,000
-features and 6 MB per view, clipping and simplifying geometries for display. Zoom in
-when the preview limit is reached. Without a spatial index, only the first
-50,000 records are scanned. Unsupported or oversized geometries are counted
-in the preview message. Raster tile layers are not supported.
+The source file is opened read-only. Each visible layer draws up to 5,000
+features and 6 MB per view one by one, clipped and simplified for display. A
+layer with more than 5,000 features in view is counted instead: one circle per
+map cell, placed at the mean of its features, its area grown with the count, and
+a legend on the map for the sizes. The **counts** mark beside the layer in the
+Outliner says so. Click a circle to frame its cell; zoom in far enough and the
+features are drawn again. Counting reads the layer's spatial index; a layer
+without one is drawn from its first 50,000 records, and its row says the preview
+was cut. Unsupported or oversized geometries are counted in the layer's message.
+Raster tile layers are not supported.
 
 One GeoPackage can be open with multiple layers visible together. Each eye in
 the Outliner controls its own layer; the selected analysis layer is independent.
@@ -125,8 +130,12 @@ Layer colors come from QGIS single-symbol/categorized styles or standard
 feature color attributes when available. Otherwise Solara assigns a random
 palette, with a color swatch beside each layer. Unsupported style renderers
 use this fallback. Clicked features use the grid register's existing draggable
-callout, anchored to the selected coordinate. It shows labeled attributes and
-expandable JSON tags, with a copy action; close it with its close button or Escape.
+callout, anchored to the selected coordinate. A click reads the feature whole by
+its primary key, every attribute uncut. Attributes keep the file's column order
+and the aliases of `gpkg_data_columns`, and read as their column declares them:
+an integer is never grouped, a boolean reads yes or no, a blob gives its size. A
+text column holding a JSON object expands into its keys. Copy the attributes from
+the callout; close it with its close button or Escape.
 
 Saving a `.solara` project keeps the source path, selected layer, visible layers
 and assigned colors so they can be restored on reopening. The GeoPackage remains an external, read-only source;

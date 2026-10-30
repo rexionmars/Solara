@@ -33,7 +33,7 @@ export function ExportResultFile(arg1:string,arg2:string):Promise<string>;
 
 export function GeoPackageFeature(arg1:string,arg2:string,arg3:number):Promise<Record<string, any>>;
 
-export function GeoPackageFeatures(arg1:string,arg2:string,arg3:Array<number>,arg4:Array<string>):Promise<main.GeoPackagePreview>;
+export function GeoPackageFeatures(arg1:string,arg2:string,arg3:Array<number>,arg4:Array<string>,arg5:number):Promise<main.GeoPackagePreview>;
 
 export function GetAppVersion():Promise<string>;
 

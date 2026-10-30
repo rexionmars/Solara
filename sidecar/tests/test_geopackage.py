@@ -186,3 +186,41 @@ def test_a_clicked_feature_keeps_its_attributes_when_its_geometry_is_unreadable(
     assert feature['geometry'] is None
     assert 'Unsupported' in feature['geometry_error']
     assert feature['properties']['name'] == 'Asset 1'
+
+
+def crowd(path, srs, points):
+    """Add points to the fixture's layer and its spatial index."""
+    transformer = Transformer.from_crs(4326, srs, always_xy=True)
+    with sqlite3.connect(path) as conn:
+        start = conn.execute('select max(fid) from assets').fetchone()[0] + 1
+        for fid, (lon, lat) in enumerate(points, start):
+            x, y = transformer.transform(lon, lat)
+            conn.execute('insert into assets values (?, ?, ?)', (fid, b'GP\x00\x01' + struct.pack('<i', srs) + Point(x, y).wkb, 'Crowd'))
+            conn.execute('insert into rtree_assets_geom values (?, ?, ?, ?, ?)', (fid, x, x, y, y))
+
+
+@pytest.mark.parametrize('srs', [4326, 3857])
+def test_a_crowded_view_is_counted_per_cell_rather_than_cut(package, srs):
+    path = package(srs)
+    # Two clusters far apart: the first 5,000 rows would all be the western one.
+    crowd(path, srs, [(-39.0 + i * 1e-5, -5.0) for i in range(4000)] + [(-37.5, -3.5 + i * 1e-5) for i in range(1500)])
+    result = read_features(path, 'assets', [-41, -7, -36, -2], [], 6.0)
+    assert result['geojson']['features'] == []
+    assert result['in_view'] == 5502
+    cells = result['cells']
+    assert cells['zoom'] == 10
+    assert sum(c[2] for c in cells['items']) == 5502
+    biggest = sorted(cells['items'], key=lambda c: c[2])[-2:]
+    assert [c[2] for c in biggest] == [1500, 4000]
+    assert biggest[1][3:] == pytest.approx([-38.98, -5.0], abs=0.01)
+    assert biggest[0][3:] == pytest.approx([-37.5, -3.49], abs=0.01)
+
+
+def test_counting_needs_the_zoom_and_a_crowd(package):
+    path = package()
+    assert 'cells' not in read_features(path, 'assets', [-41, -7, -36, -2], [], 6.0)
+    crowd(path, 4326, [(-39.0, -5.0)] * 5000)
+    without_zoom = read_features(path, 'assets', [-41, -7, -36, -2], [])
+    assert 'cells' not in without_zoom and without_zoom['limited']
+    with pytest.raises(ValueError, match='zoom'):
+        read_features(path, 'assets', [-41, -7, -36, -2], [], 30)

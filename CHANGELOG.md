@@ -52,6 +52,35 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 ---
 
+## Unreleased
+
+### GeoPackage layers
+
+- **A crowded view is counted, not cut.** A layer with more than 5,000
+  features in view was drawn from whichever 5,000 rows came first. Over Brazil
+  that put every transmission tower of an OpenStreetMap export in one corner
+  of Rio Grande do Sul, and left the coast from Fortaleza to Salvador without
+  a substation. Such a layer is now drawn as one circle per map cell, at the
+  mean of its features, with its area grown with the count. A legend on the
+  map gives the sizes, the Outliner marks the layer **counts**, and a click
+  on a circle frames its cell.
+  - The counts come from the layer's spatial index alone. A layer without
+    one is still drawn from its first 50,000 records, and says so.
+  - The total in view is exact. A feature near a cell's edge can be counted
+    in the neighbouring cell, because the index is summed over a grid four
+    times finer than the cells before the cells are formed.
+- **Attributes read as their columns declare them.** An integer is never
+  grouped, so an identifier or a municipality code reads as itself. A boolean
+  reads yes or no, and a blob gives its size instead of vanishing. Columns
+  keep the file's order and the aliases of `gpkg_data_columns`; the labels
+  and order written for one OpenStreetMap export are gone.
+- **A click reads the feature whole**, by its primary key: every attribute
+  uncut, and the geometry neither clipped nor simplified. The preview now
+  carries only the attributes the map colours and names by, which takes the
+  substations of that export over Brazil from 4.2 MB to 1.3 MB.
+
+---
+
 ## 2026-10-18 · 1.0.0
 
 The first release, tagged `v1.0.0`. It is built for macOS on Apple Silicon and
