@@ -17,7 +17,7 @@ import { PanelSection } from "../ui/Fields"
 import { geoPackage } from "../../lib/geopackage"
 import { cancelPlanning, planning, runPlanning, studyKey, updateStudy, type Study } from "../../lib/planning"
 import { useStore } from "../../lib/store"
-import { AreaHeader } from "../studio/StudioArea"
+import { AreaHeader } from "../shell/HeaderHosts"
 import { btnGhostDense, btnPrimary, fieldInput } from "../ui/buttons"
 import { number, selectStyle } from "./PlanningUI"
 import { ComponentTable, Field, SeriesInput } from "./PlanningInputs"
@@ -27,7 +27,7 @@ export function SystemPlanningEditor() {
   const state = useStore(planning)
   const gpkg = useStore(geoPackage)
   const { study, busy } = state
-  // Workspace changes remount editors; retain the last view and run selection.
+  // The view and the run selected live in the store, so they outlast the editor.
   const tab = ["study", "network", "series", "results"].includes(state.view) ? state.view : "study"
   const setTab = (view: string) => planning.set((s) => ({ ...s, view }))
   const selected = state.selectedResult

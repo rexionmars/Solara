@@ -18,6 +18,7 @@ async function controller(read, readFeature) {
     },
     "./errors": { errorMessage: String }, "./store": { createStore },
     "./mapState": { pickedGeoPackage: pickedLocal },
+    "./shell": { mapInsetRight: createStore(0) },
   }
   const compile = async filename => new vm.SourceTextModule(ts.transpileModule(await readFile(new URL(`../src/lib/${filename}.ts`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText, { context })
   const module = await compile("geopackage")

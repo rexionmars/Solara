@@ -5,6 +5,7 @@ import { errorMessage } from "./errors"
 import { createStore } from "./store"
 import { drawnFields, featureColor, normalizeColor, paletteColor, titleField, type PackageField, type PackageStyle } from "./geopackageStyle"
 import { pickedGeoPackage, type PickedGeoPackage } from "./mapState"
+import { mapInsetRight } from "./shell"
 
 export type PackageLayer = { name: string; label: string; geometry: string; count: number; bbox: number[] | null; error: string | null; style?: PackageStyle; fields?: PackageField[]; pk?: string | null }
 export type GeoPackageCatalog = { path: string; name: string; layers: PackageLayer[] }
@@ -130,7 +131,7 @@ export function framePackageLayer(name: string): void {
   const layer = geoPackage.get().file?.layers.find(l => l.name === name)
   if (layer?.bbox && map) {
     const [w, s, e, n] = layer.bbox
-    map.fitBounds([[w, s], [e, n]], { padding: 48, maxZoom: 15, duration: 400 })
+    map.fitBounds([[w, s], [e, n]], { padding: { top: 48, bottom: 48, left: 48, right: 48 + mapInsetRight.get() }, maxZoom: 15, duration: 400 })
   }
 }
 
@@ -239,7 +240,7 @@ export function frameCountedCell(m: MapLibreMap, point: PointLike): boolean {
   const cell = m.queryRenderedFeatures(point, { layers: ids })[0]?.properties?.[CELL]
   if (typeof cell !== "string") return false
   const [z, x, y] = cell.split("/").map(Number)
-  m.fitBounds(cellBounds(z, x, y), { padding: 48, duration: 400 })
+  m.fitBounds(cellBounds(z, x, y), { padding: { top: 48, bottom: 48, left: 48, right: 48 + mapInsetRight.get() }, duration: 400 })
   return true
 }
 

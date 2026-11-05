@@ -32,7 +32,7 @@ import { useStore } from "../../lib/store"
 import { overlays, type Overlays } from "../../lib/tools"
 import { openContextMenu, renaming, type MenuItem } from "../../lib/ui"
 import { StudioHeaderToggle } from "../studio/HeaderControls"
-import { AreaHeader } from "../studio/StudioArea"
+import { AreaHeader } from "../shell/HeaderHosts"
 import { availableLayers, mapRegion } from "../../lib/capabilities"
 import { concessions, gridStore, networkRegister, plantRegister, townDemand } from "../../lib/grid"
 import { GRID_ITEMS, OVERLAY_ITEMS, REFERENCE_ITEMS, WEATHER_ITEMS, layerNote } from "./MapEditor"
@@ -71,7 +71,7 @@ const TINT: Record<AnyItem["kind"], string> = {
   ground: "var(--node-socket-source)",
 }
 const FOLDER_TINT = "var(--warning)"
-/** The drawing of each kind of thing, by what it means (lib/art.ts); the same names the ribbon asks for. */
+/** The drawing of each kind of thing, by what it means (lib/art.ts); the same names the menus ask for. */
 const ART: Record<AnyItem["kind"], string> = { site: "site", area: "area", solar: "solar", wind: "wind", terrain: "terrain", connection: "connection", demand: "demand", ground: "ground" }
 const GROUP_ART: Record<string, string> = { "g:overlays": "layers", "g:grid": "store", "g:weather": "weather", "g:reference": "basemap" }
 
@@ -136,7 +136,14 @@ function itemMenu(item: AnyItem): MenuItem[] {
   ]
 }
 
-export function OutlinerEditor({ areaId }: { areaId: string }) {
+/**
+ * Which part of the tree is listed: all of it, as the studio's outliner had it,
+ * or one half for a panel of the map shell -- the project's sites and areas
+ * with their results, or the map's layers.
+ */
+export type OutlinerScope = "all" | "project" | "layers"
+
+export function OutlinerEditor({ areaId, scope = "all" }: { areaId: string; scope?: OutlinerScope }) {
   const { data } = useStore(project)
   const { id: selected } = useStore(selection)
   const editing = useStore(renaming)
@@ -166,7 +173,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
   const isOpen = (key: string) =>
     query ? true
     : key.startsWith("p:") ? (groupsDrawn.get(key) ? !collapsed.has(key) : opened.has(key))
-    : key.startsWith("g:") ? opened.has(key)
+    : key.startsWith("g:") ? (scope === "layers" ? !collapsed.has(key) : opened.has(key))
     : !collapsed.has(key)
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const [draft, setDraft] = useState("")
@@ -203,12 +210,14 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
       }
     }
   }
-  rows.push({ key: "root", depth: 0, label: data.name, icon: Database, art: "project", tint: "rgb(var(--p-accent))", expandable: true, open: isOpen("root"), folder: true })
-  if (isOpen("root")) {
-    objects("f:sites", "Sites", data.sites)
-    objects("f:areas", "Areas", data.areas)
+  if (scope === "all") rows.push({ key: "root", depth: 0, label: data.name, icon: Database, art: "project", tint: "rgb(var(--p-accent))", expandable: true, open: isOpen("root"), folder: true })
+  if (scope !== "all" || isOpen("root")) {
+    if (scope !== "layers") {
+      objects("f:sites", "Sites", data.sites)
+      objects("f:areas", "Areas", data.areas)
+    }
     const groups = LAYER_GROUPS.map((g) => ({ ...g, items: availableLayers(g.items, storeNow, ground).filter((it) => !onlyVisible || shown[it.key]) })).filter((g) => g.items.length)
-    if (folder("f:layers", 1, "Map layers", groups.length + (local.file ? 1 : 0))) {
+    if (scope !== "project" && (scope === "layers" || folder("f:layers", 1, "Map layers", groups.length + (local.file ? 1 : 0)))) {
       for (const g of groups) {
         if (!folder(g.id, 2, g.label, g.items.length)) continue
         for (const it of g.items) {
@@ -236,6 +245,12 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
         }
       }
     }
+  }
+
+  // A half of the tree stands without the levels above it: the project's root, and the layers' own folder.
+  if (scope !== "all") {
+    const lift = scope === "project" ? 1 : 2
+    for (const row of rows) row.depth -= lift
   }
 
   if (query) {
@@ -270,7 +285,8 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
 
   const toggle = (key: string) => {
     if (query) return
-    const closedUntilOpened = key.startsWith("g:") || (key.startsWith("p:") && !groupsDrawn.get(key))
+    // In the Layers panel the groups are what there is to read, so they are open until closed.
+    const closedUntilOpened = (key.startsWith("g:") && scope !== "layers") || (key.startsWith("p:") && !groupsDrawn.get(key))
     const [name, held] = closedUntilOpened ? (["opened", opened] as const) : (["collapsed", collapsed] as const)
     const next = new Set(held)
     if (!next.delete(key)) next.add(key)
@@ -332,7 +348,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
     }
   }
 
-  const empty = !data.sites.length && !data.areas.length && !local.file
+  const empty = scope === "layers" ? false : !data.sites.length && !data.areas.length && (scope === "project" || !local.file)
 
   return (
     <>
@@ -364,7 +380,7 @@ export function OutlinerEditor({ areaId }: { areaId: string }) {
           className="min-w-0 flex-1 bg-transparent text-body text-foreground outline-none placeholder:text-muted-foreground"
         />
       </label>
-      <div role="tree" aria-label="The project" onKeyDown={onKeyDown} className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1">
+      <div role="tree" aria-label={scope === "layers" ? "The map's layers" : "The project"} onKeyDown={onKeyDown} className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1">
         {rows.map((row, index) => {
           const item = row.item
           const isActive = active(row)

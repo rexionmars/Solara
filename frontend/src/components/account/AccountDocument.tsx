@@ -14,7 +14,7 @@ import { useStore } from "../../lib/store"
 import { btnGhostDense, btnPrimaryCommit, fieldInput } from "../ui/buttons"
 import { Avatar } from "./Avatar"
 
-// TERRA's primitives, so the account reads as every other form in the studio.
+// TERRA's primitives, so the account reads as every other form in the application.
 const FIELD = fieldInput
 const BUTTON = btnGhostDense
 const PRIMARY = btnPrimaryCommit

@@ -1,4 +1,4 @@
-import { CheckSquare, ArrowClockwise, ArrowCounterClockwise, ArrowsOut, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SidebarSimple, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "./icons"
+import { CheckSquare, ArrowClockwise, ArrowCounterClockwise, ChartBar, Compass, CornersOut, Cursor, Database, Download, Eye, EyeSlash, FileArrowDown, FilePlus, FloppyDisk, FolderOpen, Gear, Heartbeat, House, Info as InfoIcon, Keyboard, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, MapPin, MapTrifold, Mountains, PencilSimple, Play, PlugsConnected, Question, Ruler, SignOut, SlidersHorizontal, StopCircle, Sun, Swatches, Trash, UserCircle, Wind, X, type Icon } from "./icons"
 import { Quit, WindowIsFullscreen, WindowFullscreen, WindowUnfullscreen } from "../../wailsjs/runtime/runtime"
 import { account, logout } from "./account"
 import { cancelRun, runConnection, runDemand, runGround, runSolar, runTerrain, runWind, running, systemPlanningActive } from "./analysis"
@@ -28,20 +28,14 @@ import {
 } from "./project"
 import { newProject, openProject, saveProject, saveProjectAs, settleUnsaved } from "./projectFile"
 import { clearReports, fail, info, note, report, warn } from "./reports"
-import {
-  cycleWorkspace,
-  hoveredArea,
-  resetWorkspace,
-  screen,
-  toggleMaximized,
-  type EditorId,
-} from "./screen"
+import { hoveredArea, openRunGraph, type EditorId } from "./screen"
+import { goTo, shell, togglePanel } from "./shell"
 import { activeArea, activeItem, activeSite, select, selection } from "./selection"
 import { SetProjectDirty } from "../../wailsjs/go/main/App"
 import { checkSidecar, sidecar } from "./sidecarStatus"
 import { createStore, useStore } from "./store"
-import { activeTool, mapRegions, setTool } from "./tools"
-import { addressSearchOpen, lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen, toggleRibbon } from "./ui"
+import { activeTool, setTool } from "./tools"
+import { addressSearchOpen, lastOperation, lastOperationOpen, operatorSearch, placePrompt, preferences, renaming, splashOpen } from "./ui"
 
 /**
  * Every action the application performs, in one registry, as Blender's
@@ -87,7 +81,7 @@ export type Operator = {
 
 // ---- Polls ----------------------------------------------------------------------
 
-const needMap = () => (mapMounted.get() ? true : "Needs a Map area in this workspace")
+const needMap = () => (mapMounted.get() ? true : "The map is still loading")
 
 const notRunning = (): true | string => {
   const r = running.get()
@@ -95,7 +89,7 @@ const notRunning = (): true | string => {
 }
 
 const engineUp = (): true | string =>
-  sidecar.get().kind === "failed" ? "The calculation engine is unavailable (Studio › Check the engine)" : true
+  sidecar.get().kind === "failed" ? "The calculation engine is unavailable (Options › Check the engine)" : true
 
 function all(...polls: (() => true | string)[]): () => true | string {
   return () => {
@@ -167,7 +161,7 @@ export const OPERATORS: Operator[] = [
     label: "New",
     description: "Start a new, empty project",
     icon: FilePlus,
-    menu: "Studio",
+    menu: "Options",
     keys: ["Mod+N"],
     inFields: true,
     run: () => newProject(),
@@ -178,7 +172,7 @@ export const OPERATORS: Operator[] = [
     label: "Open…",
     description: "Open a Solara project or GeoPackage dataset",
     icon: FolderOpen,
-    menu: "Studio",
+    menu: "Options",
     keys: ["Mod+O"],
     inFields: true,
     run: () => openProject(),
@@ -189,7 +183,7 @@ export const OPERATORS: Operator[] = [
     label: "Save",
     description: "Save the project, asking where the first time",
     icon: FloppyDisk,
-    menu: "Studio",
+    menu: "Options",
     keys: ["Mod+S"],
     inFields: true,
     run: async () => {
@@ -201,7 +195,7 @@ export const OPERATORS: Operator[] = [
     aliases: [],
     label: "Save as…",
     description: "Save the project to a new file",
-    menu: "Studio",
+    menu: "Options",
     keys: ["Shift+Mod+S"],
     inFields: true,
     run: async () => {
@@ -213,7 +207,7 @@ export const OPERATORS: Operator[] = [
     aliases: [],
     label: "Reveal project file",
     description: "Show the project file in the file manager",
-    menu: "Studio",
+    menu: "Options",
     poll: () => (project.get().path ? true : "The project has not been saved yet"),
     run: () => reveal(project.get().path ?? ""),
   },
@@ -223,7 +217,7 @@ export const OPERATORS: Operator[] = [
     label: "Result as CSV…",
     description: "Export the active result's headline figures as CSV",
     icon: FileArrowDown,
-    menu: "Studio › Export",
+    menu: "Options › Export",
     poll: needResult,
     run: () => {
       const r = activeItem()
@@ -236,7 +230,7 @@ export const OPERATORS: Operator[] = [
     label: "Result as JSON…",
     description: "Export the active result in full, with its parameters, as JSON",
     icon: FileArrowDown,
-    menu: "Studio › Export",
+    menu: "Options › Export",
     poll: needResult,
     run: () => {
       const r = activeItem()
@@ -249,7 +243,7 @@ export const OPERATORS: Operator[] = [
     label: "Layer as GeoTIFF…",
     description: "Save the GeoTIFF behind the active result's layer: solar terrain as float32, usable ground as its classes",
     icon: Download,
-    menu: "Studio › Export",
+    menu: "Options › Export",
     poll: needRasterResult,
     run: () => {
       const r = activeItem()
@@ -263,7 +257,7 @@ export const OPERATORS: Operator[] = [
     description: "Export every result of one product as a CSV table",
     usage: "EXPORT_TABLE solar|wind|terrain|connection|demand|ground",
     icon: FileArrowDown,
-    menu: "Studio › Export",
+    menu: "Options › Export",
     poll: () => (project.get().data.results.length ? true : "There are no results yet"),
     run: (args) => {
       const product = (args[0]?.toLowerCase() ?? activeProductForTable()) as Product
@@ -280,7 +274,7 @@ export const OPERATORS: Operator[] = [
     label: "Quit",
     description: "Close the application",
     icon: X,
-    menu: "Studio",
+    menu: "Options",
     keys: ["Mod+Q"],
     inFields: true,
     run: async () => {
@@ -297,7 +291,7 @@ export const OPERATORS: Operator[] = [
     label: "Undo",
     description: "Undo the last change to the project",
     icon: ArrowCounterClockwise,
-    menu: "Studio",
+    menu: "Options",
     keys: ["Mod+Z"],
     quiet: true,
     poll: () => {
@@ -317,7 +311,7 @@ export const OPERATORS: Operator[] = [
     label: "Redo",
     description: "Redo the change last undone",
     icon: ArrowClockwise,
-    menu: "Studio",
+    menu: "Options",
     keys: ["Shift+Mod+Z", "Mod+Y"],
     quiet: true,
     poll: () => (project.get().redo.length ? true : "Nothing to redo"),
@@ -333,7 +327,7 @@ export const OPERATORS: Operator[] = [
     label: "Adjust last operation",
     description: "Edit the parameters of the last site added or analysis run",
     icon: SlidersHorizontal,
-    menu: "Studio",
+    menu: "Options",
     keys: ["F9"],
     inFields: true,
     quiet: true,
@@ -346,7 +340,7 @@ export const OPERATORS: Operator[] = [
     label: "Operator search…",
     description: "Find and run any operator by name",
     icon: MagnifyingGlass,
-    menu: "Studio",
+    menu: "Options",
     keys: ["F3", "Mod+K"],
     inFields: true,
     quiet: true,
@@ -358,7 +352,7 @@ export const OPERATORS: Operator[] = [
     label: "Rename active item",
     description: "Rename the active site, area or result",
     icon: PencilSimple,
-    menu: "Map › Object",
+    menu: "Right-click menu",
     keys: ["F2"],
     quiet: true,
     poll: needItem,
@@ -370,7 +364,7 @@ export const OPERATORS: Operator[] = [
     label: "Delete",
     description: "Delete the active item; a site or area is deleted with its results",
     icon: Trash,
-    menu: "Map › Object",
+    menu: "Right-click menu",
     keys: ["X", "Delete", "Backspace"],
     scope: "objects",
     poll: needItem,
@@ -387,7 +381,7 @@ export const OPERATORS: Operator[] = [
     label: "Legend on the map",
     description: "Draw or remove the active terrain or usable ground layer's legend, tied to the layer on the map",
     icon: Swatches,
-    menu: "Map › Object",
+    menu: "Right-click menu",
     scope: "objects",
     poll: needRasterResult,
     run: () => {
@@ -401,7 +395,7 @@ export const OPERATORS: Operator[] = [
     label: "Hide / show active",
     description: "Toggle whether the active item is drawn on the map",
     icon: EyeSlash,
-    menu: "Map › Object",
+    menu: "Right-click menu",
     keys: ["H"],
     scope: "objects",
     poll: needItem,
@@ -416,7 +410,7 @@ export const OPERATORS: Operator[] = [
     label: "Show all",
     description: "Draw every hidden site, area and layer again",
     icon: Eye,
-    menu: "Map › Object",
+    menu: "Right-click menu",
     keys: ["Alt+H"],
     scope: "objects",
     poll: () => {
@@ -433,7 +427,7 @@ export const OPERATORS: Operator[] = [
     aliases: [],
     label: "Select none",
     description: "Clear the active item",
-    menu: "Map › Select",
+    menu: "Right-click menu",
     keys: ["Alt+A"],
     scope: "objects",
     quiet: true,
@@ -445,7 +439,7 @@ export const OPERATORS: Operator[] = [
     label: "Preferences…",
     description: "Account, calculation engine, keymap",
     icon: Gear,
-    menu: "Studio",
+    menu: "Options",
     keys: ["Mod+Comma"],
     inFields: true,
     quiet: true,
@@ -460,7 +454,7 @@ export const OPERATORS: Operator[] = [
     description: "Add a site: pick it on the map, or give latitude and longitude",
     usage: "SITE_ADD [lat lon]",
     icon: MapPin,
-    menu: "Map › Add",
+    menu: "Map column",
     keys: ["Shift+A"],
     scope: "map",
     run: (args) => {
@@ -489,7 +483,7 @@ export const OPERATORS: Operator[] = [
     label: "Select",
     description: "Click a site or area to make it active; drag a site to move it",
     icon: Cursor,
-    menu: "Map › Tools",
+    menu: "Map column",
     keys: ["W"],
     scope: "map",
     quiet: true,
@@ -501,7 +495,7 @@ export const OPERATORS: Operator[] = [
     label: "Place site",
     description: "Click the map to add sites",
     icon: MapPin,
-    menu: "Map › Tools",
+    menu: "Map column",
     keys: ["P"],
     scope: "map",
     quiet: true,
@@ -515,7 +509,7 @@ export const OPERATORS: Operator[] = [
     description:
       "Take an area from a published boundary -- a state or a municipality, from IBGE -- instead of drawing one",
     icon: MapTrifold,
-    menu: "Map › Add",
+    menu: "Map column",
     keys: ["Shift+D"],
     scope: "map",
     poll: notRunning,
@@ -529,7 +523,7 @@ export const OPERATORS: Operator[] = [
     label: "Measure",
     description: "Measure the distance between two points",
     icon: Ruler,
-    menu: "Map › Tools",
+    menu: "Map column",
     keys: ["M"],
     scope: "map",
     quiet: true,
@@ -542,7 +536,7 @@ export const OPERATORS: Operator[] = [
     label: "Locate",
     description: "Find an address or a place by name and take the map to it",
     icon: MagnifyingGlass,
-    menu: "Map › View",
+    menu: "Map",
     keys: ["Mod+F"],
     quiet: true,
     poll: needMap,
@@ -556,7 +550,7 @@ export const OPERATORS: Operator[] = [
     label: "Zoom in",
     description: "Zoom the map in by one level",
     icon: MagnifyingGlassPlus,
-    menu: "Map › View",
+    menu: "Map",
     quiet: true,
     poll: needMap,
     run: () => void zoomIn(),
@@ -567,7 +561,7 @@ export const OPERATORS: Operator[] = [
     label: "Zoom out",
     description: "Zoom the map out by one level",
     icon: MagnifyingGlassMinus,
-    menu: "Map › View",
+    menu: "Map",
     quiet: true,
     poll: needMap,
     run: () => void zoomOut(),
@@ -578,7 +572,7 @@ export const OPERATORS: Operator[] = [
     label: "Frame all",
     description: "Fit every site and area in view, or show the whole of Brazil when there are none",
     icon: House,
-    menu: "Map › View",
+    menu: "Map",
     keys: ["Home"],
     scope: "objects",
     quiet: true,
@@ -591,7 +585,7 @@ export const OPERATORS: Operator[] = [
     label: "Frame selected",
     description: "Fit the active item in view",
     icon: CornersOut,
-    menu: "Map › View",
+    menu: "Map",
     keys: ["Period", "NumpadDecimal"],
     scope: "objects",
     quiet: true,
@@ -607,33 +601,10 @@ export const OPERATORS: Operator[] = [
     label: "North up",
     description: "Reset the map's bearing and pitch",
     icon: Compass,
-    menu: "Map › View",
+    menu: "Map",
     quiet: true,
     poll: needMap,
     run: () => void resetNorth(),
-  },
-  {
-    name: "TOGGLE_TOOLBAR",
-    aliases: [],
-    label: "Toolbar",
-    description: "Show or hide the Map editor's toolbar",
-    menu: "Map › View",
-    keys: ["T"],
-    scope: "map",
-    quiet: true,
-    run: () => mapRegions.set((r) => ({ ...r, toolbar: !r.toolbar })),
-  },
-  {
-    name: "TOGGLE_SIDEBAR",
-    aliases: [],
-    label: "Sidebar",
-    description: "Show or hide the Map editor's sidebar: the active item and the view",
-    icon: SidebarSimple,
-    menu: "Map › View",
-    keys: ["N"],
-    scope: "map",
-    quiet: true,
-    run: () => mapRegions.set((r) => ({ ...r, sidebar: !r.sidebar })),
   },
 
   // Analyze
@@ -643,7 +614,7 @@ export const OPERATORS: Operator[] = [
     label: "Solar resource",
     description: "Solar resource and photovoltaic yield at the active site (NASA POWER, pvlib)",
     icon: Sun,
-    menu: "Analyze",
+    menu: "Products",
     poll: all(needSite, notRunning, engineUp),
     run: () => runProduct("solar"),
   },
@@ -653,7 +624,7 @@ export const OPERATORS: Operator[] = [
     label: "Wind screening",
     description: "Wind resource screening at the active site (NASA POWER, MERRA-2); unvalidated",
     icon: Wind,
-    menu: "Analyze",
+    menu: "Products",
     poll: all(needSite, notRunning, engineUp),
     run: () => runProduct("wind"),
   },
@@ -663,7 +634,7 @@ export const OPERATORS: Operator[] = [
     label: "Solar terrain",
     description: "Plane-of-array irradiation over the active area's terrain (Copernicus DEM, NASA POWER)",
     icon: Mountains,
-    menu: "Analyze",
+    menu: "Products",
     poll: all(needArea, notRunning, engineUp),
     run: () => runProduct("terrain"),
   },
@@ -673,7 +644,7 @@ export const OPERATORS: Operator[] = [
     label: "Grid connection",
     description: "Where the active area could join the transmission network, read from the grid store (ONS, ANEEL)",
     icon: PlugsConnected,
-    menu: "Analyze",
+    menu: "Products",
     poll: all(needArea, notRunning, engineUp, needStoreFor("connection")),
     run: () => runProduct("connection"),
   },
@@ -688,7 +659,7 @@ export const OPERATORS: Operator[] = [
     description:
       "What the active area already draws from the network and already puts back, read from the BDGD register in the grid store",
     icon: ChartBar,
-    menu: "Analyze",
+    menu: "Products",
     poll: all(needArea, notRunning, engineUp, needStoreFor("demand")),
     run: () => runProduct("demand"),
   },
@@ -699,7 +670,7 @@ export const OPERATORS: Operator[] = [
     description:
       "How much of the active area a plant could stand on, by slope and by height above the drainage (Copernicus DEM)",
     icon: CheckSquare,
-    menu: "Analyze",
+    menu: "Products",
     poll: all(needArea, notRunning, engineUp),
     run: () => runProduct("ground"),
   },
@@ -709,7 +680,7 @@ export const OPERATORS: Operator[] = [
     label: "Check the grid store",
     description: "Ask the grid store what it holds, or why it does not answer",
     icon: Database,
-    menu: "Studio",
+    menu: "Options",
     poll: engineUp,
     run: () => checkGridStore(true),
   },
@@ -719,7 +690,7 @@ export const OPERATORS: Operator[] = [
     label: "Run again with current settings",
     description: "Compute the active result's product again at its source, as the source and settings stand now",
     icon: Play,
-    menu: "Analyze",
+    menu: "Products",
     keys: ["Shift+R"],
     scope: "objects",
     poll: all(needResult, notRunning, engineUp, () => {
@@ -740,7 +711,7 @@ export const OPERATORS: Operator[] = [
     label: "Cancel analysis",
     description: "Stop the analysis in progress",
     icon: StopCircle,
-    menu: "Analyze",
+    menu: "Products",
     poll: () => (running.get() || systemPlanningActive.get() ? true : "Nothing is running"),
     run: () => cancelRun(),
   },
@@ -750,7 +721,7 @@ export const OPERATORS: Operator[] = [
     label: "Check Engine",
     description: "Start the Python calculation engine and report its version",
     icon: Heartbeat,
-    menu: "Studio",
+    menu: "Options",
     run: async () => {
       note("Checking the calculation engine…")
       const s = await checkSidecar()
@@ -762,65 +733,28 @@ export const OPERATORS: Operator[] = [
     },
   },
 
+  // Where the reader goes: the rail's places and the map column's panels, by name
+  ...([
+    ["EXPLORE", "Explore", "Leave the destination for the map", "Rail", () => goTo("explore")],
+    ["PLACES", "Sites and areas", "The project's sites and areas, each with the results read at it", "Rail", () => togglePanel("places")],
+    ["COMPARE", "Compare", "Every result of one product side by side", "Rail", () => goTo("compare")],
+    ["PLANNING", "System planning", "Economic dispatch and capacity expansion with PyPSA", "Rail", () => goTo("planning")],
+    ["RUN_GRAPH", "Run graph", "One product's request laid out as cards", "Rail", () => openRunGraph()],
+    ["ACTIVITY", "Activity", "What the application has said", "Rail", () => togglePanel("activity")],
+    ["PRODUCTS", "Products", "What can be computed at the site or area in hand", "Map column", () => togglePanel("products")],
+    ["RESULT", "Result", "The reading of a run, over the map", "Map column", () => togglePanel("result")],
+    ["LAYERS", "Layers", "What the map draws", "Map column", () => togglePanel("layers")],
+  ] as const).map(
+    ([name, label, description, menu, run]): Operator => ({ name, aliases: [], label, description, menu, quiet: true, run })
+  ),
+
   // Window
-  {
-    name: "WORKSPACE_NEXT",
-    aliases: [],
-    label: "Next workspace",
-    description: "Switch to the workspace to the right",
-    menu: "Studio",
-    keys: ["Ctrl+PageDown"],
-    quiet: true,
-    run: () => cycleWorkspace(1),
-  },
-  {
-    name: "WORKSPACE_PREV",
-    aliases: [],
-    label: "Previous workspace",
-    description: "Switch to the workspace to the left",
-    menu: "Studio",
-    keys: ["Ctrl+PageUp"],
-    quiet: true,
-    run: () => cycleWorkspace(-1),
-  },
-  {
-    name: "AREA_MAXIMIZE",
-    aliases: [],
-    label: "Toggle maximize area",
-    description: "Show the area under the pointer alone, or restore the layout",
-    icon: ArrowsOut,
-    menu: "Studio",
-    keys: ["Ctrl+Space"],
-    quiet: true,
-    poll: () => (screen.get().maximized || hoveredArea.get().id ? true : "Point at an area first"),
-    run: () => toggleMaximized(hoveredArea.get().id),
-  },
-  {
-    name: "RESET_LAYOUT",
-    aliases: [],
-    label: "Reset workspace layout",
-    description: "Restore this workspace's areas and editors to their defaults",
-    menu: "Studio",
-    quiet: true,
-    run: () => resetWorkspace(),
-  },
-  {
-    name: "TOGGLE_RIBBON",
-    aliases: ["RIBBON"],
-    label: "Ribbon",
-    description: "Show or fold the ribbon of commands under the workspace tabs",
-    menu: "Studio",
-    keys: ["Ctrl+F1"],
-    inFields: true,
-    quiet: true,
-    run: () => toggleRibbon(),
-  },
   {
     name: "FULLSCREEN",
     aliases: [],
     label: "Toggle window fullscreen",
     description: "Fill the screen with the window",
-    menu: "Studio",
+    menu: "Options",
     keys: [IS_MAC ? "Ctrl+Mod+F" : "F11"],
     inFields: true,
     quiet: true,
@@ -835,9 +769,9 @@ export const OPERATORS: Operator[] = [
     name: "HELP",
     aliases: ["?"],
     label: "List operators",
-    description: "Print every operator, its console name and its shortcut to the Console",
+    description: "List every operator, its name and its shortcut in Activity",
     icon: Question,
-    menu: "Studio",
+    menu: "Options",
     run: () => {
       for (const op of OPERATORS) {
         const aliases = op.aliases.length ? ` (${op.aliases.join(", ")})` : ""
@@ -852,7 +786,7 @@ export const OPERATORS: Operator[] = [
     label: "Keymap",
     description: "Show every shortcut",
     icon: Keyboard,
-    menu: "Studio",
+    menu: "Options",
     quiet: true,
     run: () => preferences.set("keymap"),
   },
@@ -862,7 +796,7 @@ export const OPERATORS: Operator[] = [
     label: "About Solara",
     description: "Version and data sources",
     icon: InfoIcon,
-    menu: "Studio",
+    menu: "Options",
     quiet: true,
     run: () => preferences.set("about"),
   },
@@ -871,7 +805,7 @@ export const OPERATORS: Operator[] = [
     aliases: ["START"],
     label: "Splash screen",
     description: "Show the start screen: first steps and recent projects",
-    menu: "Studio",
+    menu: "Options",
     quiet: true,
     run: () => splashOpen.set(true),
   },
@@ -881,7 +815,7 @@ export const OPERATORS: Operator[] = [
     label: "Account…",
     description: "Sign in, or edit the signed-in profile",
     icon: UserCircle,
-    menu: "Studio",
+    menu: "Options",
     quiet: true,
     run: () => preferences.set("account"),
   },
@@ -891,7 +825,7 @@ export const OPERATORS: Operator[] = [
     label: "Sign out",
     description: "Sign out and continue as the guest",
     icon: SignOut,
-    menu: "Studio",
+    menu: "Options",
     poll: () => (account.get().user ? true : "Not signed in"),
     run: async () => {
       try {
@@ -905,8 +839,8 @@ export const OPERATORS: Operator[] = [
     name: "CLEAR",
     aliases: ["CLS"],
     label: "Clear reports",
-    description: "Clear the Info and Console history",
-    menu: "Studio",
+    description: "Clear what Activity holds",
+    menu: "Options",
     quiet: true,
     run: () => clearReports(),
   },
@@ -994,7 +928,7 @@ export function searchOperators(query: string): Operator[] {
  */
 const pollTick = createStore(0)
 const bump = () => pollTick.set((n) => n + 1)
-for (const s of [project, selection, running, systemPlanningActive, sidecar, mapMounted, screen, lastOperation, account, activeTool]) {
+for (const s of [project, selection, running, systemPlanningActive, sidecar, mapMounted, shell, lastOperation, account, activeTool]) {
   s.subscribe(bump)
 }
 

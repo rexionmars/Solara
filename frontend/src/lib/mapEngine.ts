@@ -1,5 +1,5 @@
 import type { Feature, FeatureCollection } from "geojson"
-import { Map as MapLibreMap, setWorkerUrl, type ExpressionSpecification, type GeoJSONSource, type ImageSource, type MapMouseEvent } from "maplibre-gl"
+import { LngLatBounds, Map as MapLibreMap, setWorkerUrl, type ExpressionSpecification, type GeoJSONSource, type ImageSource, type MapMouseEvent } from "maplibre-gl"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
 import { BASEMAP_FIRST_LABEL, BASEMAP_STYLE, applyGround } from "./basemap"
 import { ACTIVE, AREA, HAIRLINE, REACH, SITE, SITE_OUTLINE } from "./colors"
@@ -52,14 +52,15 @@ import { activeTool, basemap, overlays, setTool } from "./tools"
 import { openContextMenu, type MenuItem } from "./ui"
 import { attachGeoPackage, frameCountedCell, pickGeoPackage } from "./geopackage"
 import { pickedGeoPackage } from "./mapState"
+import { mapInsetRight } from "./shell"
 
 /**
  * The one map, and everything drawn on it.
  *
  * MapLibre holds a WebGL context and every tile it has loaded, and the webview
  * stops creating contexts after a small number, so the map is created once and
- * its element is moved into whichever area shows the Map editor. Switching
- * workspace or editor moves the element; nothing is reloaded.
+ * its element is moved into the container that shows it, the map shell's
+ * ground. Moving the element reloads nothing.
  */
 
 /*
@@ -1267,6 +1268,13 @@ export const zoomOut = () => withMap((m) => m.zoomOut())
 export const resetNorth = () => withMap((m) => m.resetNorthPitch())
 export const setBearing = (bearing: number) => withMap((m) => m.setBearing(bearing))
 
+/*
+  CLEAR OF WHAT COVERS THE MAP'S RIGHT EDGE. The tool column is always there and
+  a panel often is, so what the camera is sent to is framed in the part of the
+  map left showing (shell.ts, mapInsetRight).
+*/
+const padded = (px: number) => ({ top: px, bottom: px, left: px, right: px + mapInsetRight.get() })
+
 function frame(points: number[][]): boolean {
   return withMap((m) => {
     const b = bounds(points)
@@ -1274,15 +1282,15 @@ function frame(points: number[][]): boolean {
       // Nothing of the project to frame: the ground the connected store
       // holds, and with no store the world.
       const held = storeInfo()?.extent
-      if (held?.length === 4) m.fitBounds([held[0], held[1], held[2], held[3]], { padding: 40, duration: 700 })
+      if (held?.length === 4) m.fitBounds([held[0], held[1], held[2], held[3]], { padding: padded(40), duration: 700 })
       else m.flyTo({ ...HOME_VIEW, bearing: 0, pitch: 0 })
       return
     }
     if (b[0] === b[2] && b[1] === b[3]) {
-      m.flyTo({ center: [b[0], b[1]], zoom: Math.max(m.getZoom(), 11) })
+      m.flyTo({ center: [b[0], b[1]], zoom: Math.max(m.getZoom(), 11), offset: [-mapInsetRight.get() / 2, 0] })
       return
     }
-    m.fitBounds(b, { padding: 80, maxZoom: 13, duration: 700 })
+    m.fitBounds(b, { padding: padded(80), maxZoom: 13, duration: 700 })
   })
 }
 
@@ -1335,7 +1343,10 @@ function frameIfUnseen(item: AnyItem): boolean {
         : target.polygon.coordinates[0]
   const b = bounds(points)
   if (!b) return false
-  const view = map.getBounds()
+  // The part of the map left showing: what the tool column and an open panel cover is not in view.
+  const canvas = map.getCanvas()
+  const shown = Math.max(1, canvas.clientWidth - mapInsetRight.get())
+  const view = new LngLatBounds(map.unproject([0, canvas.clientHeight]), map.unproject([shown, 0]))
   const inView = b[0] <= view.getEast() && b[2] >= view.getWest() && b[1] <= view.getNorth() && b[3] >= view.getSouth()
   // A speck: under a twentieth of the view both ways. A site is a point and is never one.
   const speck =

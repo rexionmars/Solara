@@ -13,3 +13,6 @@ export const BRAND_TAGLINE = "Energy engine"
  * whichever still a given launch shows.
  */
 export const RELEASE_NAME = "Ridge"
+
+/** Where the source, the issues and the README live; the rail's Help and Feedback open it. */
+export const REPO_URL = "https://github.com/rexionmars/TerraEnergyEngine"

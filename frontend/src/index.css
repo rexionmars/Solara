@@ -130,6 +130,16 @@
   --hairline: rgb(var(--p-line) / 0.22);
   --ring: rgb(var(--p-accent));
 
+  /*
+    What floats over the map: ink at an alpha over the ground, which the filter
+    dims first. A token's ratio describes text on a flat colour, and here part of
+    what the text is read on is imagery, so TERRA measured the pair over both
+    extremes of the ground: blur and 0.7 brightness under ink at 0.82 held the
+    worst case of each above 4.5.
+  */
+  --map-chrome-alpha: 0.82;
+  --map-chrome-filter: blur(18px) brightness(0.7);
+
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   /*
@@ -1054,4 +1064,25 @@ input[type="number"]::-webkit-outer-spin-button {
 .reading .font-mono {
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+}
+
+/* The map shell's material: the tool column, the panel, the map's own bars. */
+.map-chrome {
+  background-color: rgb(var(--p-ink) / var(--map-chrome-alpha));
+  backdrop-filter: var(--map-chrome-filter);
+  -webkit-backdrop-filter: var(--map-chrome-filter);
+}
+
+/* A panel's rows and hovers, in the tool column's lines and plate. */
+.map-chrome-panel {
+  --border: rgb(var(--p-line) / 0.22);
+  --hairline: rgb(var(--p-line) / 0.22);
+  --s-hover: rgb(var(--p-surface-raised) / 0.92);
+  --s-line: rgb(var(--p-line) / 0.3);
+  --s-line-soft: rgb(var(--p-line) / 0.22);
+}
+
+/* The strip an editor's controls ride in takes no height while no editor has put any there. */
+.host-strip:not(:has(> div > *)) {
+  display: none;
 }

@@ -17,7 +17,6 @@ import {
   PRODUCT_SUMMARY,
   commit,
   findItem,
-  isResult,
   project,
   renameItem,
   resultsOf,
@@ -30,13 +29,12 @@ import {
   type SiteObject,
 } from "../../lib/project"
 import { showResult } from "../../lib/screen"
-import { select, useActiveItem } from "../../lib/selection"
+import { select } from "../../lib/selection"
 import { sidecar } from "../../lib/sidecarStatus"
 import { useStore } from "../../lib/store"
 import { COLUMNS, formatCell } from "../../lib/table"
 import { short } from "../energy/DemandDocument"
 import { ClassLegend, Legend } from "../energy/Legend"
-import { AreaHeader } from "../studio/StudioArea"
 import { btnGhostDense } from "../ui/buttons"
 import { Checkbox, FieldRow, Figure, NumberField, OperatorButton, PanelSection, TextField } from "../ui/Fields"
 import { NowSection } from "./NowSection"
@@ -317,7 +315,7 @@ const PARAM_LABELS: Record<string, string> = {
   handMinM: "Minimum height above drainage",
 }
 
-function SiteBody({ site }: { site: SiteObject }) {
+export function SiteBody({ site }: { site: SiteObject }) {
   return (
     <>
       <Head item={site} meta={`${formatLat(site.lat)}  ${formatLng(site.lon)} · WGS 84`} />
@@ -353,7 +351,7 @@ function SiteBody({ site }: { site: SiteObject }) {
   )
 }
 
-function AreaBody({ area }: { area: AreaObject }) {
+export function AreaBody({ area }: { area: AreaObject }) {
   const d = useStore(project).data
   const c = ringCentre(area.polygon)
   const latest = resultsOf(d, area.id).filter((r) => r.kind === "terrain").at(-1)
@@ -381,7 +379,7 @@ function AreaBody({ area }: { area: AreaObject }) {
   )
 }
 
-function ResultBody({ result }: { result: ResultObject }) {
+export function ResultBody({ result }: { result: ResultObject }) {
   const d = useStore(project).data
   const source = findItem(d, result.sourceId)
   const stale = staleReason(d, result)
@@ -425,7 +423,7 @@ function ResultBody({ result }: { result: ResultObject }) {
   )
 }
 
-function ProjectBody() {
+export function ProjectBody() {
   const p = useStore(project)
   const s = useStore(sidecar)
   return (
@@ -472,26 +470,6 @@ function ProjectBody() {
         />
         {s.kind === "failed" && <p className="selectable text-meta text-destructive-quiet">{s.message}</p>}
       </PanelSection>
-    </>
-  )
-}
-
-export function PropertiesEditor() {
-  const active = useActiveItem()
-  return (
-    <>
-      <AreaHeader />
-      <div className="panel-scroll h-full min-h-0 overflow-y-auto">
-        {!active ? (
-          <ProjectBody />
-        ) : active.kind === "site" ? (
-          <SiteBody site={active} />
-        ) : active.kind === "area" ? (
-          <AreaBody area={active} />
-        ) : isResult(active) ? (
-          <ResultBody result={active} />
-        ) : null}
-      </div>
     </>
   )
 }

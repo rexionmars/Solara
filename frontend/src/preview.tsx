@@ -1,15 +1,8 @@
-import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import "./index.css"
-import {
-  ChartBar, Database, Fan, Graph, MapTrifold, Mountains, PlugsConnected,
-  Scroll, Sun, Table, TerminalWindow, Export as ExportIcon, ArrowClockwise,
-} from "./lib/icons"
 import type { energy, grid } from "../wailsjs/go/models"
 import { DemandBody } from "./components/energy/DemandDocument"
-import { Chip, Panel, Stat } from "./components/energy/primitives"
-import { AppSidebar, type NavGroup } from "./components/shell/AppSidebar"
-import { HeaderAction, PageHeader } from "./components/shell/PageHeader"
+import { ShellPanel } from "./components/shell/ShellPanel"
 import { Empty } from "./components/editors/ReadingEditor"
 import { ProductCard, ResultLayer } from "./components/editors/PropertiesEditor"
 import { GroundBody } from "./components/energy/GroundDocument"
@@ -119,102 +112,18 @@ const area: Polygon = {
   coordinates: [[[-35.30, -5.72], [-35.15, -5.72], [-35.15, -5.88], [-35.30, -5.88], [-35.30, -5.72]]],
 }
 
-/** The places the application has, grouped the way the work is grouped. */
-const NAV: NavGroup[] = [
-  {
-    label: "Analysis",
-    items: [
-      { id: "map", label: "Map", icon: MapTrifold },
-      { id: "demand", label: "Area consumption", icon: ChartBar, badge: "1" },
-      { id: "solar", label: "Solar resource", icon: Sun },
-      { id: "wind", label: "Wind screening", icon: Fan },
-      { id: "terrain", label: "Terrain", icon: Mountains, empty: true },
-      { id: "connection", label: "Connection", icon: PlugsConnected, empty: true },
-    ],
-  },
-  {
-    label: "Build",
-    items: [
-      { id: "graph", label: "Run graph", icon: Graph },
-      { id: "table", label: "Tables", icon: Table },
-      { id: "reports", label: "Reports", icon: Scroll, empty: true },
-    ],
-  },
-  {
-    label: "Data",
-    items: [
-      { id: "registers", label: "Registers", icon: Database },
-      { id: "console", label: "Console", icon: TerminalWindow },
-    ],
-  },
-]
-
 /**
- * Where the Outliner and Properties go once the shell has a page: a rail on
- * the selected thing, not two more panes of the mosaic competing with the
- * reading for the screen.
+ * The reading as the Result panel holds it: the map shell's own panel, wide,
+ * over a stand-in for the map.
  */
-function SelectionRail() {
-  return (
-    <aside className="hidden w-[248px] shrink-0 flex-col gap-2.5 overflow-y-auto border-l border-border bg-chrome p-2.5 2xl:flex">
-      <Panel title="Selected">
-        <div className="flex items-center gap-2 pb-1">
-          <span className="size-2 rounded-[2px] bg-kind-area" />
-          <span className="truncate text-[13px] text-foreground">Natal</span>
-          <span className="ml-auto text-[10px] text-muted-foreground">Area</span>
-        </div>
-        <Stat label="Area" value="616.43 km²" />
-        <Stat label="Vertices" value="4" />
-        <Stat label="Centre" value="5.800° S 35.225° W" />
-      </Panel>
-      <Panel title="Runs on this area">
-        <Stat label="Area consumption" value="2 min ago" />
-        <Stat label="Solar resource" value="—" />
-        <Stat label="Wind screening" value="—" />
-      </Panel>
-      <Panel title="Now" right={<span className="text-[10px] text-muted-foreground">modelled</span>}>
-        <Stat label="Irradiance, horizontal" value="46 W/m²" />
-        <Stat label="Cloud cover" value="27 %" />
-        <Stat label="Temperature" value="27.0 °C" />
-        <Stat label="Wind at 120 m" value="7.7 m/s" />
-      </Panel>
-    </aside>
-  )
-}
-
 function App() {
-  const [active, setActive] = useState("demand")
-  const [collapsed, setCollapsed] = useState(false)
   return (
-    <div className="flex h-screen bg-app text-foreground">
-      <AppSidebar
-        groups={NAV}
-        active={active}
-        onSelect={setActive}
-        onSearch={() => {}}
-        collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed(!collapsed)}
-        brand="solara"
-        brandSub="Natal · unsaved"
-        account={{ name: "fox", detail: "opensource.leonardi@gmail.com" }}
-      />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <PageHeader
-          title="Area consumption"
-          crumbs={[{ label: "Natal" }, { label: "Grid" }]}
-          badge={<Chip>18.9% injected back</Chip>}
-          subtitle="BDGD Neoenergia_Cosern, base year 2024 · 616 km² · read 2 minutes ago"
-          status={{ label: "engine ready", tone: "ok" }}
-          actions={<HeaderAction icon={<ExportIcon size={14} />}>Export</HeaderAction>}
-          primary={{ label: "Run again", onClick: () => {}, icon: <ArrowClockwise size={14} /> }}
-        />
-        <div className="flex min-h-0 flex-1">
-          <main className="reading panel-scroll min-w-0 flex-1 overflow-y-auto">
-            <DemandBody demand={demand} area={area} />
-          </main>
-          <SelectionRail />
-        </div>
-      </div>
+    <div className="relative h-screen bg-field text-foreground">
+      <ShellPanel crumbs={[{ label: "Result" }, { label: "Area consumption" }]} onClose={() => {}} wide>
+        <main className="reading panel-scroll min-h-0 flex-1 overflow-y-auto">
+          <DemandBody demand={demand} area={area} />
+        </main>
+      </ShellPanel>
     </div>
   )
 }

@@ -44,8 +44,7 @@ const STRAIGHT = 0.34
 
 /*
   Where each box was dragged to, for the session. Outside React, so a box keeps
-  its place when the map moves to another area or workspace and its marker is
-  made again.
+  its place when its marker is made again, as when a layer is drawn anew.
 */
 const offsets = new Map<string, { x: number; y: number }>()
 

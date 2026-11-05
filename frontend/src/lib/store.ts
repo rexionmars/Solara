@@ -3,10 +3,10 @@ import { useSyncExternalStore } from "react"
 /**
  * A value that components can subscribe to without sharing a parent.
  *
- * The workbench panels read state that changes outside React -- the map moves
- * every frame, the sidecar answers when it answers -- and each panel needs only
- * its own slice. A store per subject keeps a map pan from re-rendering the
- * ribbon, which a context at the root would do.
+ * The panels read state that changes outside React -- the map moves every
+ * frame, the sidecar answers when it answers -- and each panel needs only its
+ * own slice. A store per subject keeps a map pan from re-rendering the panel
+ * held over it, which a context at the root would do.
  */
 export type Store<T> = {
   get(): T

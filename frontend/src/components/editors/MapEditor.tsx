@@ -1,11 +1,9 @@
-import { useEffect, useRef } from "react"
 import { CaretDown, CaretRight, Stack } from "../../lib/icons"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { runConnection, runGround, runSolar, runTerrain, runWind } from "../../lib/analysis"
 import { BASEMAPS, IMAGERY_TILES, type BasemapId } from "../../lib/basemap"
 import { distanceKm } from "../../lib/geo"
 import { concessions, networkRegister, plantRegister, townDemand } from "../../lib/grid"
-import { mountMap } from "../../lib/mapEngine"
 import { mapView, measure } from "../../lib/mapState"
 import { setSiteCoordinate } from "../../lib/objects"
 import { formatKeys } from "../../lib/operators"
@@ -15,22 +13,14 @@ import { SERVICE_CREDITS, SERVICES } from "../../lib/services"
 import { activeTool, basemap, overlays, type Overlays } from "../../lib/tools"
 import { windProbe } from "../../lib/weather"
 import { lastOperation, lastOperationOpen } from "../../lib/ui"
-import { AreaHeader } from "../studio/StudioArea"
 import { btnPrimary } from "../ui/buttons"
 import { NumberField, TextField } from "../ui/Fields"
-import { AddressSearch } from "./AddressSearch"
-import { OverlayCallouts } from "./OverlayCallouts"
-import { WeatherTimeline } from "./WeatherTimeline"
 import { ParamFields } from "./ParamFields"
-import { GeoPackageControl } from "./GeoPackageControl"
-import { MapLegend } from "./MapLegend"
 
 /*
-  THE HEADER CARRIES NO MENUS. It had View, Select, Add and Object, and every
-  entry of them is a button of the ribbon's Map tab now, in the open: a menu
-  under a ribbon that already shows its contents is the same command twice,
-  and the one that has to be opened is the one nobody reaches for. What stays
-  on the header is what is about the VIEW: where the map is, and what is drawn.
+  The map's own pieces, which the map shell lays over the ground (MapShell.tsx):
+  the readouts beside the pointer, the measure, the last operation, the ground's
+  tile and the credit, with the lists of what can be drawn that Layers offers.
 */
 
 export const OVERLAY_ITEMS: { key: keyof Overlays; label: string }[] = [
@@ -113,28 +103,17 @@ export function layerNote(key: keyof Overlays): { text: string; failed?: string 
 }
 
 /*
-  THE MAP'S LAYERS ARE SWITCHED IN ONE PLACE, THE OUTLINER. They were also a
-  popover on this header and four groups of the ribbon: the same eye three
-  times, and three places to ask what is on the map. The outliner's tree holds
-  THINGS -- the project's and the map's -- and the ribbon holds verbs. The
-  ground is the exception that stays on the map, as the tile at its corner,
-  because it is chosen by looking at it.
+  THE MAP'S LAYERS ARE SWITCHED IN ONE PLACE, the Layers panel, whose tree is
+  the outliner's map half. The ground is the exception that stays on the map,
+  as the tile at its corner, because it is chosen by looking at it.
 */
 
 /** A plate floated over the map, as TERRA's reading cards over the globe. */
 const PLATE = "pointer-events-auto rounded-sm border shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
 const plateStyle = { background: "rgb(var(--p-ink) / 0.92)", borderColor: "rgb(var(--p-line) / 0.4)" }
 
-/*
-  NO COMMAND FLOATS OVER THE MAP. It carried a tool plate, a magnifier and a
-  compass with zoom and home, and every one of them is a button of the ribbon's
-  Map tab: the same command twice, a hand's width apart. The ribbon is where
-  commands are. What is left over the map is what is ABOUT the map and belongs
-  on it: the ground's tile, the readings' plates, the credit.
-*/
-
 /** Speed and direction beside the pointer, while the wind field is drawn. */
-function WindReadout() {
+export function WindReadout() {
   const probe = useStore(windProbe)
   if (!probe) return null
   return (
@@ -156,7 +135,7 @@ function WindReadout() {
 }
 
 /** The distance being measured, while the Measure tool holds two points or one and the pointer. */
-function MeasurePlate() {
+export function MeasurePlate() {
   const pts = useStore(measure)
   const tool = useStore(activeTool)
   if (tool !== "measure") return null
@@ -176,7 +155,7 @@ function MeasurePlate() {
  * analysis run, with its fields. A site's fields edit it in place; an
  * analysis's fields are the settings, and Run again replaces its result.
  */
-function RedoPlate() {
+export function RedoPlate() {
   const last = useStore(lastOperation)
   const open = useStore(lastOperationOpen)
   const d = useStore(project).data
@@ -287,7 +266,7 @@ function StreetsSwatch() {
  * under the map's centre, so it is a preview of this place. The street
  * ground is drawn, since a vector map has no tile to borrow.
  */
-function BasemapSwitch() {
+export function BasemapSwitch() {
   const ground = useStore(basemap)
   const { lng, lat, zoom } = useStore(mapView)
   const to: BasemapId = ground === "dark" ? "satellite" : "dark"
@@ -329,7 +308,7 @@ const ENGINE_CREDIT = { label: "MapLibre", href: "https://maplibre.org" }
  * every published register switched on. A licence is owed by whoever is
  * being shown, not by whoever could be.
  */
-function Foot() {
+export function Foot() {
   const { zoom } = useStore(mapView)
   const o = useStore(overlays)
   const base = useStore(basemap)
@@ -356,50 +335,5 @@ function Foot() {
       {/* Past the last zoom the tiles carry, the map is drawing the same pixels larger. Say so rather than let it read as detail. */}
       {zoom > ground.maxZoom && <span className="text-muted-foreground">· stretched past z{ground.maxZoom}</span>}
     </p>
-  )
-}
-
-export function MapEditor() {
-  const container = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = container.current
-    if (!el) return
-    return mountMap(el)
-  }, [])
-
-  return (
-    <>
-      <AreaHeader
-        options={<GeoPackageControl />}
-      />
-      <div className="relative min-h-0 flex-1" style={{ background: "var(--s-field)" }}>
-        {/*
-          The map's element is moved in and out of this container (mapEngine):
-          one MapLibre instance for the application, never torn down on a
-          workspace switch.
-        */}
-        <div ref={container} className="absolute inset-0" />
-        <OverlayCallouts />
-        <div className="pointer-events-none absolute inset-0">
-          <WindReadout />
-          {/* The address field, while Locate has it open, and the measure's figure while that tool is on. */}
-          {/* Every layer's key in one place, docked where the ground is least often the subject. */}
-          <div className="absolute right-2 top-2">
-            <MapLegend />
-          </div>
-          <div className="absolute left-1.5 top-1.5 flex flex-col items-start gap-2">
-            <AddressSearch />
-            <MeasurePlate />
-          </div>
-          <div className="absolute bottom-7 left-2 flex items-end gap-2">
-            <BasemapSwitch />
-            <RedoPlate />
-          </div>
-          <Foot />
-        </div>
-      </div>
-      <WeatherTimeline />
-    </>
   )
 }

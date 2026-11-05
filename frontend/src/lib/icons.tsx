@@ -124,3 +124,32 @@ export const Stop = P.Stop
 export const Warning = P.Warning
 export const WarningOctagon = P.WarningOctagon
 export const X = P.X
+
+// ---- The shell's rail and map column: Phosphor's own, in one ink ----------------------
+/*
+  The rail says where the reader is and the column over the map which tool is on, both
+  by the ink a glyph takes, and a drawing takes none. So these two places draw
+  Phosphor's glyphs in the interface's ink even where Breeze has a picture.
+*/
+export const ShellGlyph = {
+  ChartLine: P.ChartLine,
+  Columns: P.Columns,
+  Compass: P.Compass,
+  CornersOut: P.CornersOut,
+  Crosshair: P.Crosshair,
+  FlowArrow: P.FlowArrow,
+  Graph: P.Graph,
+  Info: P.Info,
+  MagnifyingGlass: P.MagnifyingGlass,
+  MapPin: P.MapPin,
+  Minus: P.Minus,
+  NavigationArrow: P.NavigationArrow,
+  Pentagon: P.Pentagon,
+  Plus: P.Plus,
+  Question: P.Question,
+  Ruler: P.Ruler,
+  Scroll: P.Scroll,
+  Sparkle: P.Sparkle,
+  Stack: P.Stack,
+  Trash: P.Trash,
+} as const

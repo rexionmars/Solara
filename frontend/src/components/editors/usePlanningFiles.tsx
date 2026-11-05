@@ -12,7 +12,7 @@ import {
 import { useStore } from "../../lib/store"
 import { errorMessage } from "../../lib/errors"
 
-/** Panel menus and the workspace ribbon share the same file actions and validation. */
+/** The planning editor's File menu and its empty study share the same file actions and validation. */
 export function usePlanningFiles() {
   const state = useStore(planning)
   const input = useRef<HTMLInputElement>(null)
