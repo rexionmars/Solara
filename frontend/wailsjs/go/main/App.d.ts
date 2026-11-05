@@ -67,6 +67,8 @@ export function ParseGridStoreURL(arg1:string):Promise<grid.StoreConnection>;
 
 export function Ping():Promise<main.SidecarStatus>;
 
+export function ProfileGeoPackageLayer(arg1:string,arg2:string):Promise<main.GeoPackageProfile>;
+
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
 export function RevealInFileManager(arg1:string):Promise<void>;

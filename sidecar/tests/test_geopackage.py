@@ -8,7 +8,7 @@ import pytest
 from pyproj import Transformer
 from shapely.geometry import Point
 
-from terra_energy_engine.geopackage import database, inspect, read_feature, read_features
+from terra_energy_engine.geopackage import database, inspect, profile, read_feature, read_features
 
 
 @pytest.fixture
@@ -224,3 +224,62 @@ def test_counting_needs_the_zoom_and_a_crowd(package):
     assert 'cells' not in without_zoom and without_zoom['limited']
     with pytest.raises(ValueError, match='zoom'):
         read_features(path, 'assets', [-41, -7, -36, -2], [], 30)
+
+
+def test_a_generic_layer_is_catalogued_by_the_kinds_its_features_hold(package):
+    path = package()
+    assert inspect(path)['layers'][0]['kinds'] is None
+    with sqlite3.connect(path) as conn:
+        conn.execute("update gpkg_geometry_columns set geometry_type_name = 'GEOMETRY'")
+        square = Point(-39, -5).buffer(0.1)
+        conn.execute('insert into assets (geom, name) values (?, ?)', (b'GP\x00\x01' + struct.pack('<i', 4326) + square.wkb, 'Area'))
+        conn.execute('insert into assets (geom, name) values (null, ?)', ('Nowhere',))
+    layer = inspect(path)['layers'][0]
+    assert layer['geometry'] == 'GEOMETRY'
+    assert layer['kinds'] == [{'kind': 'Point', 'count': 2}, {'kind': 'Null', 'count': 1}, {'kind': 'Polygon', 'count': 1}]
+
+
+def test_a_profile_reads_what_each_attribute_holds(package):
+    path = package()
+    with sqlite3.connect(path) as conn:
+        for column in ('osm_id text', 'kind text', 'voltage_kv real', 'pressure text', 'line text', 'tags text', 'photo blob'):
+            conn.execute(f'alter table assets add column {column}')
+        blob = conn.execute('select geom from assets where fid = 1').fetchone()[0]
+        conn.executemany('insert into assets (geom, name) values (?, ?)', [(blob, f'Extra {i}') for i in range(38)])
+        conn.execute("update assets set osm_id = 'node/' || fid, line = 'substation', pressure = '', "
+                     "kind = case when fid % 3 = 0 then 'transmission' else 'distribution' end, "
+                     "voltage_kv = case when fid % 4 = 0 then null else fid * 10.0 end, "
+                     "tags = json_object('power', 'substation', 'name', name) || '', photo = x'0001'")
+        conn.execute("update assets set voltage_kv = '138 kV' where fid = 5")
+        conn.execute("update assets set tags = json_object('power', 'substation', 'operator', 'Copel') where fid = 7")
+    p = profile(path, 'assets')
+    assert p['count'] == 40 and p['pk'] == 'fid'
+    assert p['geometry'] == {'declared': 'POINT', 'kinds': [{'kind': 'Point', 'count': 40}]}
+    assert p['incomplete'] == []
+    f = {c['name']: c for c in p['fields']}
+    assert 'fid' not in f
+    assert f['osm_id']['role'] == 'identifier' and f['osm_id']['distinct'] == 40 and 'top' not in f['osm_id']
+    assert f['pressure']['role'] == 'empty' and f['pressure']['filled'] == 0
+    assert f['line']['role'] == 'constant' and f['line']['top'] == [{'value': 'substation', 'count': 40}]
+    assert f['kind']['role'] == 'category'
+    assert f['kind']['top'] == [{'value': 'distribution', 'count': 27}, {'value': 'transmission', 'count': 13}]
+    assert f['voltage_kv']['role'] == 'number' and f['voltage_kv']['filled'] == 30
+    assert f['voltage_kv']['mismatched'] == 1
+    assert f['voltage_kv']['range']['min'] == 10.0 and f['voltage_kv']['range']['max'] == 390.0
+    # 29 numbers, 10 to 390 without the multiples of 40 and fid 5: the 15th is 210.
+    assert f['voltage_kv']['range']['median'] == 210.0
+    assert sum(f['voltage_kv']['histogram']) == 29
+    assert f['tags']['role'] == 'json' and f['tags']['key_count'] == 3
+    assert f['tags']['keys'] == [{'value': 'power', 'count': 40}, {'value': 'name', 'count': 39}, {'value': 'operator', 'count': 1}]
+    assert f['photo']['role'] == 'binary'
+    json.dumps(p, allow_nan=False)
+
+
+def test_a_profile_names_what_the_time_did_not_allow(package, monkeypatch):
+    import terra_energy_engine.geopackage as gpkg
+    path = package()
+    monkeypatch.setattr(gpkg, 'PROFILE_SPARE_S', gpkg.PROFILE_SECONDS + 1)
+    p = profile(path, 'assets')
+    assert p['geometry']['kinds'] is None
+    assert p['incomplete'] == ['geom', 'name']
+    assert 'role' not in p['fields'][0] and p['fields'][0]['filled'] == 2

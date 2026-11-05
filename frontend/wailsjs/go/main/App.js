@@ -122,6 +122,10 @@ export function Ping() {
   return window['go']['main']['App']['Ping']();
 }
 
+export function ProfileGeoPackageLayer(arg1, arg2) {
+  return window['go']['main']['App']['ProfileGeoPackageLayer'](arg1, arg2);
+}
+
 export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }

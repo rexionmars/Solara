@@ -15,16 +15,88 @@ type GeoPackageField struct {
 	Title string `json:"title,omitempty"`
 }
 
+// GeoPackageKind is one kind of geometry a layer's features hold, as the WKB
+// names it ("Point", "MultiPolygon"), or "Null", "Empty" or "Unreadable".
+type GeoPackageKind struct {
+	Kind  string `json:"kind"`
+	Count int64  `json:"count"`
+}
+
 type GeoPackageLayer struct {
-	Style    map[string]any    `json:"style,omitempty"`
-	Name     string            `json:"name"`
-	Label    string            `json:"label"`
-	Geometry string            `json:"geometry"`
-	Count    int64             `json:"count"`
-	BBox     []float64         `json:"bbox"`
-	Error    *string           `json:"error"`
-	Fields   []GeoPackageField `json:"fields"`
-	PK       *string           `json:"pk"`
+	Style    map[string]any `json:"style,omitempty"`
+	Name     string         `json:"name"`
+	Label    string         `json:"label"`
+	Geometry string         `json:"geometry"`
+	// What the features hold, read when Geometry is a generic declaration
+	// (GEOMETRY) that permits any kind; null otherwise, or when the catalogue
+	// ran out of time to read it.
+	Kinds  []GeoPackageKind  `json:"kinds"`
+	Count  int64             `json:"count"`
+	BBox   []float64         `json:"bbox"`
+	Error  *string           `json:"error"`
+	Fields []GeoPackageField `json:"fields"`
+	PK     *string           `json:"pk"`
+}
+
+// GeoPackageCount is a value and how many features hold it: an attribute's
+// value, or a key of a column of JSON objects.
+type GeoPackageCount struct {
+	Value any   `json:"value"`
+	Count int64 `json:"count"`
+}
+
+// GeoPackageRange is the least, greatest, mean and median of a number column
+// (the lower middle value when the count is even), or the earliest and latest
+// of a date column, which has neither.
+type GeoPackageRange struct {
+	Min    any `json:"min"`
+	Max    any `json:"max"`
+	Mean   any `json:"mean,omitempty"`
+	Median any `json:"median,omitempty"`
+}
+
+/*
+GeoPackageFieldProfile is what one attribute holds, counted over every feature.
+
+Role is read off the values, never the name: empty, constant, identifier
+(every value its own), category, number, date, text, json (an object per
+feature, listed by Keys) or binary. It is absent when the profile ran out of
+time before this column. Mismatched counts values whose storage disagrees with
+the declared number type, such as text in a REAL column.
+*/
+type GeoPackageFieldProfile struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Title    string `json:"title,omitempty"`
+	Filled   int64  `json:"filled"`
+	Role     string `json:"role,omitempty"`
+	Distinct *int64 `json:"distinct,omitempty"`
+	// Distinct is a floor: a number column past a thousand values is not counted further.
+	DistinctCapped bool              `json:"distinct_capped,omitempty"`
+	Mismatched     int64             `json:"mismatched,omitempty"`
+	Top            []GeoPackageCount `json:"top,omitempty"`
+	Keys           []GeoPackageCount `json:"keys,omitempty"`
+	KeyCount       int64             `json:"key_count,omitempty"`
+	Range          *GeoPackageRange  `json:"range,omitempty"`
+	// Features per equal-width bin between Range.Min and Range.Max.
+	Histogram []int64 `json:"histogram,omitempty"`
+}
+
+type GeoPackageGeometryProfile struct {
+	Declared string           `json:"declared"`
+	Kinds    []GeoPackageKind `json:"kinds"`
+}
+
+// GeoPackageProfile is one layer read in full. Incomplete names the columns,
+// and the geometry column, the time did not allow; nothing is estimated.
+type GeoPackageProfile struct {
+	Name       string                    `json:"name"`
+	Count      int64                     `json:"count"`
+	PK         *string                   `json:"pk"`
+	Geometry   GeoPackageGeometryProfile `json:"geometry"`
+	Fields     []GeoPackageFieldProfile  `json:"fields"`
+	Incomplete []string                  `json:"incomplete"`
+	Seconds    float64                   `json:"seconds"`
 }
 
 type GeoPackageCatalog struct {
@@ -57,6 +129,21 @@ func (a *App) InspectGeoPackage(path string) (*GeoPackageCatalog, error) {
 		return nil, err
 	}
 	var result GeoPackageCatalog
+	if err := json.Unmarshal(out, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ProfileGeoPackageLayer reads one layer in full: the kinds of geometry its
+// features hold and what each attribute is filled with. A layer of a million
+// features takes some seconds; it runs beside an analysis, as map reads do.
+func (a *App) ProfileGeoPackageLayer(path, layer string) (*GeoPackageProfile, error) {
+	out, err := a.readGeoPackage(map[string]any{"action": "gpkg_profile", "path": path, "layer": layer})
+	if err != nil {
+		return nil, err
+	}
+	var result GeoPackageProfile
 	if err := json.Unmarshal(out, &result); err != nil {
 		return nil, err
 	}

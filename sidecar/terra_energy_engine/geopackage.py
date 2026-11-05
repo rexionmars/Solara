@@ -74,14 +74,65 @@ def decode(blob):
     return from_wkb(blob[8 + [0, 32, 48, 48, 64][envelope]:])
 
 
+# The WKB type codes a GeoPackage may hold: the simple features and, through
+# its extension, the curves. A Z, M or ZM variant is the same kind.
+WKB_KINDS = {1: 'Point', 2: 'LineString', 3: 'Polygon', 4: 'MultiPoint', 5: 'MultiLineString',
+             6: 'MultiPolygon', 7: 'GeometryCollection', 8: 'CircularString', 9: 'CompoundCurve',
+             10: 'CurvePolygon', 11: 'MultiCurve', 12: 'MultiSurface', 13: 'Curve', 14: 'Surface'}
+
+# Declared types that permit any kind, so the features are read instead.
+GENERIC_TYPES = {'GEOMETRY', 'GEOMETRYCOLLECTION'}
+
+
+def kind(head):
+    """The geometry type a GeoPackage binary holds, from its header and WKB type word alone.
+
+    The first bytes are enough, so a layer is classified without decoding a
+    shape. A null, empty or unreadable geometry is a kind of its own.
+    """
+    if head is None:
+        return 'Null'
+    if len(head) < 8 or head[:2] != b'GP' or head[3] & 0x20:
+        return 'Unreadable'
+    if head[3] & 0x10:
+        return 'Empty'
+    envelope = (head[3] >> 1) & 7
+    if envelope > 4:
+        return 'Unreadable'
+    offset = 8 + [0, 32, 48, 48, 64][envelope]
+    if len(head) < offset + 5 or head[offset] not in (0, 1):
+        return 'Unreadable'
+    code = int.from_bytes(head[offset + 1:offset + 5], 'little' if head[offset] else 'big')
+    # EWKB flags in the high bits, ISO's Z, M and ZM in the thousands.
+    return WKB_KINDS.get((code & 0x0FFFFFFF) % 1000, 'Unreadable')
+
+
+def geometry_kinds(conn, layer, budget=None):
+    """How many features hold each kind of geometry, commonest first; None past the budget.
+
+    A declared GEOMETRY permits any kind, and converters declare it for every
+    layer, so the declaration told the reader nothing about what a layer
+    draws. Rows come in key order, not at random, so a scan cut short is not a
+    sample: past the budget the answer is unknown rather than partial.
+    """
+    counts = {}
+    rows = conn.execute(f'select substr({quoted(layer["column_name"])}, 1, 80) from {quoted(layer["table_name"])}')
+    for i, row in enumerate(rows):
+        if budget is not None and i % 10000 == 0 and time.monotonic() > budget:
+            return None
+        k = kind(row[0])
+        counts[k] = counts.get(k, 0) + 1
+    return [dict(kind=k, count=n) for k, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+
 @contextmanager
-def database(path):
+def database(path, seconds=20):
     p = Path(path).resolve()
     if p.suffix.lower() != '.gpkg' or not p.is_file():
         raise ValueError('Choose an existing .gpkg file.')
     conn = sqlite3.connect(p.as_uri() + '?mode=ro', uri=True)
     conn.row_factory = sqlite3.Row
-    deadline = time.monotonic() + 20
+    deadline = time.monotonic() + seconds
     conn.set_progress_handler(lambda: int(time.monotonic() > deadline), 10000)
     try:
         if conn.execute('pragma application_id').fetchone()[0] != 0x47504B47:
@@ -122,6 +173,9 @@ def projection(conn, layer):
 
 
 def inspect(path):
+    # The kinds of a generically declared layer are read while this allows;
+    # past it the catalogue gives the declaration alone, and is still quick.
+    budget = time.monotonic() + 8
     with database(path) as conn:
         out = []
         for layer in layers(conn):
@@ -138,8 +192,10 @@ def inspect(path):
             table = quoted(layer['table_name'])
             count = conn.execute(f'select count(*) from {table}').fetchone()[0]
             fields, pk = schema(conn, layer)
+            declared = layer['geometry_type_name']
+            kinds = geometry_kinds(conn, layer, budget) if (declared or '').upper() in GENERIC_TYPES else None
             out.append(dict(name=layer['table_name'], label=layer['identifier'] or layer['table_name'],
-                            geometry=layer['geometry_type_name'], count=count, bbox=bbox, error=error,
+                            geometry=declared, kinds=kinds, count=count, bbox=bbox, error=error,
                             style=layer_style(conn, layer['table_name']), fields=fields, pk=pk))
         if not out:
             raise ValueError('This GeoPackage has no vector layers. Raster tiles are not supported.')
@@ -354,10 +410,161 @@ def read_feature(path, name, fid):
         return dict(type='Feature', id=fid, geometry=geometry, properties=props, geometry_error=error)
 
 
+# A profile reads every feature; the hard limit sits under the shell's 45 s
+# read timeout, and no step starts in the last PROFILE_SPARE_S of it.
+PROFILE_SECONDS = 40
+PROFILE_SPARE_S = 8
+
+# Past this many distinct values a column is not listed by value: it names
+# things one by one, and its commonest values say nothing about it.
+DISTINCT_CAP = 1000
+
+# A column with this many distinct values or fewer is a set of categories,
+# whatever its declared type.
+CATEGORIES = 24
+
+TOP_VALUES = 8
+TOP_KEYS = 40
+BINS = 16
+
+# Text holding a JSON object, the form converters give a feature's free tags.
+OBJECT = "json_valid({c}) and substr(ltrim({c}), 1, 1) = '{{'"
+
+
+def shown(value):
+    """A value as a profile carries it: as attribute() does, and text cut at 200 characters."""
+    return value[:200] if isinstance(value, str) else attribute(value)
+
+
+def describe(conn, table, column):
+    """Add to `column` what its filled values are: their role, how many differ, the commonest, the range.
+
+    The role is read off the values, never the name: `empty`, `constant`,
+    `identifier` (every value its own), `category`, `number`, `date`, `text`,
+    `json` (an object per feature, listed by its keys) or `binary`.
+    """
+    c = quoted(column['name'])
+    present = f"nullif({c}, '') is not null"
+    if column['type'] == 'blob':
+        column['role'] = 'binary'
+        return
+    distinct = conn.execute(f'select count(*) from (select distinct {c} from {table} '
+                            f'where {present} limit {DISTINCT_CAP + 1})').fetchone()[0]
+    capped = distinct > DISTINCT_CAP
+    if capped and column['type'] in ('integer', 'text'):
+        # Counted exactly, since only the exact count tells an identifier from text.
+        distinct = conn.execute(f'select count(distinct {c}) from {table} where {present}').fetchone()[0]
+    elif capped:
+        column['distinct_capped'] = True
+    column['distinct'] = distinct
+    numeric = f"typeof({c}) in ('integer', 'real')"
+    if column['type'] in ('integer', 'real', 'boolean'):
+        # SQLite keeps what a row was given, so a REAL column can hold text.
+        mismatched = conn.execute(f'select count(*) from {table} where {present} and not {numeric}').fetchone()[0]
+        if mismatched:
+            column['mismatched'] = mismatched
+
+    objects = 0
+    first = conn.execute(f'select {c} from {table} where {present} limit 1').fetchone()[0]
+    if column['type'] == 'text' and distinct > 1 and isinstance(first, str) and first.lstrip().startswith('{'):
+        objects = conn.execute(f'select count(*) from {table} where {OBJECT.format(c=c)}').fetchone()[0]
+    if distinct == 1:
+        column['role'] = 'constant'
+    elif objects >= 0.9 * column['filled']:
+        column['role'] = 'json'
+        valid = OBJECT.format(c=f't.{c}')
+        keys = conn.execute(f"select j.key, count(*) k from {table} t, json_each(case when {valid} then t.{c} "
+                            "else '{}' end) j group by j.key order by k desc, j.key").fetchall()
+        column['key_count'] = len(keys)
+        column['keys'] = [dict(value=k, count=n) for k, n in keys[:TOP_KEYS]]
+        return
+    elif distinct == column['filled'] and distinct > CATEGORIES and column['type'] != 'real':
+        column['role'] = 'identifier'
+        return
+    elif distinct <= CATEGORIES:
+        column['role'] = 'category'
+    elif column['type'] in ('integer', 'real'):
+        column['role'] = 'number'
+    elif column['type'] in ('date', 'datetime'):
+        column['role'] = 'date'
+    else:
+        column['role'] = 'text'
+
+    # Text with many values still repeats some, and those say what it holds;
+    # a number with many is read by its histogram instead.
+    if column['role'] != 'number' or not capped:
+        column['top'] = [dict(value=shown(v), count=k) for v, k in conn.execute(
+            f'select {c}, count(*) k from {table} where {present} group by 1 order by k desc, 1 limit {TOP_VALUES}')]
+    if column['role'] == 'date':
+        lo, hi = conn.execute(f'select min({c}), max({c}) from {table} where {present}').fetchone()
+        column['range'] = dict(min=shown(lo), max=shown(hi))
+    if column['role'] == 'number':
+        lo, hi, mean, n = conn.execute(f'select min({c}), max({c}), avg({c}), count(*) from {table} '
+                                       f'where {numeric}').fetchone()
+        # Beside the mean, which one value entered in the wrong unit can carry far off.
+        median = conn.execute(f'select {c} from {table} where {numeric} order by {c} limit 1 offset ?',
+                              ((n - 1) // 2,)).fetchone()[0] if n else None
+        column['range'] = dict(min=attribute(lo), max=attribute(hi), mean=attribute(mean), median=attribute(median))
+        if lo is not None and math.isfinite(lo) and math.isfinite(hi) and hi > lo:
+            width = (hi - lo) / BINS
+            bins = [0] * BINS
+            for b, k in conn.execute(f'select min(cast(({c} - ?) / ? as integer), {BINS - 1}), count(*) '
+                                     f'from {table} where {numeric} group by 1', (lo, width)):
+                bins[b] += k
+            column['histogram'] = bins
+
+
+def profile(path, name):
+    """What one layer holds, read in full: the kinds of geometry its features
+    carry, and for each attribute how many features fill it and with what.
+
+    Converters give every layer of a file the same wide schema and a geometry
+    type of GEOMETRY, so the declarations say what a layer could hold and not
+    what it does. This reads what it does. Every figure counts every feature;
+    what the time did not allow is named in `incomplete`, never estimated.
+    """
+    started = time.monotonic()
+    budget = started + PROFILE_SECONDS - PROFILE_SPARE_S
+    with database(path, PROFILE_SECONDS) as conn:
+        layer = layer_named(conn, name)
+        table = quoted(name)
+        fields, pk = schema(conn, layer)
+        count = conn.execute(f'select count(*) from {table}').fetchone()[0]
+        incomplete = []
+        kinds = geometry_kinds(conn, layer, budget)
+        if kinds is None:
+            incomplete.append(layer['column_name'])
+        columns = [dict(f) for f in fields if f['name'] != pk]
+        if columns:
+            filled = conn.execute('select ' + ', '.join(f"count(nullif({quoted(f['name'])}, ''))" for f in columns)
+                                  + f' from {table}').fetchone()
+            for column, n in zip(columns, filled):
+                column['filled'] = n
+        for column in columns:
+            if column['filled'] == 0:
+                column['role'] = 'empty'
+                continue
+            if time.monotonic() > budget:
+                incomplete.append(column['name'])
+                continue
+            try:
+                describe(conn, table, column)
+            except sqlite3.OperationalError as exc:
+                # The hard limit interrupts the query in flight; what is done stays.
+                if 'interrupt' not in str(exc):
+                    raise
+                column.pop('distinct', None)
+                incomplete.append(column['name'])
+        return dict(name=name, count=count, pk=pk, geometry=dict(declared=layer['geometry_type_name'], kinds=kinds),
+                    fields=columns, incomplete=incomplete, seconds=round(time.monotonic() - started, 2))
+
+
 def action(req):
     try:
         if req['action'] == 'gpkg_inspect':
             result = inspect(req['path'])
+        elif req['action'] == 'gpkg_profile':
+            result = profile(req['path'], req['layer'])
         elif req['action'] == 'gpkg_feature':
             result = read_feature(req['path'], req['layer'], req['fid'])
         else:
