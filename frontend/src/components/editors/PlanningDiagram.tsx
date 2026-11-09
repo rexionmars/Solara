@@ -1,6 +1,7 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react"
-import { PlanGlyph } from "../../lib/icons"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { PlanGlyph, ShellGlyph } from "../../lib/icons"
 import type { Kind, Selection, Study } from "../../lib/planning"
+import { MapBar, MapButton } from "../shell/MapChrome"
 import { STORAGE_COLOR, carrierColor, fixed } from "./PlanningUI"
 
 /**
@@ -22,8 +23,12 @@ const TAIL = 24
 const GAP = 156 // between two bars in a row, where a line between them is labelled
 const ROW = 300 // a row without lanes
 const LANE = 24 // one routed line below a row
+const LANE_GAP = 22 // between a row's lowest caption and its first lane, so a lane's label clears it
 const PAD = 28
 const BAR = 160 // the bar's top, from the row's top
+const MARGIN = 24 // kept clear around a framed drawing
+const READABLE = 0.7 // the smallest scale a drawing opens at, where a caption is still read
+const clampZoom = (k: number) => Math.min(2.5, Math.max(0.2, k))
 
 type Cell = {
   bus: string
@@ -147,7 +152,8 @@ export function layoutStudy(study: Study, available: number): DiagramLayout {
   let y = PAD
   for (let r = 0; r < rows; r++) {
     tops.push(y)
-    y += ROW + (lanes.get(r) ?? 0) * LANE + 28
+    const n = lanes.get(r) ?? 0
+    y += ROW + (n ? LANE_GAP + n * LANE : 0) + 28
   }
   const placed = cells.map((c) => ({ ...c, y: tops[c.row] }))
   const at = new Map(placed.map((c) => [c.bus, c]))
@@ -162,7 +168,7 @@ export function layoutStudy(study: Study, available: number): DiagramLayout {
       // The label stands clear above the run: two lines of 16px and a gap, never across the wire.
       return { index, d: `M${x0},${yy} H${x1}`, label: { x: (x0 + x1) / 2, y: A.y + BAR - 46 - parallel * 38 }, straight: true }
     }
-    const laneY = A.y + ROW + lane * LANE
+    const laneY = A.y + ROW + LANE_GAP + lane * LANE
     const ax = A.x + 18 + 12 * a.ports++
     if (A.row === B.row) {
       const bx = B.x + 18 + 12 * b.ports++
@@ -224,29 +230,133 @@ export function PlanningDiagram({
   faults: Set<string>
 }) {
   const box = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(900)
+  const [size, setSize] = useState({ w: 900, h: 600 })
   useLayoutEffect(() => {
     const el = box.current
     if (!el) return
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth))
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
-    setWidth(el.clientWidth)
+    measure()
     return () => ro.disconnect()
   }, [])
-  const layout = useMemo(() => layoutStudy(study, width), [study, width])
+  const layout = useMemo(() => layoutStudy(study, size.w), [study, size.w])
   const fault = (kind: Kind, index: number) => faults.has(`${kind}:${index}`)
 
+  // The camera, as the map has one: a shift and a scale over the drawing.
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 })
+  const [panning, setPanning] = useState(false)
+  const moved = useRef(false)
+  const drag = useRef<{ x: number; y: number; vx: number; vy: number; far: boolean } | null>(null)
+  /**
+   * Frame the drawing. `whole` fits all of it however small that makes it;
+   * otherwise the scale stops where the captions are still read (READABLE) and
+   * a drawing still too big starts from its top, centred across when it fits.
+   */
+  const fit = useCallback(
+    (whole: boolean) => {
+      const all = Math.min(1, (size.w - 2 * MARGIN) / layout.width, (size.h - 2 * MARGIN) / layout.height)
+      const k = clampZoom(whole ? all : Math.max(all, READABLE))
+      const x = layout.width * k <= size.w - 2 * MARGIN ? (size.w - layout.width * k) / 2 : MARGIN
+      const y = layout.height * k <= size.h - 2 * MARGIN ? (size.h - layout.height * k) / 2 : MARGIN
+      setView({ k, x, y })
+    },
+    [size.w, size.h, layout.width, layout.height],
+  )
+  const zoomAt = (cx: number, cy: number, factor: number) => {
+    moved.current = true
+    setView((v) => {
+      const k = clampZoom(v.k * factor)
+      const r = k / v.k
+      return { k, x: cx - (cx - v.x) * r, y: cy - (cy - v.y) * r }
+    })
+  }
+  // A different network is framed afresh; the same one keeps where the reader put it.
+  const buses = study.buses.map((b) => b.id).join("\u0000")
+  useLayoutEffect(() => {
+    moved.current = false
+  }, [buses])
+  useLayoutEffect(() => {
+    if (!moved.current) fit(false)
+  }, [fit])
+
+  // Two fingers or the wheel move the drawing; a pinch, or the wheel with Ctrl or Cmd, scales it about the pointer.
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const line = e.deltaMode === 1 ? 16 : 1
+      if (e.ctrlKey || e.metaKey) {
+        const r = el.getBoundingClientRect()
+        zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * line * 0.0025))
+      } else {
+        moved.current = true
+        setView((v) => ({ ...v, x: v.x - e.deltaX * line, y: v.y - e.deltaY * line }))
+      }
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+    // zoomAt only touches the setter and a ref, both stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
-    // A flex box whose child has auto margins: centred while it fits, scrolled from its edge once it does not.
     <div
       ref={box}
-      className="flex min-h-0 flex-1 overflow-auto"
-      onClick={(e) => {
-        if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.ground) onSelect(null)
+      tabIndex={0}
+      role="group"
+      aria-label="Network diagram. Drag to move, pinch or Cmd and scroll to zoom; plus, minus and 0 from the keyboard."
+      className={`relative min-h-0 flex-1 overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent/50 ${panning ? "cursor-grabbing" : "cursor-grab"}`}
+      onPointerDown={(e) => {
+        // The ground, or anywhere with the middle button: never a component, never a line's hit stroke.
+        const onComponent = (e.target as Element).closest("button, [data-hit]")
+        if (!(e.button === 1 || (e.button === 0 && !onComponent))) return
+        if (e.button === 1) e.preventDefault()
+        drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, far: false }
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current
+        if (!d) return
+        const dx = e.clientX - d.x
+        const dy = e.clientY - d.y
+        if (!d.far && Math.hypot(dx, dy) > 3) {
+          d.far = true
+          setPanning(true)
+        }
+        if (d.far) {
+          moved.current = true
+          setView((v) => ({ ...v, x: d.vx + dx, y: d.vy + dy }))
+        }
+      }}
+      onPointerUp={(e) => {
+        const d = drag.current
+        drag.current = null
+        setPanning(false)
+        // A press on the ground that did not move is a click on it: nothing in hand.
+        if (d && !d.far && e.button === 0) onSelect(null)
+      }}
+      onPointerCancel={() => {
+        drag.current = null
+        setPanning(false)
+      }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === "+" || e.key === "=") zoomAt(size.w / 2, size.h / 2, 1.25)
+        else if (e.key === "-") zoomAt(size.w / 2, size.h / 2, 0.8)
+        else if (e.key === "0") {
+          moved.current = false
+          fit(true)
+        } else return
+        e.preventDefault()
       }}
     >
-      <div data-ground className="relative m-auto shrink-0" style={{ width: layout.width, height: layout.height }}>
-        <svg data-ground width={layout.width} height={layout.height} className="absolute inset-0" aria-hidden>
+      <div
+        className="absolute left-0 top-0"
+        style={{ width: layout.width, height: layout.height, transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: "0 0" }}
+      >
+        <svg width={layout.width} height={layout.height} className="absolute inset-0" aria-hidden>
           {layout.cells.map((c) => (
             <g key={c.bus}>
               <rect
@@ -279,6 +389,7 @@ export function PlanningDiagram({
                   fill="none"
                   stroke="transparent"
                   strokeWidth={12}
+                  data-hit
                   style={{ pointerEvents: "stroke", cursor: "pointer" }}
                   onClick={() => onSelect({ kind: "lines", index: w.index })}
                 />
@@ -397,6 +508,26 @@ export function PlanningDiagram({
             </button>
           )
         })}
+      </div>
+
+      <div className="absolute bottom-3 right-3" onPointerDown={(e) => e.stopPropagation()}>
+        <MapBar className="flex flex-col bg-panel">
+          <MapButton label="Zoom in (+)" onClick={() => zoomAt(size.w / 2, size.h / 2, 1.25)}>
+            <ShellGlyph.Plus className="size-4" />
+          </MapButton>
+          <MapButton label="Zoom out (−)" onClick={() => zoomAt(size.w / 2, size.h / 2, 0.8)}>
+            <ShellGlyph.Minus className="size-4" />
+          </MapButton>
+          <MapButton
+            label="Frame the whole network (0)"
+            onClick={() => {
+              moved.current = false
+              fit(true)
+            }}
+          >
+            <ShellGlyph.CornersOut className="size-4" />
+          </MapButton>
+        </MapBar>
       </div>
     </div>
   )

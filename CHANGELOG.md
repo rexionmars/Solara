@@ -60,7 +60,9 @@ they are what the sources say, and a reading that ignores them is wrong.
   each bus a bar, its generators above it, its loads and storage below it,
   the lines between the bars. Clicking a component opens it in the inspector
   beside the diagram, every field in the unit the engine reads. The diagram
-  is a drawing, not a map: positions carry no meaning. The tables stay, as
+  is a drawing, not a map: positions carry no meaning. It moves and zooms as
+  the map does: drag the ground, pinch or scroll with Cmd held, or use the
+  buttons in its corner and +, − and 0 on the keyboard. The tables stay, as
   the Table view.
 - **Profiles are charts.** A generator's availability and a load's demand are
   drawn as bars, edited as a column of numbers, pasted from a spreadsheet or

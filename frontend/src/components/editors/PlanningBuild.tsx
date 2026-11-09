@@ -418,12 +418,12 @@ export function PlanningBuild({
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-wrap">
+      {/* One row, never wrapped: a wrapped line takes the height of its tallest item, and the inspector's list would stretch the diagram past the window. */}
+      <div className="flex min-h-0 flex-1">
         <section
           aria-label="Network"
-          className="relative flex min-h-[420px] min-w-0 flex-col"
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col"
           style={{
-            flex: "999 1 520px",
             backgroundColor: "var(--s-board)",
             backgroundImage: "radial-gradient(circle, rgb(var(--p-line) / 0.32) 1px, transparent 1.2px)",
             backgroundSize: "22px 22px",
@@ -472,11 +472,12 @@ export function PlanningBuild({
           )}
           {view === "diagram" && (
             <p className="shrink-0 px-4 pb-3 text-body text-muted-foreground">
-              A drawing of the study, not a map: each component connects through the bus it names, and its place here means nothing.
+              A drawing of the study, not a map: each component connects through the bus it names, and its place here means nothing. Drag the
+              ground to move it; pinch, or scroll with Cmd held, to zoom.
             </p>
           )}
         </section>
-        <aside aria-label="Inspector" className="flex min-h-0 min-w-0 flex-col overflow-y-auto border-l border-line/25 bg-panel" style={{ flex: "1 1 340px", maxWidth: 400 }}>
+        <aside aria-label="Inspector" className="flex min-h-0 w-[clamp(300px,28vw,400px)] shrink-0 flex-col overflow-y-auto border-l border-line/25 bg-panel">
           <PlanningInspector
             study={study}
             selection={selection}

@@ -24,7 +24,9 @@ file menu (`⋯`) and **Optimize**.
 3. Build the network with **Add**: buses, generators, loads, lines and storage.
    The diagram draws each bus as a bar, its generators above it and its loads and
    storage below it, with the lines between the bars. Click a component to edit it
-   in the inspector; **Table** shows each kind as a spreadsheet instead. IDs must
+   in the inspector; **Table** shows each kind as a spreadsheet instead. Drag the
+   ground to move the diagram; pinch, or scroll with Cmd (Ctrl) held, to zoom about
+   the pointer; the corner buttons and +, − and 0 zoom and frame the whole network. IDs must
    be unique within a kind and every bus a component names must exist; renaming a
    bus renames it wherever it is named. The diagram is a drawing, not a map: a
    component is connected only by the bus it names. A GeoPackage can be cited as
