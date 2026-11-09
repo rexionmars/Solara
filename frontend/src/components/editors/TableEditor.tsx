@@ -5,7 +5,7 @@ import { select, selection } from "../../lib/selection"
 import { useStore } from "../../lib/store"
 import { COLUMNS, formatCell } from "../../lib/table"
 import { StudioHeaderRadio } from "../studio/HeaderControls"
-import { AreaHeader } from "../studio/StudioArea"
+import { AreaHeader } from "../shell/HeaderHosts"
 import { OperatorButton } from "../ui/Fields"
 
 /**
@@ -13,11 +13,15 @@ import { OperatorButton } from "../ui/Fields"
  * and the same columns the CSV export writes. A row press makes that result
  * active everywhere else.
  */
+/** The products with a table, in the order the picker offers them. */
+const TABLED: Product[] = ["solar", "wind", "terrain", "connection", "ground"]
+
 export function TableEditor({ areaId }: { areaId: string }) {
   const d = useStore(project).data
   const { id: selected } = useStore(selection)
   const state = useStore(areaStates)[areaId] ?? {}
-  const product = (state.product as Product | undefined) ?? "solar"
+  // Until one is chosen, the first product the project has results of, rather than an empty table.
+  const product = (state.product as Product | undefined) ?? (TABLED.find((p) => d.results.some((r) => r.kind === p)) ?? "solar")
   const sortKey = (state.sort as string | undefined) ?? "created"
   const descending = (state.desc as boolean | undefined) ?? true
 

@@ -174,11 +174,28 @@ test('ribbon and panel cannot optimize until pending profiles have been applied'
   assert.equal(c.api.planning.get().view, 'results')
 })
 
+test('the draft checks pass the example and point each fault at its component', async () => {
+  const { api } = await controller()
+  const example = api.exampleStudy()
+  assert.equal(api.checkStudy(example).length, 0)
+  const broken = structuredClone(example)
+  broken.generators[1].max_mw = 5
+  broken.lines[0].bus1 = 'North'
+  broken.provenance = ''
+  const issues = api.checkStudy(broken)
+  assert.ok(issues.some((i) => /upper bound/.test(i.message) && i.at.kind === 'generators' && i.at.index === 1))
+  assert.ok(issues.some((i) => /two different buses/.test(i.message) && i.at.kind === 'lines'))
+  assert.ok(issues.some((i) => /sources/.test(i.message) && !i.at))
+  const empty = api.checkStudy(api.emptyStudy())
+  assert.ok(empty.some((i) => /at least one bus/.test(i.message)))
+})
+
 test('shared study actions reset input views and profile drafts without replacing a running solve', async () => {
   const c = await controller()
   c.api.planning.set(s => ({ ...s, view: 'results', pendingProfiles: { load: true }, profileDrafts: { load: 'draft' } }))
   c.api.replacePlanningStudy(c.api.exampleStudy())
-  assert.equal(c.api.planning.get().view, 'study')
+  assert.equal(c.api.planning.get().view, 'build')
+  assert.equal(c.api.planning.get().selection, null)
   assert.equal(c.api.planning.get().revision, 1)
   assert.equal(c.api.planningHasPendingProfiles(), false)
   assert.equal(Object.keys(c.api.planning.get().profileDrafts).length, 0)

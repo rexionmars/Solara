@@ -1,0 +1,300 @@
+% !TEX program = lualatex
+% =====================================================================
+% andamento-2026-11-09.tex -- relatorio de andamento do Solara,
+% 5 a 9 de novembro de 2026
+%
+% Feito sobre `modelo.tex` e revisado pelo guia de estilo de escrita
+% cientifica do autor. Compile de dentro de `report/`:
+%
+%   latexmk -lualatex andamento-2026-11-09.tex
+%
+% FORMA. Uma coluna e uma pagina por figura: a figura na largura do
+% texto, no topo, e a explicacao dela logo abaixo, no fluxo, sem float. O
+% `\abertura` do estilo abre com `\twocolumn`, por isso o cabecalho e
+% `\cabecalho`, o mesmo corpo sem essa troca. As margens laterais sobem a
+% 2,5 cm para a linha de 10 pt nao passar de uns 95 caracteres.
+%
+% FIGURAS 2 E 6. Capturas do autor na janela nativa para macOS, sobre o
+% banco italiano; os PNG originais ficam ao lado dos JPG usados aqui.
+%
+% NUMEROS. Os das leituras saem do projeto de demonstracao
+% `.temp/demo/solara-demo-2026-11.solara`, lidos dos resultados que ele
+% guarda, e da execucao do exemplo sintetico do planejamento de sistema
+% em 9/11. As figuras sao capturas desse projeto, em
+% `figuras/andamento-2026-11/`; o conjunto completo, em 2x, esta em
+% `.temp/screenshots/2026-11-09-demo/`.
+%
+% TERMOS. "Ponto" traduz o `site` da interface e "leitura" e a pagina de
+% um resultado; os dois sao definidos no primeiro uso e mantidos. Nomes
+% de telas, abas e botoes ficam em ingles, como na interface, e em
+% redondo, por serem nomes proprios do produto.
+%
+% MARCA. A marca padrao do estilo e `../terra-mark.png`, que este
+% repositorio nao tem; a do Solara e o icone do aplicativo.
+% =====================================================================
+\documentclass[10pt,a4paper,oneside,onecolumn]{book}
+
+\usepackage{iftex}
+\ifPDFTeX\usepackage[utf8]{inputenc}\fi
+\usepackage[brazilian]{babel}
+\usepackage[a4paper,top=2.0cm,bottom=2.2cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{estilo-reporte}
+
+\raggedbottom
+\pagestyle{plain}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+
+\autoria{João Leonardi da Silva Melo}{opensource.leonardi@gmail.com}
+\marca{../build/appicon.png}
+
+% O corpo de `\abertura`, sem o `\twocolumn` que o envolve.
+\makeatletter
+\newcommand{\cabecalho}[2]{%
+  \vspace*{-0.4em}%
+  \noindent
+  \begin{minipage}[b]{\marcalargura}%
+    \includegraphics[width=\marcalargura]{\re@marca}%
+  \end{minipage}%
+  \hspace{\marcarespiro}%
+  \begin{minipage}[b]{\dimexpr\textwidth-\marcalargura-\marcarespiro\relax}%
+    {\sffamily\bfseries\LARGE\hyphenpenalty=10000\exhyphenpenalty=10000
+     \raggedright #1\par}%
+    \vspace{0.35em}%
+    {\sffamily\fontsize{9}{11}\selectfont\color{tinta2}\raggedright #2\par}%
+    \vspace{0.25em}%
+    \re@assinatura
+  \end{minipage}%
+  \vspace{0.7em}\par
+  \noindent{\color{destaque}\rule{\textwidth}{0.6pt}}%
+  \vspace{1.0em}\par}
+\makeatother
+
+% Uma figura na largura do texto, com a legenda, para o topo de uma pagina.
+\newcommand{\figura}[2]{%
+  \noindent\includegraphics[width=\textwidth]{figuras/andamento-2026-11/#1}\par
+  \captionof{figure}{#2}\vspace{0.6em}}
+
+% Uma pagina nova que comeca pela figura; o texto que segue vem abaixo dela.
+\newcommand{\paginafigura}[2]{\clearpage\figura{#1}{#2}}
+
+\begin{document}
+
+\cabecalho{Síntese das alterações na interface e no planejamento de sistema do Solara}
+            {Relatório de andamento}%
+  \figura{03-map-rio-grande-do-norte.jpg}
+         {Projeto de demonstração no Rio Grande do Norte, com os dois pontos
+          e as duas áreas do projeto sobre as linhas de 220~kV, as
+          subestações e as usinas solares e eólicas do GeoPackage de
+          infraestrutura.}
+
+\section*{Organização da interface em torno do mapa}
+
+O mapa passou a ocupar a janela inteira, e as demais funções se
+organizam ao redor dele (Figura~1). Na versão anterior, as funções
+ficavam distribuídas em 14 editores e 11 áreas de trabalho, uma função
+cujo editor não estivesse aberto ficava invisível, e o mapa era coberto
+pelos editores durante o trabalho. Na versão atual, um trilho à
+esquerda leva às telas de mapa (Explore), de pontos e áreas (Sites and
+areas), de comparação de resultados (Compare), de planejamento de
+sistema (Planning) e do grafo de execução (Run graph). A borda direita do
+mapa reúne os painéis de produtos, de resultados e de camadas, além das
+ferramentas de localização e de medida, e apenas um painel fica aberto
+por vez.
+
+O projeto de demonstração reúne os seis produtos de cálculo do
+aplicativo em dois pontos e duas áreas do Rio Grande do Norte. Um ponto,
+chamado \emph{site} na interface, é uma coordenada de análise; os pontos
+do projeto são São Miguel do Gostoso, no litoral, e Assú, no interior.
+As áreas cobrem Natal, no litoral, e o Seridó, no interior, e o projeto
+guarda 11 resultados.
+
+As camadas de um arquivo GeoPackage, o formato de dados geográficos
+padronizado pelo OGC (Open Geospatial Consortium), entram no projeto como
+referência, com a camada ativa, as camadas visíveis e a cor de cada uma.
+O projeto de demonstração usa o arquivo \texttt{infra\_brasile.gpkg}, com
+subestações, linhas de 220~kV e de 550~kV e usinas solares e eólicas. O
+fundo da interface também passou de um cinza aquecido, que ao lado do
+mapa era lido como amarelo, a um cinza neutro.
+
+\paginafigura{italia-geopackage.jpg}
+  {Tela inicial do aplicativo sobre o GeoPackage de infraestrutura da
+   Itália, na janela nativa para macOS, com as subestações agregadas em
+   contagens.}
+
+\section*{Camadas de infraestrutura da Itália}
+
+As camadas de um GeoPackage não dependem do país. A Figura~2 mostra o
+arquivo \texttt{infra\_italia.gpkg} sobre a imagem de satélite do mapa
+base. Com mais de \num{5000} subestações na vista, o mapa desenha um
+círculo por célula, com área proporcional ao número de subestações, e a
+legenda dá a escala para 75, 300 e \num{1203} subestações; ao aproximar o
+mapa, cada subestação passa a ser desenhada.
+
+A captura foi feita na janela nativa do aplicativo para macOS e mostra
+também a tela inicial, com a nova foto de abertura, os comandos de
+início e os projetos recentes.
+
+\paginafigura{05-result-solar-resource.jpg}
+  {Leitura de recurso solar no ponto de Assú.}
+
+\section*{Recurso solar em Assú}
+
+Cada resultado é apresentado como uma leitura, isto é, uma página com
+título, até quatro indicadores e um painel principal cujo título enuncia
+o achado. A leitura de recurso solar combina a climatologia de 30 anos e
+a série horária de 10 anos do NASA POWER na célula de radiação do ponto e
+calcula o rendimento de um arranjo fixo com o pvlib.
+
+Em Assú, a irradiação global foi de \num{2207}~kWh/m² por ano, e o
+rendimento específico, de \num{1665}~kWh/kWp, para razão de desempenho
+(PR, \emph{performance ratio}) de 0,80. A inclinação ótima foi de
+\num{8.5}°, com ganho de \num{0.8}~\% sobre o plano horizontal, e a
+irradiação global variou \num{1.45}~\% entre os anos. O painel principal
+mostra as médias diárias de cada mês para a irradiação global, a direta
+e a difusa; novembro recebe 37~\% mais irradiação global que junho.
+
+No outro ponto do projeto, São Miguel do Gostoso, a irradiação global foi
+de \num{2117}~kWh/m² por ano, e o rendimento específico, de
+\num{1609}~kWh/kWp.
+
+\paginafigura{08-natal-solar-terrain.jpg}
+  {Leitura de terreno solar na área de Natal. No mapa, a irradiação
+   anual de cada célula; na leitura, a área por faixa de irradiação.}
+
+\section*{Terreno solar em Natal}
+
+A leitura de terreno solar calcula a irradiação anual no plano do
+arranjo em cada célula de 30~m do modelo digital de elevação Copernicus
+GLO-30, incluindo o sombreamento pelo horizonte. Na área de Natal, a
+média foi de \num{1991}~kWh/m² por ano, e a célula de menor irradiação
+recebeu \num{1664}~kWh/m², 84~\% da média. O sombreamento médio pelo
+horizonte foi de \num{0.37}~\%, com máximo de \num{16.3}~\%, e a
+declividade média foi de \num{2.3}°.
+
+O histograma mostra a área por faixa de irradiação, e a escala de cores
+sob o eixo é a mesma do mapa. A maior parte da área fica próxima da
+média, e \num{2.0}~\% dela fica abaixo de \num{1934}~kWh/m².
+
+Na área do Seridó, a média foi de \num{1976}~kWh/m² por ano, o mínimo,
+de \num{1501}~kWh/m², e a declividade média, de \num{5.2}°.
+
+\paginafigura{17-planning-build.jpg}
+  {Vista Build do planejamento de sistema, com a rede do exemplo
+   sintético desenhada como diagrama unifilar e a lista de componentes.}
+
+\section*{Montagem do estudo de planejamento de sistema}
+
+O planejamento de sistema (System planning) resolve o despacho econômico
+e a expansão de capacidade de uma rede definida pelo usuário com o
+PyPSA, uma biblioteca de modelagem de sistemas elétricos, e o otimizador
+linear HiGHS. A versão anterior apresentava a rede como cinco
+planilhas, os perfis horários como números separados por vírgulas e o
+resultado como uma coluna de seis números e quatro tabelas. A versão
+atual divide o trabalho em duas vistas, Build para montar o estudo e
+Results para ler a execução.
+
+Na vista Build, a faixa do estudo reúne o modo, a moeda, o limite de
+CO₂, o horizonte e as fontes. A rede é desenhada como diagrama unifilar,
+com cada barramento como um traço, os geradores acima dele e as cargas e
+as baterias abaixo. A seleção de um componente o abre em um inspetor,
+que mostra o perfil de disponibilidade ou de demanda em barras e aceita
+edição direta, colagem de uma planilha e importação de CSV.
+
+Antes da otimização, o rascunho é verificado pelas mesmas regras do
+motor de cálculo, e o botão Optimize permanece desativado enquanto houver
+falha. O diagrama aceita deslocamento e \emph{zoom}, como o mapa.
+
+\paginafigura{planning-build-foggia.jpg}
+  {Vista Build de um estudo com 12 barramentos na região de Foggia, na
+   Itália, na janela nativa para macOS.}
+
+\section*{Estudo de planejamento com uma rede de 12 barramentos}
+
+O estudo Foggia--Troia, de expansão com geração solar e baterias, tem 12
+barramentos de 380~kV, 15 geradores, 5 cargas, 12 linhas e 2 baterias. O
+horizonte começa em 15 de junho de 2026 e tem 168 intervalos de 1~h. Os
+geradores existentes são usinas a gás, como a central de Termoli, de
+770~MW, parques eólicos agregados por subestação e o parque solar de
+Troia, de 103~MW. Os candidatos à expansão são duas usinas solares, de
+até 800~MW e de até 400~MW, e duas baterias de até 200~MW, com 4~h de
+armazenamento.
+
+Nesse tamanho, o diagrama distribui os barramentos em fileiras e conduz
+as linhas entre barramentos não vizinhos por faixas sob cada fileira. A
+faixa do estudo indica que o rascunho passou nas verificações do motor
+de cálculo (Ready to optimize). Os nomes dos componentes trazem, entre
+colchetes, o identificador de origem de cada objeto, como os do
+OpenStreetMap.
+
+\paginafigura{19-planning-results-dispatch.jpg}
+  {Vista Results do planejamento de sistema, com o despacho horário por
+   tecnologia, a carga da bateria abaixo de zero e a demanda como linha em
+   degraus.}
+
+\section*{Leitura da execução do planejamento de sistema}
+
+Na vista Results, quatro indicadores precedem um painel com as abas
+Dispatch, Capacity, Lines e Storage. No exemplo sintético de dois
+barramentos e 24 horas, o custo do horizonte foi de \num{71255}~EUR, dos
+quais \num{44453}~EUR de operação e \num{26803}~EUR de capacidade
+adicionada. O custo por MWh atendido foi de \num{59.1}~EUR, e as emissões
+diretas somaram 177~t de CO₂.
+
+O otimizador adicionou \num{85.3}~MW de geração solar, 80~MW de bateria e
+\num{71.7}~MVA à linha North–South, que operou no limite térmico durante
+3~h. A geração solar respondeu por 64~\% da energia gerada. A bateria
+carregou entre 08:00 e 17:00 e descarregou 70~\% de sua energia entre
+17:00 e 21:00, intervalo em que a demanda passa de 45~MW para 70~MW.
+
+\begin{objecao}
+O exemplo é fictício e não representa uma rede real. O estudo é guardado
+no armazenamento local do aplicativo, fora do arquivo \texttt{.solara}, e
+as execuções duram apenas a sessão.
+\end{objecao}
+
+\clearpage
+
+\section*{Correção da conexão com o banco de dados da rede}
+
+Desde o \emph{commit} \texttt{24f2bf3}, de 29 de outubro, as consultas
+rápidas do aplicativo são atendidas por processos Python mantidos
+abertos entre pedidos. Nesses processos, a saída padrão é desviada, e a
+resposta de cada ação precisa passar pela função de resposta do
+protocolo. As ações da rede elétrica e o campo de vento do mapa escreviam
+a resposta diretamente na saída padrão, onde ela se perdia. Por isso, a
+conexão com qualquer banco de dados da rede, chamado Grid store na
+interface, falhava com a mensagem \emph{the action produced no result},
+inclusive com o banco italiano \texttt{solara\_it}. As duas ações
+passaram a responder pelo protocolo, e um teste novo rejeita qualquer
+ação que escreva na saída padrão fora dele.
+
+\section*{Verificação}
+
+Os 37 testes da interface e os 350 testes do motor de cálculo passaram.
+As telas foram verificadas no modo de desenvolvimento do aplicativo, em
+um navegador Chrome sem interface gráfica, com \num{1600}~px e
+\num{1180}~px de largura. Na janela nativa para macOS, foram vistas a
+tela inicial e a vista Build (Figuras~2 e 6). A vista Results na janela
+nativa e o gesto de pinça em um \emph{trackpad} real não foram
+verificados.
+
+\section*{Pendências}
+
+\begin{ficha}
+  \item[Estudo] A gravação do estudo de planejamento no arquivo
+                \texttt{.solara} continua por decidir, porque altera o
+                formato do arquivo.
+  \item[Mapa] Na aba Usable ground de um resultado, o mapa continua
+              desenhando o \emph{raster} do Solar terrain. A causa não foi
+              investigada.
+  \item[\emph{Commits}] A correção da conexão e a troca da foto da tela de
+                abertura não foram registradas em \emph{commit}. Os três
+                \emph{commits} novos do ramo não foram enviados ao
+                repositório remoto, e o ramo não tem \emph{pull request}.
+  \item[Crédito] A foto da tela de abertura é creditada ao usuário
+                 \texttt{gunas4life} do Pexels, e o nome do fotógrafo não
+                 foi confirmado.
+\end{ficha}
+
+\end{document}

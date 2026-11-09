@@ -70,10 +70,10 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
       <div className="relative z-10 flex flex-col items-center gap-3.5">
         <img src="/solara-lockup.png" alt="Solara" className="splash-logo w-[186px]" />
         <div className="flex flex-col items-center gap-1.5">
-          <p className="splash-eyebrow text-[10px] uppercase tracking-[0.12em] text-foreground/80">
+          <p className="splash-eyebrow text-[12px] text-foreground/85">
             {BRAND_TAGLINE}
           </p>
-          <p className="splash-eyebrow font-mono text-[9px] tracking-[0.08em] text-foreground/70">
+          <p className="splash-eyebrow text-[11px] tabular-nums text-foreground/75">
             {RELEASE_NAME}
             {version && ` · ${version}`}
           </p>
@@ -83,7 +83,7 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
       </div>
 
       <p
-        className="splash-log app-no-drag absolute bottom-4 left-4 right-4 z-10 truncate text-center font-mono text-[10px] tracking-wide text-foreground/85"
+        className="splash-log app-no-drag absolute bottom-4 left-4 right-4 z-10 truncate text-center text-[11px] text-foreground/85"
         title={line}
       >
         {line}

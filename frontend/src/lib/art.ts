@@ -23,7 +23,7 @@ export function artSrc(art: string | undefined): string | undefined {
 
 /**
  * Which drawing each operator asks for. Keyed by the operator's name, so the
- * ribbon, the menus, the operator search and the start screen draw one command
+ * menus, the panels, the operator search and the start screen draw one command
  * the same way wherever it is reached. An operator with no entry keeps its glyph.
  */
 const OPERATOR_ART: Record<string, string> = {
@@ -81,22 +81,3 @@ const OPERATOR_ART: Record<string, string> = {
 
 export const operatorArt = (name: string): string | undefined => OPERATOR_ART[name]
 
-/** Which drawing each editor asks for, on its area's header and in the menu that changes it. */
-const EDITOR_ART: Record<string, string> = {
-  planning: "run-graph",
-  map: "area",
-  graph: "run-graph",
-  outliner: "legend",
-  properties: "adjust",
-  table: "data",
-  reports: "reports",
-  console: "scripting",
-  solar: "solar",
-  wind: "wind",
-  terrain: "terrain",
-  connection: "connection",
-  demand: "demand",
-  ground: "ground",
-}
-
-export const editorArt = (id: string): string | undefined => EDITOR_ART[id]

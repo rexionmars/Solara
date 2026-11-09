@@ -38,14 +38,28 @@ def emit_progress(progress: int, msg: str) -> None:
     sys.stderr.flush()
 
 
+class Failure(RuntimeError):
+    """fail() while serving (cli.serve): the request failed, the interpreter goes on."""
+
+
+# Where reply() hands a result while the interpreter serves requests one per
+# line (cli.serve); None when it answers one request and exits.
+answer: Callable[[dict[str, Any]], None] | None = None
+
+
 def reply(result: dict[str, Any]) -> None:
     """Write the result to stdout. Called once, at the end of an action."""
+    if answer is not None:
+        answer(result)
+        return
     sys.stdout.write(json.dumps(result))
     sys.stdout.flush()
 
 
 def fail(msg: str) -> NoReturn:
-    """Write an error to stderr and exit non-zero."""
+    """Write an error to stderr and exit non-zero; while serving, fail this request only."""
+    if answer is not None:
+        raise Failure(msg)
     sys.stderr.write(json.dumps({'error': msg}) + '\n')
     sys.stderr.flush()
     sys.exit(1)

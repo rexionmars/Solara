@@ -4,6 +4,7 @@ package sidecar
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -173,5 +174,118 @@ time.sleep(60)
 			t.Fatalf("descendant %d still alive after Cancel", pid)
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// A sidecar that serves pid, error, die and sleep, and answers a one-shot
+// request with {"cold": true}, so a test can tell which path answered.
+const servingApp = `
+import json, os, sys, time
+if sys.argv[1:] == ['--serve']:
+    for line in sys.stdin:
+        action = json.loads(line)['action']
+        if action == 'die':
+            os._exit(3)
+        if action == 'sleep':
+            time.sleep(30)
+        answer = {'result': {'pid': os.getpid()}} if action == 'pid' else {'error': 'unknown action: ' + action}
+        print(json.dumps(answer), flush=True)
+else:
+    json.load(sys.stdin)
+    print(json.dumps({'cold': True}))
+`
+
+func pidOf(t *testing.T, r *Runner, ctx context.Context) int {
+	t.Helper()
+	raw, err := r.Read(ctx, map[string]any{"action": "pid"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct{ Pid int }
+	if err := json.Unmarshal(raw, &got); err != nil || got.Pid == 0 {
+		t.Fatalf("not a served answer: %s", raw)
+	}
+	return got.Pid
+}
+
+func TestRead_ReusesWarmInterpreter(t *testing.T) {
+	r := fakeApp(t, servingApp)
+	t.Cleanup(r.Close)
+	first := pidOf(t, r, context.Background())
+	if again := pidOf(t, r, context.Background()); again != first {
+		t.Fatalf("second read started another interpreter: %d then %d", first, again)
+	}
+	if _, err := r.Read(context.Background(), map[string]any{"action": "nope"}); err == nil || err.Error() != "unknown action: nope" {
+		t.Fatalf("want the served error as it was written, got %v", err)
+	}
+	if after := pidOf(t, r, context.Background()); after != first {
+		t.Fatal("an error answer cost the worker")
+	}
+}
+
+func TestRead_DeadWorkerFallsBackToOneShot(t *testing.T) {
+	r := fakeApp(t, servingApp)
+	t.Cleanup(r.Close)
+	first := pidOf(t, r, context.Background())
+	raw, err := r.Read(context.Background(), map[string]any{"action": "die"})
+	if err != nil || !strings.Contains(string(raw), `"cold": true`) {
+		t.Fatalf("want the one-shot answer after the worker died, got %s, %v", raw, err)
+	}
+	if next := pidOf(t, r, context.Background()); next == first {
+		t.Fatal("a dead worker was reused")
+	}
+}
+
+func TestRead_TimeoutKillsTheWorker(t *testing.T) {
+	r := fakeApp(t, servingApp)
+	t.Cleanup(r.Close)
+	first := pidOf(t, r, context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if _, err := r.Read(ctx, map[string]any{"action": "sleep"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("want the deadline, got %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for syscall.Kill(first, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("the timed-out worker is still running")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if next := pidOf(t, r, context.Background()); next == first {
+		t.Fatal("a killed worker was reused")
+	}
+}
+
+func TestClose_EndsIdleWorkers(t *testing.T) {
+	r := fakeApp(t, servingApp)
+	pid := pidOf(t, r, context.Background())
+	r.Close()
+	deadline := time.Now().Add(5 * time.Second)
+	for syscall.Kill(pid, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("an idle worker outlived Close")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestRead_RealSidecarServes(t *testing.T) {
+	repo, _ := filepath.Abs(filepath.Join("..", ".."))
+	t.Setenv("TERRA_ENERGY_APP_DIR", repo)
+	t.Setenv("TERRA_ENERGY_PYTHON", python(t))
+	r, err := NewRunner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(r.Close)
+	for range 2 {
+		raw, err := r.Read(context.Background(), map[string]any{"action": "ping"})
+		if err != nil || !strings.Contains(string(raw), `"ok": true`) {
+			t.Fatalf("want the ping answer, got %s, %v", raw, err)
+		}
+	}
+	if _, err := r.Read(context.Background(), map[string]any{"action": "no_such_action"}); err == nil || !strings.Contains(err.Error(), "unknown action") {
+		t.Fatalf("want the sidecar's own error, got %v", err)
 	}
 }

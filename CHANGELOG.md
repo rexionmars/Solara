@@ -52,6 +52,116 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 ---
 
+## Unreleased
+
+### The map is the window
+
+- **The map fills the window, and the studio is gone**: its fourteen editors
+  in eleven workspaces, the ribbon above them, the area tree, the title,
+  workspace and status bars, panel dragging and the console. A capability
+  inside an editor nobody opened was one nobody knew existed.
+- **A rail on the left** goes to Explore, Sites and areas, Compare, Planning
+  and the Run graph, with Activity, Help and Feedback at its foot. The header
+  beside it holds the project and the site or area in hand as menus, and
+  Options under the logo.
+- **A column on the map's right edge** opens Products, Result and Layers,
+  then searches, places a site, takes an area from a place, measures, frames
+  and deletes. Zoom and north sit in the bottom corner.
+- **One panel at a time.** Products is what can be run on the place in hand;
+  Result reads a run wide, in the reading template; Layers holds the map's
+  layers and the choice of ground; Sites and areas holds the project's
+  places. Compare, Planning and the Run graph fill the window beside the
+  rail. A finished run opens its reading, and the map frames what the run was
+  sent to, clear of the panel.
+- Every command the studio held has a home, and the operator search names it.
+
+### System planning, built and read
+
+- **The network is drawn.** Build shows the study as a single-line diagram:
+  each bus a bar, its generators above it, its loads and storage below it,
+  the lines between the bars. Clicking a component opens it in the inspector
+  beside the diagram, every field in the unit the engine reads. The diagram
+  is a drawing, not a map: positions carry no meaning. It moves and zooms as
+  the map does: drag the ground, pinch or scroll with Cmd held, or use the
+  buttons in its corner and +, − and 0 on the keyboard. The tables stay, as
+  the Table view.
+- **Profiles are charts.** A generator's availability and a load's demand are
+  drawn as bars, edited as a column of numbers, pasted from a spreadsheet or
+  imported from a CSV. A half-typed profile holds Optimize back and says so.
+- **Faults are shown before the solve.** The draft is checked against the
+  same rules the engine applies, each fault pointed at its component on the
+  diagram and in the inspector, and Optimize waits until there are none.
+- **A run is read as a reading:** four figures (horizon cost, cost per MWh
+  served, direct CO₂, hours at a line limit) and one panel with dispatch by
+  technology hour by hour, the capacity the optimizer added against each
+  upper bound, the lines' peak loading and the storage's state of charge.
+  Each technology keeps one colour on the diagram and on the charts.
+- The study is still kept in the application's local storage, not in the
+  project file.
+
+### The look
+
+- **The colours come from the logo.** The sunflower leaf is the accent --
+  what is open, what is chosen, the button that commits -- and the olive leaf
+  marks what went well. The chassis is a neutral graphite, the greys of the
+  map's own dark ground, so nothing but the leaves reads yellow. A warning is
+  orange, so it is never read as a selection. The logo and its wordmark are
+  unchanged.
+- **The opening screen shows a solar farm**, in place of the ridge.
+- **Panels are edged and cornered as one family**: a hairline edge and the
+  same rounded corner on every panel, menu and card.
+- **One face, in sentence case.** Labels, readouts and figures are all
+  Inter, figures in tabular numerals; the terminal face and tracked capitals
+  are gone from the interface, kept for code in the console.
+- **A reading's cards and panels stand on their own step**, and when the
+  room is narrow its four figures stay abreast as one strip, with what each
+  is over in its tooltip.
+- **One legend, docked in the map's corner**, for every layer drawn and in
+  view: a reading's ramp or classes and each GeoPackage layer, with the sizes
+  of the circles where a layer is counted. It replaces the boxes anchored to
+  each area, which piled up over the ground they explained.
+- **Layers and Sites and areas can be filtered by name**, and a GeoPackage
+  of more than 15 layers lists them by the prefix of their names, each group
+  saying how many of its layers are drawn.
+
+### Faster reads
+
+- **A map layer or a clicked feature no longer waits for Python to start.**
+  Every read started an interpreter and imported what it needed, about
+  0.1 s on a development machine before any work. Reads now go to up to two
+  interpreters kept running: a small GeoPackage layer answers in 9 ms
+  instead of 119, a clicked feature in 3 ms instead of 110. Analyses still
+  start a process of their own, so cancelling one stops it alone. A worker
+  that dies under a read sends that read down the old path, so a fault there
+  costs time and never a result.
+
+### GeoPackage layers
+
+- **A crowded view is counted, not cut.** A layer with more than 5,000
+  features in view was drawn from whichever 5,000 rows came first. Over Brazil
+  that put every transmission tower of an OpenStreetMap export in one corner
+  of Rio Grande do Sul, and left the coast from Fortaleza to Salvador without
+  a substation. Such a layer is now drawn as one circle per map cell, at the
+  mean of its features, with its area grown with the count. A legend on the
+  map gives the sizes, the Outliner marks the layer **counts**, and a click
+  on a circle frames its cell.
+  - The counts come from the layer's spatial index alone. A layer without
+    one is still drawn from its first 50,000 records, and says so.
+  - The total in view is exact. A feature near a cell's edge can be counted
+    in the neighbouring cell, because the index is summed over a grid four
+    times finer than the cells before the cells are formed.
+- **Attributes read as their columns declare them.** An integer is never
+  grouped, so an identifier or a municipality code reads as itself. A boolean
+  reads yes or no, and a blob gives its size instead of vanishing. Columns
+  keep the file's order and the aliases of `gpkg_data_columns`; the labels
+  and order written for one OpenStreetMap export are gone.
+- **A click reads the feature whole**, by its primary key: every attribute
+  uncut, and the geometry neither clipped nor simplified. The preview now
+  carries only the attributes the map colours and names by, which takes the
+  substations of that export over Brazil from 4.2 MB to 1.3 MB.
+
+---
+
 ## 2026-10-18 · 1.0.0
 
 The first release, tagged `v1.0.0`. It is built for macOS on Apple Silicon and

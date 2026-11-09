@@ -15,10 +15,14 @@
 }
 
 /*
-  The theme is TERRA's, token for token, so this application and TERRA read as
-  one family: a neutral chassis with the hue left to the accent and to data.
-  See geosense-infer/frontend/src/index.css, where each value is measured and
-  argued; the short version is kept here beside each block.
+  The theme takes its colours from Solara's own mark, the two leaves: the
+  sunflower leaf is the accent -- what is active, chosen or pressed -- and the
+  olive leaf marks the application itself and what went well. The chassis is a
+  neutral graphite, the greys of the map's own dark ground: a chassis warmed
+  towards the leaves read yellow beside the map, so the leaves stay in the
+  accent and every other hue is left to data. The structure is TERRA's
+  (geosense-infer/frontend/src/index.css): the same steps and roles, with the
+  values below. Each text colour's contrast is given against a panel.
 
   Channels live ONLY on --p-* (R G B). A component never reads a --p-* ramp
   step directly: it reads a role (--s-*), and the role reads the ramp, so one
@@ -35,24 +39,34 @@
     step above the ground it stands on and its wells one step below it, so a
     boundary is still read from the ground rather than from a hairline.
   */
-  --p-sunk: 24 24 24;
-  --p-ink: 30 30 30;
-  --p-well: 20 20 20;
-  --p-control: 40 40 40;
-  --p-surface: 26 26 26;
-  --p-head: 34 34 34;
-  --p-band: 53 53 53;
-  --p-band-tab: 48 48 48;
-  --p-surface-raised: 67 67 67;
-  --p-line: 91 91 91;
-  --p-line-strong: 145 145 145;
-  --p-text: 221 221 221;
-  /* 5.18 on a panel, 6.23 on ink; used only as text. */
-  --p-muted: 184 184 184;
-  /* The only hue that is not data. A light fill, so its label is ink (6.25), not white. */
-  --p-accent: 97 167 255;
-  --p-accent-quiet: 122 181 255;
-  --p-accent-dim: 24 54 91;
+  --p-sunk: 21 21 21;
+  --p-ink: 18 18 18;
+  --p-well: 21 21 21;
+  --p-control: 35 35 35;
+  --p-surface: 27 27 27;
+  --p-head: 27 27 27;
+  --p-band: 27 27 27;
+  --p-band-tab: 23 23 23;
+  --p-surface-raised: 43 43 43;
+  --p-line: 90 90 90;
+  --p-line-strong: 146 146 146;
+  /* 14.3 on a panel. */
+  --p-text: 234 234 234;
+  /* 7.1 on a panel; used only as text. */
+  --p-muted: 166 166 166;
+  /* The sunflower leaf of the mark, the one hue the chrome spends. A light fill, so its label is ink (9.8). */
+  --p-accent: 235 190 52;
+  /* The accent as words, 11.0 on a panel. */
+  --p-accent-quiet: 240 203 90;
+  /*
+    The row a menu or list is on, under foreground text. A lifted grey and not
+    a darkened accent: on every menu hover a dimmed sunflower read as brown.
+  */
+  --p-accent-dim: 50 50 50;
+  /* The olive leaf: deep under the Studio menu's light label (5.4), light as text for what went well (8.5). */
+  --p-olive: 101 134 55;
+  --p-olive-deep: 79 107 42;
+  --p-olive-light: 156 194 97;
 
   /* The products, as colour: labels rather than calls, at lower chroma than the accent. */
   --p-kind-site: 158 158 158;
@@ -71,17 +85,23 @@
   --s-band: rgb(var(--p-band));
   --s-band-tab: rgb(var(--p-band-tab));
   /* A panel's two rules and its three weights of text: the reading's page and every editor read these. */
-  --s-line: #2b2b2b;
-  --s-line-soft: #232323;
-  --s-text: #ececec;
-  --s-text-muted: #9b9b9b;
-  --s-text-faint: #6e6e6e;
+  --s-line: #292929;
+  --s-line-soft: #252525;
+  --s-text: #eaeaea;
+  --s-text-muted: #a6a6a6;
+  /* 4.9 on a panel: faint, never below what a label needs. */
+  --s-text-faint: #898989;
   --s-control: rgb(var(--p-control));
   --s-panel: rgb(var(--p-surface));
   --s-panel-head: rgb(var(--p-head));
   /* Overlays rather than steps, so a hover is the same gesture on every ground. */
-  --s-hover: rgb(255 255 255 / 0.07);
-  --s-selected: rgb(255 255 255 / 0.13);
+  --s-hover: rgb(255 255 255 / 0.06);
+  /*
+    What is chosen is lifted, not tinted. This is also a text field's ground,
+    so the accent here wore every field and selected row in yellow; the accent
+    is kept for what is active or pressed.
+  */
+  --s-selected: rgb(255 255 255 / 0.1);
   --s-float: rgb(var(--p-surface-raised));
 
   /*
@@ -92,8 +112,8 @@
     application's sunk surface, and it redefines --s-sunk locally so a chart
     drawn inside it paints its gaps and rings in the card's colour.
   */
-  --p-void: 13 13 13;
-  --p-card: 25 25 25;
+  --p-void: 15 15 15;
+  --p-card: 31 31 31;
   --s-board: rgb(var(--p-void));
   --s-card: rgb(var(--p-card));
 
@@ -110,16 +130,34 @@
   --destructive: #9f2b3a;
   --destructive-foreground: rgb(var(--p-text));
   --destructive-quiet: #f8989e;
-  --warning: #d5be4b;
-  --success: #b1fa63;
+  /* Attention is orange, not the accent's yellow, so a warning never reads as a selection. */
+  --warning: #e0913a;
+  --success: rgb(var(--p-olive-light));
 
   --border: rgb(var(--p-line) / 0.28);
   --hairline: rgb(var(--p-line) / 0.22);
   --ring: rgb(var(--p-accent));
 
+  /*
+    What floats over the map: ink at an alpha over the ground, which the filter
+    dims first. A token's ratio describes text on a flat colour, and here part of
+    what the text is read on is imagery, so TERRA measured the pair over both
+    extremes of the ground: blur and 0.7 brightness under ink at 0.82 held the
+    worst case of each above 4.5.
+  */
+  --map-chrome-alpha: 0.82;
+  --map-chrome-filter: blur(18px) brightness(0.7);
+
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /*
+    One face for the interface: labels, figures and readouts are all Inter, the
+    figures in tabular numerals so they still line up. --font-telemetry keeps
+    its name for the classes that read it. The terminal face is spent on code
+    alone -- the console, a study's JSON -- as --font-code, Tailwind's font-mono.
+  */
+  --font-telemetry: var(--font-sans);
+  --font-code: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-brand: "RoundSans", var(--font-display);
 }
 
@@ -138,6 +176,9 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-quiet: var(--accent-quiet);
   --color-accent-dim: rgb(var(--p-accent-dim));
+  --color-olive: rgb(var(--p-olive));
+  --color-olive-deep: rgb(var(--p-olive-deep));
+  --color-olive-light: rgb(var(--p-olive-light));
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-quiet: var(--destructive-quiet);
@@ -184,7 +225,7 @@
   --text-heading--line-height: 1.4;
 
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-telemetry);
+  --font-mono: var(--font-code);
   --font-display: var(--font-display);
   --font-brand: var(--font-brand);
 }
@@ -323,26 +364,23 @@
 .brand-sub {
   padding-left: 0.5rem;
   border-left: 1px solid rgb(var(--p-line) / 0.4);
-  font-family: var(--font-telemetry);
-  font-size: 9px;
-  letter-spacing: 0.14em;
+  font-family: var(--font-sans);
+  font-size: 11px;
   line-height: 1.25;
-  text-transform: uppercase;
   color: rgb(var(--p-muted));
 }
 
+/* A label over a group: sentence case in the interface's own face, never tracked capitals. */
 .eyebrow {
-  font-family: var(--font-telemetry);
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
   color: rgb(var(--p-muted));
 }
 
 .telemetry {
   font-family: var(--font-telemetry);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
 }
 
 .hairline {
@@ -521,11 +559,11 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     radial-gradient(
       ellipse 70% 60% at 50% 45%,
-      rgb(23 23 23 / 0.5) 0%,
-      rgb(23 23 23 / 0.62) 55%,
-      rgb(23 23 23 / 0.74) 100%
+      rgb(21 21 21 / 0.5) 0%,
+      rgb(21 21 21 / 0.62) 55%,
+      rgb(21 21 21 / 0.74) 100%
     ),
-    linear-gradient(to bottom, rgb(23 23 23 / 0) 60%, rgb(23 23 23 / 0.7) 100%);
+    linear-gradient(to bottom, rgb(21 21 21 / 0) 60%, rgb(21 21 21 / 0.7) 100%);
 }
 
 /*
@@ -673,9 +711,9 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .reading-chip {
   display: inline-block;
-  border: 1px solid var(--s-line);
-  border-radius: 6px;
-  background: var(--s-panel-head);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: rgb(var(--p-surface-raised));
   padding: 0 6px;
   font-size: 11px;
   font-weight: 500;
@@ -683,9 +721,9 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--s-text);
 }
 .reading-chip[data-tone="warn"] {
-  border-color: rgb(213 190 75 / 0.35);
-  background: rgb(213 190 75 / 0.12);
-  color: var(--warning);
+  border-color: rgb(224 145 58 / 0.3);
+  background: rgb(224 145 58 / 0.14);
+  color: #eca460;
 }
 .reading-kpis {
   display: grid;
@@ -698,6 +736,7 @@ input[type="number"]::-webkit-outer-spin-button {
   flex-direction: column;
   border: 1px solid var(--s-line);
   border-radius: 10px;
+  background: var(--s-card);
 }
 .reading-kpi > header {
   border-bottom: 1px solid var(--s-line-soft);
@@ -726,10 +765,10 @@ input[type="number"]::-webkit-outer-spin-button {
   padding: 10px 12px 11px;
 }
 .reading-num {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
   line-height: 1.05;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
 }
 /*
@@ -761,6 +800,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .reading-panel {
   border: 1px solid var(--s-line);
   border-radius: 10px;
+  background: var(--s-card);
 }
 .reading-panel-head {
   display: flex;
@@ -805,6 +845,7 @@ input[type="number"]::-webkit-outer-spin-button {
   gap: 2px;
   border: 1px solid var(--s-line);
   border-radius: 8px;
+  background: var(--s-sunk);
   padding: 2px;
 }
 .reading-seg button {
@@ -815,8 +856,9 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--s-text-muted);
 }
 .reading-seg button[aria-pressed="true"] {
-  background: var(--s-panel-head);
-  color: var(--s-text);
+  background: rgb(var(--p-accent));
+  font-weight: 600;
+  color: rgb(var(--p-ink));
 }
 .reading-details {
   border-top: 1px solid var(--s-line-soft);
@@ -837,7 +879,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .reading-details > summary::after {
   content: "Show";
   font-weight: 400;
-  color: var(--s-text-faint);
+  color: var(--accent-quiet);
 }
 .reading-details[open] > summary::after {
   content: "Hide";
@@ -887,9 +929,45 @@ input[type="number"]::-webkit-outer-spin-button {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/*
+  In a narrow area the four indicators stay abreast as one strip: the figure,
+  its unit and its chip, cells divided by hairlines, with what each one is
+  over and its line of description in the card's tooltip. Two cards a row with
+  all their prose pushed the reading's main panel below the fold.
+*/
 @container (max-width: 760px) {
   .reading-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid var(--s-line);
+    border-radius: 10px;
+    background: var(--s-card);
+  }
+  .reading-kpi {
+    border: none;
+    border-radius: 0;
+    background: none;
+  }
+  .reading-kpi + .reading-kpi {
+    border-left: 1px solid var(--s-line-soft);
+  }
+  .reading-kpi > header {
+    border-bottom: none;
+    padding: 9px 10px 0;
+  }
+  .reading-kpi h3 {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--s-text-muted);
+  }
+  .reading-kpi > header p,
+  .reading-kpi > div > p {
+    display: none;
+  }
+  .reading-kpi > div {
+    padding: 4px 10px 10px;
+  }
+  .reading-num {
+    font-size: 20px;
   }
   .reading-page {
     padding: 14px;
@@ -901,14 +979,20 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 @container (max-width: 420px) {
   .reading-kpis {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reading-kpi:nth-child(odd) {
+    border-left: none;
+  }
+  .reading-kpi:nth-child(n + 3) {
+    border-top: 1px solid var(--s-line-soft);
   }
 }
 
 .reading-notice {
-  border: 1px solid rgb(213 190 75 / 0.3);
+  border: 1px solid rgb(224 145 58 / 0.3);
   border-radius: 10px;
-  background: rgb(213 190 75 / 0.08);
+  background: rgb(224 145 58 / 0.08);
   padding: 6px 10px 6px 12px;
   font-size: 12px;
   color: var(--warning);
@@ -943,7 +1027,7 @@ input[type="number"]::-webkit-outer-spin-button {
   height: 8px;
   min-width: 1px;
   border-radius: 2px;
-  background: #d9d9d9;
+  background: #d8d8d8;
 }
 .reading-bars .figure {
   text-align: right;
@@ -988,4 +1072,25 @@ input[type="number"]::-webkit-outer-spin-button {
 .reading .font-mono {
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+}
+
+/* The map shell's material: the tool column, the panel, the map's own bars. */
+.map-chrome {
+  background-color: rgb(var(--p-ink) / var(--map-chrome-alpha));
+  backdrop-filter: var(--map-chrome-filter);
+  -webkit-backdrop-filter: var(--map-chrome-filter);
+}
+
+/* A panel's rows and hovers, in the tool column's lines and plate. */
+.map-chrome-panel {
+  --border: rgb(var(--p-line) / 0.22);
+  --hairline: rgb(var(--p-line) / 0.22);
+  --s-hover: rgb(var(--p-surface-raised) / 0.92);
+  --s-line: rgb(var(--p-line) / 0.3);
+  --s-line-soft: rgb(var(--p-line) / 0.22);
+}
+
+/* The strip an editor's controls ride in takes no height while no editor has put any there. */
+.host-strip:not(:has(> div > *)) {
+  display: none;
 }

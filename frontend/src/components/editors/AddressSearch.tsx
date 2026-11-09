@@ -10,8 +10,8 @@ import { useStore } from "../../lib/store"
 import { addressSearchOpen } from "../../lib/ui"
 
 /**
- * The map's address search: a field at the map's corner while the ribbon's
- * Locate has it open, and under it the places the text could be.
+ * The map's address search: a field at the map's corner while the map column's
+ * magnifier (Locate) has it open, and under it the places the text could be.
  *
  * A RESULT IS SOMEWHERE TO LOOK, AND ONLY BECOMES A SITE WHEN ASKED. Pressing
  * a row takes the map there and leaves the project as it was; the pin at the
@@ -99,7 +99,7 @@ export function AddressSearch() {
     close()
   }
 
-  // Folded, it is not on the map at all: Locate, on the ribbon, is what opens it.
+  // Folded, it is not on the map at all: Locate, the map column's magnifier, is what opens it.
   if (!open) return null
 
   return (

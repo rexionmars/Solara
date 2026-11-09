@@ -6,10 +6,10 @@
 </h1>
 
 <p align="center">
-  <img src="docs/img/1.png" alt="The studio: the outliner with the project's areas and their results, an area outlined over Natal on the satellite basemap, and its usable-ground reading beside the map" width="900" />
+  <img src="docs/img/1.png" alt="The map of Rio Grande do Norte filling the window: two sites, at Assú and São Miguel do Gostoso, two areas drawn with their solar terrain, at Natal and in the Seridó, and the transmission lines and plants of an imported GeoPackage, keyed in the legend; the rail on the left and the map's tools on the right" width="900" />
 </p>
 
-<p align="center"><em>An area drawn over Natal, the results the project holds for it in the outliner, and its usable-ground reading beside the map: how much of the land a plant could stand on, and what excludes the rest</em></p>
+<p align="center"><em>The demonstration project over Rio Grande do Norte: two sites, two areas with their solar terrain, and an imported GeoPackage of lines and plants, with the rail on the left and the map's tools on the right</em></p>
 
 Solara reads what a place is worth for solar and wind generation,
 and what the electrical system would do to a plant there. At a site it reads
@@ -48,16 +48,10 @@ workflow](docs/releases.md) for supported platforms, runtime dependencies and ch
 | **Usable ground** | an area | how much of the area a plant could stand on and what excludes the rest, by two rules the reader types: a maximum slope and a minimum height above the nearest drainage (HAND). Permanent water is taken out first, as a reason of its own, and the usable share is given of the area and of the land inside it. The flood rule is a lower bound | Copernicus DEM GLO-30, ESA WorldCover 2021 |
 
 <p align="center">
-  <img src="docs/img/2.png" alt="The solar terrain layer over Natal, captioned with its range of 1664 to 2012 kWh/m² per year, and the reading beside the map: the mean, the lowest cell, the beam shading, the slope, and the area by irradiation" width="900" />
+  <img src="docs/img/2.png" alt="The solar terrain layer over Natal, and its reading in the Result panel: a mean of 1991 kWh/m² a year, the lowest cell at 1664, beam shading of 0.37 %, a mean slope of 2.3°, and the area by irradiation around the mean" width="900" />
 </p>
 
 <p align="center"><em>Solar terrain over Natal: the irradiation on the plane of the array drawn across the relief, where the dunes and the river banks shade themselves, and how the area is distributed around its mean</em></p>
-
-<p align="center">
-  <img src="docs/img/3.png" alt="The usable-ground layer over Natal, coloured by what excludes each part of the area, with the captions of the two layers on the map, the conditions now and what the run reads in the properties, and the reading beside the map" width="900" />
-</p>
-
-<p align="center"><em>Usable ground over the same area: each cell coloured by what excludes it, the conditions now and what a run reads in the properties, and the reading beside the map</em></p>
 
 Every result is kept in the project with the parameters and the place it was
 computed at. Moving a site, redrawing an area or changing a setting afterwards
@@ -65,30 +59,22 @@ marks the result stale rather than relabelling it. Results of one product are
 compared side by side in a table and exported as CSV or JSON; a terrain layer
 also as a float32 GeoTIFF.
 
-## The studio
+## The window
 
-The window is a studio after TERRA's, and TERRA's after Blender's: the screen
-divides into areas, each holding one editor, and the arrangements are grouped
-by subject.
+The map fills the window, after TERRA's map shell. A rail on the left goes to
+**Explore** (the map itself), **Sites and areas**, **Compare**, **Planning** and
+the **Run graph**, with Activity, Help and Feedback at its foot. The header
+beside it holds the project and the site or area in hand, and **Options** under
+the logo. A column on the map's right edge opens **Products**, **Result** and
+**Layers**, then searches, places a site, takes an area from a place, measures,
+frames and deletes. Zoom and north sit in the bottom corner.
 
-| group | workspaces | built around |
-|---|---|---|
-| Board | Layout, Graph, Data, Scripting | the map, the run graph, the comparison table, the console |
-| Solar | Resource, Terrain | the solar readings beside the map |
-| Wind | Screening | the wind reading beside the map |
-| Grid | Connection, Demand | the connection and the consumption readings beside the map of plants and lines |
-| Ground | Usable ground | the usable-ground reading beside the map, with its layer of classes |
-
-The editors are the **map**, the **outliner**, **properties**, the **run
-graph**, a **reading** per product, the **data table**, the **reports** and a
-**console**. Areas split, join, resize and maximise; the arrangement survives a
-restart. Drag a panel by its header's grip or empty header space: dropping in
-another panel's center swaps their positions; dropping at an edge docks it
-there. A preview shows the resulting position before release. Escape cancels.
-Panel IDs and their settings travel with them. The grip also supports the
-keyboard: Enter starts, Tab chooses a target, arrows choose an edge, C chooses
-the center swap, Enter applies and Escape cancels. Restore a maximized area
-before rearranging panels.
+One panel is open at a time, over the map. **Products** lists what can be run on
+the site or area in hand. **Result** reads a run: four figures and one panel,
+with a tab for each product the place holds. **Layers** holds the map's layers
+and the choice of ground, and **Sites and areas** the project's places.
+**Compare**, **Planning** and the **Run graph** fill the window beside the rail.
+A finished run opens its reading, and the map frames what the run was sent to.
 
 The **run graph** lays a product's request out as
 nodes, in the grammar of Blender's node editor. The fields on a node are the
@@ -97,8 +83,8 @@ screen read it:
 *pending* after a setting changes, *reading* while a run is in progress,
 *read* once it has, *error* when the last attempt failed.
 
-Every action is an operator: reachable from a menu, a key, the operator search
-(F3) and the console, with a poll that says why it cannot run instead of
+Every action is an operator: reachable from a menu, a key and the operator
+search (F3 or Cmd/Ctrl+K), with a poll that says why it cannot run instead of
 failing after. Every change is an undo step. A project is one `name.solara`
 file, with the terrain rasters in a `name.solara-data` folder beside it.
 
@@ -106,49 +92,63 @@ file, with the terrain rasters in a `name.solara-data` folder beside it.
 
 Choose **Open project…** (Cmd/Ctrl+O) and select a `.gpkg` or `.solara` file.
 Solara selects a non-empty vector layer automatically (substations when present),
-frames its extent and lists the file's layers under **Map layers** in the Outliner.
+frames its extent and lists the file's layers in the **Layers** panel.
 Click another layer to display it, use its eye to hide or show it, and double-click
-to frame it again. The map header's **GeoPackage** panel also offers the layer selector.
+to frame it again. The **GeoPackage** menu in the panel's header also offers the
+layer selector.
 Solara reads the visible region as the map moves. Points, lines and
 polygons are supported; click a feature to inspect its attributes. Coordinates
 are transformed to WGS84 using the file's declared reference system.
 
-The source file is opened read-only. Each visible layer previews at most 5,000
-features and 6 MB per view, clipping and simplifying geometries for display. Zoom in
-when the preview limit is reached. Without a spatial index, only the first
-50,000 records are scanned. Unsupported or oversized geometries are counted
-in the preview message. Raster tile layers are not supported.
+The source file is opened read-only. Each visible layer draws up to 5,000
+features and 6 MB per view one by one, clipped and simplified for display. A
+layer with more than 5,000 features in view is counted instead: one circle per
+map cell, placed at the mean of its features, its area grown with the count, and
+a legend on the map for the sizes. The **counts** mark beside the layer in the
+Layers panel says so. Click a circle to frame its cell; zoom in far enough and the
+features are drawn again. Counting reads the layer's spatial index; a layer
+without one is drawn from its first 50,000 records, and its row says the preview
+was cut. Unsupported or oversized geometries are counted in the layer's message.
+Raster tile layers are not supported.
 
 One GeoPackage can be open with multiple layers visible together. Each eye in
-the Outliner controls its own layer; the selected analysis layer is independent.
+the Layers panel controls its own layer; the selected analysis layer is independent.
 Layer colors come from QGIS single-symbol/categorized styles or standard
 feature color attributes when available. Otherwise Solara assigns a random
 palette, with a color swatch beside each layer. Unsupported style renderers
 use this fallback. Clicked features use the grid register's existing draggable
-callout, anchored to the selected coordinate. It shows labeled attributes and
-expandable JSON tags, with a copy action; close it with its close button or Escape.
+callout, anchored to the selected coordinate. A click reads the feature whole by
+its primary key, every attribute uncut. Attributes keep the file's column order
+and the aliases of `gpkg_data_columns`, and read as their column declares them:
+an integer is never grouped, a boolean reads yes or no, a blob gives its size. A
+text column holding a JSON object expands into its keys. Copy the attributes from
+the callout; close it with its close button or Escape.
 
 Saving a `.solara` project keeps the source path, selected layer, visible layers
 and assigned colors so they can be restored on reopening. The GeoPackage remains an external, read-only source;
 keep it at the referenced location when reopening the project.
 
-### Workspaces
-
-The permanent **Workspace** bar provides **Default** (map, Outliner, properties
-and reports) and **Planning · PyPSA** (the dedicated system-planning editor).
-**More workspaces** contains the other task layouts. Panel arrangements are saved
-independently, and the last active workspace is restored at launch. **Reset layout**
-restores only the current workspace. Planning inputs, session results and the last
-planning view remain available when switching workspaces.
-
 ### System planning with PyPSA
 
-Open **Analysis → Grid → Planning** for economic dispatch or single-period
+Open **Planning** from the rail for economic dispatch or single-period
 capacity expansion of generation, storage and existing transmission ratings.
-Enter an explicit network, chronological demand/availability profiles, costs and
-an optional CO₂ cap, or import a study JSON. Results include dispatch by technology,
-optimized capacities, cost decomposition, emissions, line utilization and storage
-losses. Study and reproducible run-report exports are available in the panel.
+**Build** draws the study as a single-line diagram, with an inspector beside it
+for the component clicked; the diagram moves and zooms as the map does. Enter an
+explicit network, chronological demand/availability profiles, costs and an
+optional CO₂ cap, or import a study JSON. The draft is checked against the
+engine's rules before the solve, and **Optimize** waits until nothing is at
+fault. **Results** reads a run as four figures (horizon cost, cost per MWh
+served, direct CO₂, hours at a line limit) and one panel: dispatch by
+technology, optimized capacities, line loading and storage. A study and a
+reproducible run report can be exported. The study is kept in the
+application's local storage, not in the project file.
+
+<p align="center">
+  <img src="docs/img/planning.png" alt="System planning Results for a synthetic two-bus study: a horizon cost of 71,255 EUR, 59.1 EUR/MWh served, 177 t of direct CO₂ and 3 hours at a line limit, over dispatch by technology hour by hour, with storage charging drawn below zero" width="900" />
+</p>
+
+<p align="center"><em>A synthetic two-bus study read after its run: solar carries the day and charges the storage, which with gas carries the evening peak</em></p>
+
 The synthetic example is labelled as fictional. The app does not infer a power
 system model from GeoPackage geometries. Install `requirements.txt` for the local
 PyPSA/HiGHS runtime. See [model, units and references](docs/system-planning.md).
@@ -247,7 +247,7 @@ set, else found from the working directory or the executable.
 ```sh
 go test ./...                                       # the shell; the grid tests use a local store when there is one
 (cd sidecar && ../.venv/bin/python -m pytest -q)    # the sidecar
-(cd frontend && npx tsc --noEmit)                   # the interface's types
+(cd frontend && npm test && npx tsc --noEmit)       # the interface's tests and types
 ```
 
 ## Where it keeps things
@@ -257,7 +257,7 @@ go test ./...                                       # the shell; the grid tests 
 | local accounts, the chosen grid store | the user configuration directory, `terra-energy-engine/` |
 | NASA POWER series, the hour's wind field | the user cache directory, `terra-energy-engine/power` and `/wind` |
 | terrain rasters of the session | a temporary directory, removed on quit; saved with the project |
-| the studio's arrangement, overlays, recent files | the webview's local storage |
+| whether the rail is open, overlays, recent files, the System planning study | the webview's local storage |
 
 ## Layout
 
@@ -268,9 +268,12 @@ go test ./...                                       # the shell; the grid tests 
 | `internal/energy`, `internal/grid`, `internal/weather` | what each product sends and the shape of what comes back |
 | `internal/store` | the local account database |
 | `sidecar/terra_energy_engine` | the computation: `energy`, `sun`, `terrain`, `imagery`, `grid`, `weather` |
-| `frontend/src` | the studio: `lib` holds the state and the map, `components` the editors |
+| `frontend/src` | the interface: `lib` holds the state and the map, `components` the shell, its panels and the editors they hold |
 
 The sidecar speaks the protocol TERRA's does: one JSON request on stdin,
 progress on stderr, one JSON result on stdout. Its actions carry TERRA's names
 and result shapes where the two applications share a product, so an action can
-move between them unchanged.
+move between them unchanged. An analysis starts its own process, which Cancel
+can stop alone. Reads (map layers, a clicked feature, the grid store) go to up
+to two interpreters kept running with `--serve`, one JSON request and one JSON
+answer per line, so a pan does not wait for Python to start.

@@ -103,6 +103,7 @@ func (a *App) domReady(ctx context.Context) {
 func (a *App) shutdown(context.Context) {
 	if a.runner != nil {
 		a.runner.Cancel()
+		a.runner.Close()
 	}
 	if a.accounts != nil {
 		_ = a.accounts.Close()

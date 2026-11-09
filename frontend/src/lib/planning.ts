@@ -90,6 +90,9 @@ export type PlanningResult = {
     unused_available_mwh: number
     capacity_factor: number | null
     co2_tonnes: number
+    /** Added capacity's annualized cost over the horizon; reports from before it was kept lack it. */
+    expansion_cost?: number
+    operating_cost?: number
   }[]
   lines: {
     id: string
@@ -98,6 +101,7 @@ export type PlanningResult = {
     added_mva: number
     peak_loading_pct: number
     hours_at_limit: number
+    expansion_cost?: number
   }[]
   storage: {
     id: string
@@ -108,6 +112,8 @@ export type PlanningResult = {
     charged_mwh: number
     discharged_mwh: number
     losses_mwh: number
+    expansion_cost?: number
+    operating_cost?: number
   }[]
   timeseries: {
     time: string
@@ -314,6 +320,15 @@ try {
   draftError = "The saved planning draft could not be restored. Import a saved study to recover it."
 }
 
+/** The component kinds of a study, by the key that holds each list. */
+export type Kind = "buses" | "generators" | "loads" | "lines" | "storage"
+
+/** A component in hand: its list and its place in it. An ID can be edited, a place cannot. */
+export type Selection = { kind: Kind; index: number }
+
+/** Build is where a study is made; Results is where a run is read. */
+export type PlanningView = "build" | "results"
+
 export const planning = createStore<{
   study: Study
   results: PlanningResult[]
@@ -323,7 +338,8 @@ export const planning = createStore<{
   message: string
   error: string
   notice: string
-  view: string
+  view: PlanningView
+  selection: Selection | null
   selectedResult: string
   revision: number
   pendingProfiles: Record<string, boolean>
@@ -337,12 +353,121 @@ export const planning = createStore<{
   message: "",
   error: draftError,
   notice: "",
-  view: "study",
+  view: "build",
+  selection: null,
   selectedResult: "",
   revision: 0,
   pendingProfiles: {},
   profileDrafts: {},
 })
+
+/** What stands between a draft and a solve, one line per fault, pointed at the component it is in. */
+export type StudyIssue = { message: string; at?: Selection }
+
+/**
+ * The checks the engine makes before it solves (sidecar planning.validate), run
+ * on the draft so a fault is shown where it is rather than after a round trip.
+ *
+ * NO STRICTER THAN THE ENGINE. A check here that the engine does not make would
+ * refuse a study that solves, so every rule below has its twin in validate().
+ */
+export function checkStudy(study: Study): StudyIssue[] {
+  const issues: StudyIssue[] = []
+  const finite = (v: unknown) => typeof v === "number" && Number.isFinite(v)
+  const within = (v: unknown, lo: number, hi = 1e12) => finite(v) && (v as number) >= lo && (v as number) <= hi
+  const text = (v: unknown) => typeof v === "string" && !!v.trim() && v.length <= 500
+  if (!text(study.name)) issues.push({ message: "Give the study a name." })
+  if (!text(study.currency)) issues.push({ message: "Set the currency every cost is in." })
+  if (!text(study.provenance)) issues.push({ message: "Record the sources and assumptions behind the study." })
+  const n = study.snapshots.length
+  if (n < 1 || n > 8784) issues.push({ message: "Build a horizon of 1 to 8,784 intervals." })
+  const hours = study.snapshots.reduce((h, s) => h + s.duration_hours, 0)
+  if (hours > 8784) issues.push({ message: "The horizon is longer than 8,784 hours." })
+  if (study.co2_limit_tonnes != null && !within(study.co2_limit_tonnes, 0))
+    issues.push({ message: "The CO₂ cap must be zero or more." })
+  if (!study.buses.length || !study.generators.length || !study.loads.length)
+    issues.push({ message: "A study needs at least one bus, one generator and one load." })
+  const count = study.buses.length + study.generators.length + study.loads.length + study.lines.length + study.storage.length
+  if (n * count > 2_000_000) issues.push({ message: "More than 2,000,000 component-intervals: shorten the horizon or the network." })
+
+  const kinds: Kind[] = ["buses", "generators", "loads", "lines", "storage"]
+  for (const kind of kinds) {
+    const seen = new Set<string>()
+    ;(study[kind] as { id: string }[]).forEach((row, index) => {
+      const at = { kind, index }
+      if (!text(row.id)) issues.push({ message: `${KIND_NOUN[kind]} ${index + 1} has no ID.`, at })
+      else if (seen.has(row.id)) issues.push({ message: `Two ${kind} share the ID ${row.id}.`, at })
+      seen.add(row.id)
+    })
+  }
+  const buses = new Map(study.buses.map((b) => [b.id, b]))
+  study.buses.forEach((b, index) => {
+    if (!within(b.v_nom_kv, 0.1, 1500)) issues.push({ message: `${b.id}: nominal voltage must be 0.1 to 1,500 kV.`, at: { kind: "buses", index } })
+  })
+  const series = (values: number[], max: number) =>
+    values.length === n && values.every((v) => within(v, 0, max))
+  const capacity = (
+    name: string,
+    at: Selection,
+    row: { expandable: boolean },
+    existing: number,
+    maximum: number,
+    cost: number,
+  ) => {
+    if (!within(existing, 0)) issues.push({ message: `${name}: existing capacity must be zero or more.`, at })
+    else if (!within(maximum, existing)) issues.push({ message: `${name}: the upper bound is below the existing capacity.`, at })
+    if (!within(cost, 0)) issues.push({ message: `${name}: the capacity cost must be zero or more.`, at })
+    else if (row.expandable && (cost <= 0 || maximum <= 0))
+      issues.push({ message: `${name}: expanding needs a positive capacity cost and upper bound.`, at })
+  }
+  study.generators.forEach((g, index) => {
+    const at = { kind: "generators" as const, index }
+    if (!buses.has(g.bus)) issues.push({ message: `${g.id}: choose the bus it connects to.`, at })
+    if (!text(g.carrier)) issues.push({ message: `${g.id}: name its technology.`, at })
+    capacity(g.id, at, g, g.existing_mw, g.max_mw, g.annualized_cost_per_mw_year)
+    if (!within(g.marginal_cost_per_mwh, 0)) issues.push({ message: `${g.id}: the marginal cost must be zero or more.`, at })
+    if (!within(g.co2_tonnes_per_mwh, 0)) issues.push({ message: `${g.id}: direct CO₂ must be zero or more.`, at })
+    if (!series(g.availability, 1)) issues.push({ message: `${g.id}: availability needs ${n} values from 0 to 1.`, at })
+  })
+  study.loads.forEach((l, index) => {
+    const at = { kind: "loads" as const, index }
+    if (!buses.has(l.bus)) issues.push({ message: `${l.id}: choose the bus it connects to.`, at })
+    if (!series(l.p_mw, 1e9)) issues.push({ message: `${l.id}: demand needs ${n} values of zero or more.`, at })
+  })
+  study.lines.forEach((l, index) => {
+    const at = { kind: "lines" as const, index }
+    const a = buses.get(l.bus0)
+    const b = buses.get(l.bus1)
+    if (!a || !b) issues.push({ message: `${l.id}: choose both buses it connects.`, at })
+    else if (l.bus0 === l.bus1) issues.push({ message: `${l.id}: a line must connect two different buses.`, at })
+    else if (a.v_nom_kv !== b.v_nom_kv)
+      issues.push({ message: `${l.id}: both ends must have the same nominal voltage; transformers are not modelled.`, at })
+    capacity(l.id, at, l, l.existing_mva, l.max_mva, l.annualized_cost_per_mva_year)
+    if (!within(l.x_ohm, 1e-6, 1e6)) issues.push({ message: `${l.id}: reactance must be positive.`, at })
+    if (within(l.existing_mva, 0) && l.existing_mva <= 0)
+      issues.push({ message: `${l.id}: give the line a positive existing rating; new lines are not modelled.`, at })
+  })
+  study.storage.forEach((s, index) => {
+    const at = { kind: "storage" as const, index }
+    if (!buses.has(s.bus)) issues.push({ message: `${s.id}: choose the bus it connects to.`, at })
+    capacity(s.id, at, s, s.existing_mw, s.max_mw, s.annualized_cost_per_mw_year)
+    if (!within(s.marginal_cost_per_mwh, 0)) issues.push({ message: `${s.id}: the marginal cost must be zero or more.`, at })
+    if (!within(s.max_hours, 1 / 60, 10000)) issues.push({ message: `${s.id}: hours at full power must be 1 minute to 10,000 h.`, at })
+    if (!within(s.efficiency_store, 0.001, 1) || !within(s.efficiency_dispatch, 0.001, 1))
+      issues.push({ message: `${s.id}: efficiencies must be above 0 and at most 1.`, at })
+  })
+  if (study.loads.length && study.loads.every((l) => l.p_mw.every((v) => !(v > 0))))
+    issues.push({ message: "Demand is zero in every interval." })
+  return issues
+}
+
+export const KIND_NOUN: Record<Kind, string> = {
+  buses: "Bus",
+  generators: "Generator",
+  loads: "Load",
+  lines: "Line",
+  storage: "Storage",
+}
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 
 export function replacePlanningStudy(study: Study) {
@@ -350,7 +475,8 @@ export function replacePlanningStudy(study: Study) {
   updateStudy(study)
   planning.set((s) => ({
     ...s,
-    view: "study",
+    view: "build",
+    selection: null,
     pendingProfiles: {},
     profileDrafts: {},
     revision: s.revision + 1,
@@ -408,7 +534,8 @@ export async function runPlanning() {
     planning.set((s) => ({
       ...s,
       results: [result, ...s.results].slice(0, 5),
-      notice: "Optimization complete.",
+      // No notice: the destination turns to Results, which is the news.
+      notice: "",
     }))
   } catch (e) {
     const msg = errorMessage(e)

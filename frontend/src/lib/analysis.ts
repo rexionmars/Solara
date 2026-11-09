@@ -30,6 +30,7 @@ import {
 } from "./project"
 import { fail, info, note } from "./reports"
 import { showResult } from "./screen"
+import { shell } from "./shell"
 import { createStore } from "./store"
 
 export type Running = {
@@ -138,9 +139,12 @@ async function run(
       if (replace) setLegendShown(replace, false)
     }
     const result = project.get().data.results.find((r) => r.id === id)
-    // Where the result is, is on the map: brought into view only if none of it is there (mapEngine.ts).
-    if (result) arrived.set(id)
     if (result) info(summary(result), { label: "Show", run: () => showResult(id, product) })
+    // A finished run opens what it produced, unless the reader has since turned to something else;
+    // either way, where the result is, is on the map, brought into view only if none of it shows (mapEngine.ts).
+    const { destination, panel } = shell.get()
+    if (result && destination === "explore" && (panel === null || panel === "products" || panel === "result")) showResult(id, product)
+    else if (result) arrived.set(id)
     return id
   } catch (e) {
     running.set(null)

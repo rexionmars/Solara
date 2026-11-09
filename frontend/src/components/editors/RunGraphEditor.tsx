@@ -44,7 +44,7 @@ import { activeArea, activeSite, select, selection } from "../../lib/selection"
 import { useStore } from "../../lib/store"
 import { NodeCanvas, type CanvasApi, type CanvasBoard, type CanvasEdge, type CanvasNode, type CanvasSection, type CanvasTab, type EdgeState } from "../studio/NodeCanvas"
 import { StudioHeaderMenu } from "../studio/HeaderControls"
-import { AreaHeader } from "../studio/StudioArea"
+import { AreaHeader } from "../shell/HeaderHosts"
 import { fieldInput } from "../ui/buttons"
 import { btnGhostDense, btnIcon } from "../ui/buttons"
 import { StoreConnectionForm, StoreHoldings } from "../energy/StoreConnection"
@@ -972,7 +972,7 @@ export function RunGraphEditor({ areaId }: { areaId: string }) {
   const grid = showRead
     ? "10px minmax(120px, 200px) minmax(90px, 240px) minmax(90px, 240px) 60px"
     : "10px minmax(120px, 200px) minmax(90px, 280px) 60px"
-  const head = "truncate text-[9px] uppercase tracking-wide text-muted-foreground"
+  const head = "truncate text-[10.5px] font-medium text-muted-foreground"
 
   const wires = (board: CanvasBoard) => (
     <div className="flex min-h-0 flex-col">

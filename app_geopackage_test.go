@@ -54,8 +54,33 @@ func TestOpenProject_GeoPackageCatalogWithoutChangingSource(t *testing.T) {
 	if opened.Content != "" || len(opened.RunDirs) != 0 {
 		t.Fatal("GeoPackage was treated as a JSON project or restored raster runs")
 	}
-	if opened.GeoPackage.Layers[0].Count != 1 || opened.GeoPackage.Layers[0].Name != "assets" {
+	layer := opened.GeoPackage.Layers[0]
+	if layer.Count != 1 || layer.Name != "assets" {
 		t.Fatalf("wrong catalog: %+v", opened.GeoPackage)
+	}
+	if layer.PK == nil || *layer.PK != "fid" || len(layer.Fields) != 2 || layer.Fields[1] != (GeoPackageField{Name: "name", Type: "text"}) {
+		t.Fatalf("wrong schema: pk %v, fields %+v", layer.PK, layer.Fields)
+	}
+	if layer.Kinds != nil {
+		t.Fatalf("a declared POINT layer was read for its kinds: %+v", layer.Kinds)
+	}
+	profile, err := a.ProfileGeoPackageLayer(path, "assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Count != 1 || len(profile.Geometry.Kinds) != 1 || profile.Geometry.Kinds[0] != (GeoPackageKind{Kind: "Point", Count: 1}) {
+		t.Fatalf("wrong geometry profile: %+v", profile)
+	}
+	if len(profile.Fields) != 1 || profile.Fields[0].Role != "constant" || profile.Fields[0].Filled != 1 ||
+		len(profile.Fields[0].Top) != 1 || profile.Fields[0].Top[0].Value != "Substation" {
+		t.Fatalf("wrong field profile: %+v", profile.Fields)
+	}
+	feature, err := a.GeoPackageFeature(path, "assets", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if props, _ := feature["properties"].(map[string]any); props["name"] != "Substation" || feature["geometry"] == nil {
+		t.Fatalf("wrong feature: %+v", feature)
 	}
 
 	after, err := os.ReadFile(path)

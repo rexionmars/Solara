@@ -1,8 +1,5 @@
 import type { Icon } from "./icons"
 import { createStore } from "./store"
-import { RIBBON_TABS } from "./ribbonContext"
-import type { RibbonTab } from "./ribbonContext"
-export type { RibbonTab } from "./ribbonContext"
 
 /**
  * Transient interface state that no editor owns: the open context menu, the
@@ -73,107 +70,6 @@ export const operatorSearch = createStore<boolean>(false)
 export type PreferencesSection = "account" | "engine" | "grid" | "keymap" | "about"
 
 export const preferences = createStore<PreferencesSection | null>(null)
-
-/**
- * Whether the navigation rail is collapsed to its icons.
- *
- * Kept across launches, because it is a decision about the shape of the
- * window rather than about the work: a reader who gave the rail back its
- * pixels should not have to do it again tomorrow.
- */
-const RAIL_KEY = "terra-energy.rail.v1"
-
-export const sidebarCollapsed = createStore<boolean>(
-  (() => {
-    try {
-      return localStorage.getItem(RAIL_KEY) === "1"
-    } catch {
-      return false
-    }
-  })(),
-)
-
-export function toggleSidebar(): void {
-  sidebarCollapsed.set((v) => !v)
-  try {
-    localStorage.setItem(RAIL_KEY, sidebarCollapsed.get() ? "1" : "0")
-  } catch {
-    // A browser that refuses storage still gets a working rail, just a forgetful one.
-  }
-}
-
-/*
-  The ribbon under the workspace tabs. Folded, it gives its rows back to the
-  areas and the tabs alone remain; the choice is remembered like the rail's.
-*/
-const RIBBON_KEY = "terra-energy.ribbon.v1"
-
-export const ribbonCollapsed = createStore<boolean>(
-  (() => {
-    try {
-      return localStorage.getItem(RIBBON_KEY) === "1"
-    } catch {
-      return false
-    }
-  })(),
-)
-
-/** The ribbon's tabs: what kind of command is wanted, not which arrangement is on screen. */
-
-const RIBBON_TAB_KEY = "terra-energy.ribbon-tab.v1"
-
-export const ribbonTab = createStore<RibbonTab>(
-  (() => {
-    try {
-      const saved = localStorage.getItem(RIBBON_TAB_KEY)
-      return saved === "analysis" || saved === "view" || saved === "share" ? saved : "map"
-    } catch {
-      return "map"
-    }
-  })(),
-)
-
-ribbonTab.subscribe(() => {
-  try {
-    localStorage.setItem(RIBBON_TAB_KEY, ribbonTab.get())
-  } catch {
-    /* a convenience only */
-  }
-})
-
-/** Each workspace remembers its own active command tab. Retain the legacy Default choice. */
-const WORKSPACE_RIBBON_KEY = "solora.workspace-ribbon.v1"
-export const workspaceRibbonTabs = createStore<Record<string, RibbonTab>>(
-  (() => {
-    const initial: Record<string, RibbonTab> = { layout: ribbonTab.get() }
-    try {
-      const saved = JSON.parse(localStorage.getItem(WORKSPACE_RIBBON_KEY) ?? "null")
-      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
-        for (const [id, tab] of Object.entries(saved))
-          if (typeof tab === "string" && Object.hasOwn(RIBBON_TABS, tab)) initial[id] = tab as RibbonTab
-      }
-    } catch {
-      /* Start with contextual defaults when storage is unavailable. */
-    }
-    return initial
-  })(),
-)
-workspaceRibbonTabs.subscribe(() => {
-  try {
-    localStorage.setItem(WORKSPACE_RIBBON_KEY, JSON.stringify(workspaceRibbonTabs.get()))
-  } catch {
-    /* Session choices still work. */
-  }
-})
-
-export function toggleRibbon(): void {
-  ribbonCollapsed.set((v) => !v)
-  try {
-    localStorage.setItem(RIBBON_KEY, ribbonCollapsed.get() ? "1" : "0")
-  } catch {
-    // A convenience only: the ribbon still folds, it just opens again next launch.
-  }
-}
 
 /** The start screen (StartSplash): open at launch, as Blender's splash. */
 export const splashOpen = createStore<boolean>(true)

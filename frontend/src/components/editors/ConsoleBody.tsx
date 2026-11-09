@@ -82,7 +82,7 @@ export function ConsoleBody() {
 
   return (
     <div
-      className="telemetry flex h-full min-h-0 flex-col text-body leading-5"
+      className="flex h-full min-h-0 flex-col font-mono text-body leading-5"
       onClick={() => {
         if (!window.getSelection()?.toString()) input.current?.focus()
       }}

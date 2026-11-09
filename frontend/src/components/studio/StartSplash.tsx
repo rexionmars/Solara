@@ -138,7 +138,7 @@ export function StartSplash() {
           />
           <div className="absolute left-5 top-5 flex flex-col">
             <img src="/solara-lockup.png" alt="Solara" className="splash-logo w-[168px]" draggable={false} />
-            <span className="splash-eyebrow mt-1.5 text-[10px] uppercase tracking-[0.12em] text-foreground/75">Energy engine</span>
+            <span className="splash-eyebrow mt-1.5 text-[12px] text-foreground/85">Energy engine</span>
           </div>
           <span className="splash-eyebrow telemetry absolute right-4 top-3.5 text-body text-foreground/80">
             {version ? `${version} ${RELEASE_NAME}` : RELEASE_NAME}

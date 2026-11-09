@@ -2,6 +2,16 @@ import type { Feature } from "geojson"
 
 export type PackageStyle = { color?: string; field?: string; categories?: Record<string, string> }
 
+/** One attribute column, with the type it declares and the alias the file gives it, if any. */
+export type PackageField = { name: string; type: "integer" | "real" | "text" | "boolean" | "date" | "datetime" | "blob"; title?: string }
+
+/** The column a feature is called by, in the languages files tend to be written in. */
+const TITLE = /^(name|nome|nom|nombre|label|title|titulo|título)$/i
+
+export function titleField(fields: PackageField[] | undefined): string | null {
+  return fields?.find(f => f.type === "text" && TITLE.test(f.name))?.name ?? null
+}
+
 /** Accept only literal colors understood by both CSS and MapLibre. */
 export function normalizeColor(value: unknown): string | null {
   if (typeof value !== "string") return null
@@ -25,6 +35,19 @@ export function paletteColor(index: number, start: number): string {
   return "#" + rgb.map(n => Math.round((n + m) * 255).toString(16).padStart(2, "0")).join("")
 }
 
+const POLYGON_KEYS = ["fill", "fill-color", "color", "colour"]
+const LINE_KEYS = ["stroke", "stroke-color", "color", "colour"]
+const POINT_KEYS = ["marker-color", "marker_color", "color", "colour"]
+
+/**
+ * The attributes featureColor reads, of those the layer has. A preview asks
+ * the sidecar for these alone; the rest arrive when a feature is clicked.
+ */
+export function drawnFields(style: PackageStyle | undefined, fields: { name: string }[] | undefined): string[] {
+  const wanted = new Set([...(style?.field ? [style.field] : []), ...POLYGON_KEYS, ...LINE_KEYS, ...POINT_KEYS])
+  return fields ? fields.map(f => f.name).filter(name => wanted.has(name)) : [...wanted]
+}
+
 export function featureColor(feature: Feature, style: PackageStyle | undefined, fallback: string): string {
   const props = feature.properties ?? {}
   if (style?.field && style.categories) {
@@ -32,9 +55,7 @@ export function featureColor(feature: Feature, style: PackageStyle | undefined, 
     if (color) return color
   }
   const kind = feature.geometry?.type ?? ""
-  const keys = kind.includes("Polygon") ? ["fill", "fill-color", "color", "colour"]
-    : kind.includes("Line") ? ["stroke", "stroke-color", "color", "colour"]
-      : ["marker-color", "marker_color", "color", "colour"]
+  const keys = kind.includes("Polygon") ? POLYGON_KEYS : kind.includes("Line") ? LINE_KEYS : POINT_KEYS
   for (const key of keys) {
     const color = normalizeColor(props[key])
     if (color) return color

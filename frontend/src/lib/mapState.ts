@@ -1,4 +1,6 @@
+import type { Geometry } from "geojson"
 import type { BusProps, LineProps, PlantProps, ReachProps } from "./grid"
+import type { PackageField } from "./geopackageStyle"
 import { createStore } from "./store"
 
 /**
@@ -105,5 +107,18 @@ export type PickedGeoPackage = {
   color: string
   geometry: string
   props: Record<string, unknown>
+  /** The layer's columns, in the file's order, with their declared types. */
+  fields: PackageField[]
+  /** The primary key's value, by which the whole feature is read; null when the layer has none. */
+  fid: number | null
+  /**
+   * What props holds. A preview carries only the attributes the map draws
+   * with, so a pick shows those while the whole feature is read ("reading"),
+   * then all of them ("whole"). Without a primary key the preview is all there is.
+   */
+  status: "reading" | "whole" | "preview" | "failed"
+  error?: string
+  /** The geometry whole, once read: neither clipped to the view nor simplified. */
+  shape: Geometry | null
 }
 export const pickedGeoPackage = createStore<PickedGeoPackage | null>(null)

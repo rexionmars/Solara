@@ -15,9 +15,9 @@ import type { Overlays } from "./tools"
  * Brazil alone -- when three of its five products never needed Brazil at all.
  * A menu that lists only what can answer here says the opposite, truthfully.
  *
- * ONE RULE, READ BY EVERY MENU. The ribbon, the outliner, the overlays popover
- * and the run graph each ask this module instead of keeping a list of their
- * own, so they cannot come to disagree about what exists.
+ * ONE RULE, READ BY EVERY MENU. Products, the Layers panel and the run graph
+ * each ask this module instead of keeping a list of their own, so they cannot
+ * come to disagree about what exists.
  */
 
 // ---- The ground the map is over ---------------------------------------------------------

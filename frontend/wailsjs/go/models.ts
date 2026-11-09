@@ -2877,14 +2877,47 @@ export namespace grid {
 
 export namespace main {
 	
+	export class GeoPackageField {
+	    name: string;
+	    type: string;
+	    title?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.title = source["title"];
+	    }
+	}
+	export class GeoPackageKind {
+	    kind: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageKind(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.count = source["count"];
+	    }
+	}
 	export class GeoPackageLayer {
 	    style?: Record<string, any>;
 	    name: string;
 	    label: string;
 	    geometry: string;
+	    kinds: GeoPackageKind[];
 	    count: number;
 	    bbox: number[];
 	    error?: string;
+	    fields: GeoPackageField[];
+	    pk?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GeoPackageLayer(source);
@@ -2896,10 +2929,31 @@ export namespace main {
 	        this.name = source["name"];
 	        this.label = source["label"];
 	        this.geometry = source["geometry"];
+	        this.kinds = this.convertValues(source["kinds"], GeoPackageKind);
 	        this.count = source["count"];
 	        this.bbox = source["bbox"];
 	        this.error = source["error"];
+	        this.fields = this.convertValues(source["fields"], GeoPackageField);
+	        this.pk = source["pk"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class GeoPackageCatalog {
 	    path: string;
@@ -2935,9 +2989,145 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class GeoPackageCells {
+	    zoom: number;
+	    items: number[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageCells(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.zoom = source["zoom"];
+	        this.items = source["items"];
+	    }
+	}
+	export class GeoPackageCount {
+	    value: any;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageCount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.value = source["value"];
+	        this.count = source["count"];
+	    }
+	}
+	
+	export class GeoPackageRange {
+	    min: any;
+	    max: any;
+	    mean?: any;
+	    median?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageRange(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.mean = source["mean"];
+	        this.median = source["median"];
+	    }
+	}
+	export class GeoPackageFieldProfile {
+	    name: string;
+	    type: string;
+	    title?: string;
+	    filled: number;
+	    role?: string;
+	    distinct?: number;
+	    distinct_capped?: boolean;
+	    mismatched?: number;
+	    top?: GeoPackageCount[];
+	    keys?: GeoPackageCount[];
+	    key_count?: number;
+	    range?: GeoPackageRange;
+	    histogram?: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageFieldProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.title = source["title"];
+	        this.filled = source["filled"];
+	        this.role = source["role"];
+	        this.distinct = source["distinct"];
+	        this.distinct_capped = source["distinct_capped"];
+	        this.mismatched = source["mismatched"];
+	        this.top = this.convertValues(source["top"], GeoPackageCount);
+	        this.keys = this.convertValues(source["keys"], GeoPackageCount);
+	        this.key_count = source["key_count"];
+	        this.range = this.convertValues(source["range"], GeoPackageRange);
+	        this.histogram = source["histogram"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GeoPackageGeometryProfile {
+	    declared: string;
+	    kinds: GeoPackageKind[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageGeometryProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.declared = source["declared"];
+	        this.kinds = this.convertValues(source["kinds"], GeoPackageKind);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	export class GeoPackagePreview {
 	    geojson: Record<string, any>;
+	    cells?: GeoPackageCells;
+	    in_view?: number;
 	    limited: boolean;
 	    skipped: number;
 	    indexed: boolean;
@@ -2949,11 +3139,74 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.geojson = source["geojson"];
+	        this.cells = this.convertValues(source["cells"], GeoPackageCells);
+	        this.in_view = source["in_view"];
 	        this.limited = source["limited"];
 	        this.skipped = source["skipped"];
 	        this.indexed = source["indexed"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	export class GeoPackageProfile {
+	    name: string;
+	    count: number;
+	    pk?: string;
+	    geometry: GeoPackageGeometryProfile;
+	    fields: GeoPackageFieldProfile[];
+	    incomplete: string[];
+	    seconds: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.count = source["count"];
+	        this.pk = source["pk"];
+	        this.geometry = this.convertValues(source["geometry"], GeoPackageGeometryProfile);
+	        this.fields = this.convertValues(source["fields"], GeoPackageFieldProfile);
+	        this.incomplete = source["incomplete"];
+	        this.seconds = source["seconds"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class OpenedProject {
 	    geopackage?: GeoPackageCatalog;
 	    path: string;

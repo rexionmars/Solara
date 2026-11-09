@@ -32,7 +32,7 @@ export function Legend({ scale, unit, title }: { scale: energy.RenderScale; unit
     ref != null && scale.max > scale.min ? ((ref - scale.min) / (scale.max - scale.min)) * 100 : null
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{title}</div>
+      <div className="text-[10px] text-muted-foreground">{title}</div>
       <div className="relative h-2.5 w-full rounded-sm" style={{ background: gradient }}>
         {refPos !== null && refPos >= 0 && refPos <= 100 && (
           <span
@@ -42,7 +42,7 @@ export function Legend({ scale, unit, title }: { scale: energy.RenderScale; unit
           />
         )}
       </div>
-      <div className="flex justify-between font-mono text-[10px] tabular-nums text-foreground">
+      <div className="flex justify-between text-[10px] tabular-nums text-foreground">
         <span>{scale.min.toFixed(scale.decimals)}</span>
         {refPos !== null && <span className="text-muted-foreground">ref {ref}</span>}
         <span>{scale.max.toFixed(scale.decimals)}</span>
@@ -65,12 +65,12 @@ export function Legend({ scale, unit, title }: { scale: energy.RenderScale; unit
 export function ClassLegend({ classes, title }: { classes: energy.GroundClass[]; title?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      {title && <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{title}</div>}
+      {title && <div className="text-[10px] text-muted-foreground">{title}</div>}
       {classes.map((c) => (
         <div key={c.key} className="flex items-center gap-1.5 text-[10px] leading-tight">
           <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: c.colour }} aria-hidden />
           <span className="min-w-0 flex-1 truncate text-foreground">{groundClassLabel(c.key)}</span>
-          <span className="shrink-0 font-mono tabular-nums text-muted-foreground">{c.pct.toFixed(1)}%</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">{c.pct.toFixed(1)}%</span>
         </div>
       ))}
     </div>

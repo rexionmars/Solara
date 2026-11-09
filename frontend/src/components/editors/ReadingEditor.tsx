@@ -15,7 +15,7 @@ import { DemandBody } from "../energy/DemandDocument"
 import { GroundBody } from "../energy/GroundDocument"
 import { StudioHeaderMenu, StudioHeaderPopoverButton } from "../studio/HeaderControls"
 import { StudioMenuGroup, StudioMenuItem, StudioMenuRule, StudioPopover } from "../studio/Popover"
-import { AreaHeader } from "../studio/StudioArea"
+import { AreaHeader } from "../shell/HeaderHosts"
 import { OperatorButton } from "../ui/Fields"
 import { RunInputs } from "./RunInputs"
 

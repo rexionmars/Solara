@@ -19,6 +19,8 @@ ACTIONS: dict[str, str] = {
     'system_planning': 'terra_energy_engine.planning:action',
     'gpkg_inspect': 'terra_energy_engine.geopackage:action',
     'gpkg_features': 'terra_energy_engine.geopackage:action',
+    'gpkg_profile': 'terra_energy_engine.geopackage:action',
+    'gpkg_feature': 'terra_energy_engine.geopackage:action',
     'ping': 'terra_energy_engine.cli:ping',
     'solar_resource': 'terra_energy_engine.energy.actions:solar_resource',
     'wind_resource': 'terra_energy_engine.energy.actions:wind_resource',

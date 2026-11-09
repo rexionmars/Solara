@@ -50,8 +50,12 @@ export function ExportResultFile(arg1, arg2) {
   return window['go']['main']['App']['ExportResultFile'](arg1, arg2);
 }
 
-export function GeoPackageFeatures(arg1, arg2, arg3) {
-  return window['go']['main']['App']['GeoPackageFeatures'](arg1, arg2, arg3);
+export function GeoPackageFeature(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GeoPackageFeature'](arg1, arg2, arg3);
+}
+
+export function GeoPackageFeatures(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['GeoPackageFeatures'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function GetAppVersion() {
@@ -116,6 +120,10 @@ export function ParseGridStoreURL(arg1) {
 
 export function Ping() {
   return window['go']['main']['App']['Ping']();
+}
+
+export function ProfileGeoPackageLayer(arg1, arg2) {
+  return window['go']['main']['App']['ProfileGeoPackageLayer'](arg1, arg2);
 }
 
 export function Register(arg1, arg2, arg3) {

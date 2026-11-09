@@ -169,9 +169,3 @@ basemap.subscribe(() => {
   }
 })
 
-/** Whether the toolbar (T) and the sidebar (N) of the Map editor are shown. */
-export const mapRegions = createStore<{ toolbar: boolean; sidebar: boolean; sidebarTab: "item" | "view" }>({
-  toolbar: true,
-  sidebar: false,
-  sidebarTab: "item",
-})
