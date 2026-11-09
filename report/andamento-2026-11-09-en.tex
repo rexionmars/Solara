@@ -1,0 +1,291 @@
+% !TEX program = lualatex
+% =====================================================================
+% andamento-2026-11-09-en.tex -- en-US version of
+% `andamento-2026-11-09.tex`, the Solara progress report for
+% November 5--9, 2026
+%
+% PARITY WITH THE PORTUGUESE FILE. This is a translation, not a fork: both
+% files carry the same pages, the same figures and the same numbers. A
+% change in one belongs in the other. Compile from inside `report/`:
+%
+%   latexmk -lualatex andamento-2026-11-09-en.tex
+%
+% DELIBERATE DIVERGENCES FROM THE SOURCE FILE, as in `tarefas-dados-en.tex`:
+%
+%   `babel` loads `american`, and `\sisetup` overrides the style sheet's
+%   decimal comma and thin-space grouping with the en-US period and comma.
+%
+%   Loanwords italicized in the Portuguese file -- desktop, site, commit,
+%   raster, zoom, trackpad, pull request -- are set roman here. The italic
+%   marks a word as foreign to the surrounding text; in English it is not.
+%
+%   "Ponto" in the Portuguese file is the interface's own word here, site.
+%
+% FORM. One column and one page per figure, as in the source: the figure
+% at text width at the top, its explanation below it, in the flow. The
+% header is `\cabecalho`, the body of the style's `\abertura` without its
+% `\twocolumn`.
+%
+% NUMBERS come from the demonstration project
+% `.temp/demo/solara-demo-2026-11.solara`, from the run of the synthetic
+% planning example on Nov 9, and, for Figures 2 and 6, from the author's
+% captures of the native macOS window over the Italian store.
+% =====================================================================
+\documentclass[10pt,a4paper,oneside,onecolumn]{book}
+
+\usepackage{iftex}
+\ifPDFTeX\usepackage[utf8]{inputenc}\fi
+\usepackage[american]{babel}
+\usepackage[a4paper,top=2.0cm,bottom=2.2cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{estilo-reporte}
+
+\sisetup{output-decimal-marker={.},group-separator={,}}
+
+\raggedbottom
+\pagestyle{plain}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+
+\autoria{João Leonardi da Silva Melo}{opensource.leonardi@gmail.com}
+\marca{../build/appicon.png}
+
+% The body of `\abertura`, without the `\twocolumn` around it.
+\makeatletter
+\newcommand{\cabecalho}[2]{%
+  \vspace*{-0.4em}%
+  \noindent
+  \begin{minipage}[b]{\marcalargura}%
+    \includegraphics[width=\marcalargura]{\re@marca}%
+  \end{minipage}%
+  \hspace{\marcarespiro}%
+  \begin{minipage}[b]{\dimexpr\textwidth-\marcalargura-\marcarespiro\relax}%
+    {\sffamily\bfseries\LARGE\hyphenpenalty=10000\exhyphenpenalty=10000
+     \raggedright #1\par}%
+    \vspace{0.35em}%
+    {\sffamily\fontsize{9}{11}\selectfont\color{tinta2}\raggedright #2\par}%
+    \vspace{0.25em}%
+    \re@assinatura
+  \end{minipage}%
+  \vspace{0.7em}\par
+  \noindent{\color{destaque}\rule{\textwidth}{0.6pt}}%
+  \vspace{1.0em}\par}
+\makeatother
+
+% A figure at text width, with its caption, for the top of a page.
+\newcommand{\figura}[2]{%
+  \noindent\includegraphics[width=\textwidth]{figuras/andamento-2026-11/#1}\par
+  \captionof{figure}{#2}\vspace{0.6em}}
+
+% A new page that opens with the figure; the text that follows comes below it.
+\newcommand{\paginafigura}[2]{\clearpage\figura{#1}{#2}}
+
+\begin{document}
+
+\cabecalho{Summary of the changes to Solara's interface and system planning}
+            {Progress report}%
+  \figura{03-map-rio-grande-do-norte.jpg}
+         {Demonstration project in Rio Grande do Norte, Brazil, with its two
+          sites and two areas over the 220~kV lines, the substations and the
+          solar and wind plants of the infrastructure GeoPackage.}
+
+\section*{An interface organized around the map}
+
+The map now fills the whole window, and every other function is arranged
+around it (Figure~1). In the previous version, the functions were spread
+over 14 editors in 11 workspaces, a function whose editor was not open was
+invisible, and the editors covered the map while the user worked. In the
+current version, a rail on the left leads to the screens for the map
+(Explore), sites and areas (Sites and areas), the comparison of results
+(Compare), system planning (Planning) and the run graph (Run graph). The
+right edge of the map holds the products, results and layers panels,
+together with the location and measuring tools, and only one panel is open
+at a time.
+
+The demonstration project brings the application's six calculation
+products together at two sites and two areas in Rio Grande do Norte. A
+site is a point of analysis; the project's sites are São Miguel do
+Gostoso, on the coast, and Assú, inland. The areas cover Natal, on the
+coast, and the Seridó, inland, and the project holds 11 results.
+
+The layers of a GeoPackage file, the geographic data format standardized
+by the OGC (Open Geospatial Consortium), enter the project as a reference,
+with the active layer, the visible layers and the color of each one. The
+demonstration project uses the file \texttt{infra\_brasile.gpkg}, with
+substations, 220~kV and 550~kV lines, and solar and wind plants. The
+interface background also changed from a warm gray, which read as yellow
+next to the map, to a neutral gray.
+
+\paginafigura{italia-geopackage.jpg}
+  {The application's start screen over the infrastructure GeoPackage for
+   Italy, in the native macOS window, with the substations aggregated into
+   counts.}
+
+\section*{Infrastructure layers for Italy}
+
+The layers of a GeoPackage do not depend on the country. Figure~2 shows
+the file \texttt{infra\_italia.gpkg} over the satellite imagery of the
+basemap. With more than \num{5000} substations in view, the map draws one
+circle per cell, with its area proportional to the number of substations,
+and the legend gives the scale for 75, 300 and \num{1203} substations;
+when the map is zoomed in, each substation is drawn.
+
+The capture was taken in the application's native macOS window and also
+shows the start screen, with the new opening photograph, the start
+commands and the recent projects.
+
+\paginafigura{05-result-solar-resource.jpg}
+  {Solar resource reading at the Assú site.}
+
+\section*{Solar resource at Assú}
+
+Each result is presented as a reading, that is, a page with a title, up to
+four indicators and a main panel whose title states the finding. The solar
+resource reading combines the 30-year climatology and the 10-year hourly
+series of NASA POWER at the site's radiation cell, and computes the yield
+of a fixed array with pvlib.
+
+At Assú, global irradiation was \num{2207}~kWh/m² per year, and the
+specific yield was \num{1665}~kWh/kWp for a performance ratio (PR) of 0.80.
+The optimal tilt was \num{8.5}°, with a gain of \num{0.8}~\% over the
+horizontal plane, and global irradiation varied by \num{1.45}~\% between
+years. The main panel shows the daily means of each month for global,
+direct and diffuse irradiation; November receives 37~\% more global
+irradiation than June.
+
+At the project's other site, São Miguel do Gostoso, global irradiation was
+\num{2117}~kWh/m² per year, and the specific yield was \num{1609}~kWh/kWp.
+
+\paginafigura{08-natal-solar-terrain.jpg}
+  {Solar terrain reading for the Natal area. On the map, the annual
+   irradiation of each cell; in the reading, the area by irradiation band.}
+
+\section*{Solar terrain at Natal}
+
+The solar terrain reading computes the annual irradiation on the plane of
+the array in each 30~m cell of the Copernicus GLO-30 digital elevation
+model, including shading by the horizon. In the Natal area, the mean was
+\num{1991}~kWh/m² per year, and the cell with the lowest irradiation
+received \num{1664}~kWh/m², 84~\% of the mean. Mean shading by the horizon
+was \num{0.37}~\%, with a maximum of \num{16.3}~\%, and the mean slope was
+\num{2.3}°.
+
+The histogram shows the area by irradiation band, and the color scale
+under the axis is the same as the map's. Most of the area lies close to
+the mean, and \num{2.0}~\% of it lies below \num{1934}~kWh/m².
+
+In the Seridó area, the mean was \num{1976}~kWh/m² per year, the minimum
+\num{1501}~kWh/m², and the mean slope \num{5.2}°.
+
+\paginafigura{17-planning-build.jpg}
+  {Build view of system planning, with the network of the synthetic
+   example drawn as a single-line diagram and the list of components.}
+
+\section*{Building a system planning study}
+
+System planning solves economic dispatch and capacity expansion for a
+user-defined network with PyPSA, a library for modeling power systems, and
+the HiGHS linear solver. The previous version presented the network as five
+spreadsheets, the hourly profiles as comma-separated numbers and the result
+as a column of six figures and four tables. The current version splits the
+work into two views, Build to assemble the study and Results to read the
+run.
+
+In the Build view, the study bar holds the mode, the currency, the CO₂ cap,
+the horizon and the sources. The network is drawn as a single-line diagram,
+with each bus as a bar, its generators above it and its loads and
+batteries below. Selecting a component opens it in an inspector, which
+shows the availability or demand profile as bars and accepts direct
+editing, pasting from a spreadsheet and CSV import.
+
+Before optimization, the draft is checked against the same rules as the
+calculation engine, and the Optimize button stays disabled while any fault
+remains. The diagram can be panned and zoomed, like the map.
+
+\paginafigura{planning-build-foggia.jpg}
+  {Build view of a study with 12 buses in the Foggia region, Italy, in the
+   native macOS window.}
+
+\section*{A planning study with a 12-bus network}
+
+The Foggia--Troia study, an expansion with solar generation and batteries,
+has 12 buses at 380~kV, 15 generators, 5 loads, 12 lines and 2 batteries.
+The horizon starts on June 15, 2026, and has 168 intervals of 1~h. The
+existing generators are gas plants, such as the Termoli plant at 770~MW,
+wind farms aggregated by substation, and the Troia solar park at 103~MW.
+The expansion candidates are two solar plants, of up to 800~MW and up to
+400~MW, and two batteries of up to 200~MW with 4~h of storage.
+
+At this size, the diagram arranges the buses in rows and routes the lines
+between non-adjacent buses through lanes under each row. The study bar
+shows that the draft passed the calculation engine's checks (Ready to
+optimize). The component names carry, in brackets, the source identifier
+of each object, such as those from OpenStreetMap.
+
+\paginafigura{19-planning-results-dispatch.jpg}
+  {Results view of system planning, with the hourly dispatch by
+   technology, battery charging below zero and demand as a step line.}
+
+\section*{Reading a system planning run}
+
+In the Results view, four indicators precede a panel with the Dispatch,
+Capacity, Lines and Storage tabs. In the synthetic example of two buses
+and 24 hours, the horizon cost was \num{71255}~EUR, of which
+\num{44453}~EUR was operation and \num{26803}~EUR added capacity. The cost
+per MWh served was \num{59.1}~EUR, and direct emissions totaled 177~t of
+CO₂.
+
+The optimizer added \num{85.3}~MW of solar generation, 80~MW of battery
+and \num{71.7}~MVA to the North–South line, which ran at its thermal limit
+for 3~h. Solar generation supplied 64~\% of the energy generated. The
+battery charged between 08:00 and 17:00 and discharged 70~\% of its energy
+between 17:00 and 21:00, the interval in which demand rises from 45~MW to
+70~MW.
+
+\begin{objecao}
+The example is fictitious and does not represent a real network. The study
+is kept in the application's local storage, outside the \texttt{.solara}
+file, and runs last only for the session.
+\end{objecao}
+
+\clearpage
+
+\section*{Fix to the connection with the grid database}
+
+Since commit \texttt{24f2bf3}, of October 29, the application's quick
+queries have been answered by Python processes kept open between requests.
+In these processes, standard output is redirected, and the answer to each
+action has to go through the protocol's reply function. The power grid
+actions and the map's wind field wrote their answer directly to standard
+output, where it was lost. As a result, connecting to any grid database,
+called Grid store in the interface, failed with the message ``the action
+produced no result'', including the Italian database \texttt{solara\_it}.
+Both actions now answer through the protocol, and a new test rejects any
+action that writes to standard output outside it.
+
+\section*{Verification}
+
+The 37 interface tests and the 350 calculation engine tests passed. The
+screens were checked in the application's development mode, in a headless
+Chrome browser, at \num{1600}~px and \num{1180}~px wide. In the native
+macOS window, the start screen and the Build view were seen (Figures~2 and
+6). The Results view in the native window and the pinch gesture on a real
+trackpad were not checked.
+
+\section*{Open items}
+
+\begin{ficha}
+  \item[Study] Whether to save the planning study in the \texttt{.solara}
+               file is still to be decided, because it changes the file
+               format.
+  \item[Map] On the Usable ground tab of a result, the map keeps drawing
+             the Solar terrain raster. The cause has not been investigated.
+  \item[Commits] The connection fix and the new opening photograph have not
+                 been committed. The branch's three new commits have not
+                 been pushed to the remote repository, and the branch has no
+                 pull request.
+  \item[Credit] The opening photograph is credited to the Pexels user
+                \texttt{gunas4life}; the photographer's name has not been
+                confirmed.
+\end{ficha}
+
+\end{document}
