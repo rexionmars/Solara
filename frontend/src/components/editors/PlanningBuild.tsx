@@ -379,7 +379,7 @@ export function PlanningBuild({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-emphasis text-muted-foreground">Currency</span>
-          <TextInput label="Currency" disabled={busy} value={study.currency} onChange={(currency) => set({ currency })} className="!w-16" />
+          <TextInput label="Currency" disabled={busy} value={study.currency} onChange={(currency) => set({ currency })} className="!w-24" />
         </div>
         <div className="flex items-center gap-2" title="Total direct emissions allowed over the horizon. Empty means no cap.">
           <span className="text-emphasis text-muted-foreground">CO₂ cap</span>
