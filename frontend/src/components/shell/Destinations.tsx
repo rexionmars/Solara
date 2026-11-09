@@ -14,7 +14,7 @@ import { HostStrip } from "./HeaderHosts"
  * table's sort survive a look at the ground. The header carries its name and
  * the controls its editor offers, in the places HostStrip gives it.
  */
-function DestinationScreen({ id, title, subtitle, children }: { id: Destination; title: string; subtitle: string; children: ReactNode }) {
+function DestinationScreen({ id, title, subtitle, children }: { id: Destination; title: string; subtitle?: string; children: ReactNode }) {
   const { destination } = useStore(shell)
   return (
     <section
@@ -28,7 +28,7 @@ function DestinationScreen({ id, title, subtitle, children }: { id: Destination;
         lead={
           <>
             <h1 className="text-heading font-medium text-foreground">{title}</h1>
-            <span className="hidden truncate text-body text-muted-foreground @[56rem]:inline">{subtitle}</span>
+            {subtitle && <span className="hidden truncate text-body text-muted-foreground @[56rem]:inline">{subtitle}</span>}
             <span aria-hidden className="mx-1 h-5 w-px" style={{ background: "var(--border)" }} />
           </>
         }
@@ -52,7 +52,8 @@ export function Destinations() {
         </DestinationScreen>
       )}
       {opened.includes("planning") && (
-        <DestinationScreen id="planning" title="System planning" subtitle="Economic dispatch and capacity expansion with PyPSA and HiGHS, over an explicit network, demand and costs.">
+        // No subtitle: the study's own name stands beside the title.
+        <DestinationScreen id="planning" title="System planning">
           <SystemPlanningEditor />
         </DestinationScreen>
       )}

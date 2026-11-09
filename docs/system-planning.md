@@ -1,32 +1,51 @@
-# Solora system planning
+# Solara system planning
 
-Open **Planning · PyPSA** in the permanent Workspace bar, or
-**Analysis → Grid → Planning** (also available in the panel editor selector). This is an explicit electricity-system study using
+Open **Planning** in the rail. This is an explicit electricity-system study using
 PyPSA 1.4.0 and the HiGHS 1.15.1 linear solver, running locally in the cancellable
 sidecar analysis slot. Install the repository's `requirements.txt` into its Python
 3.12 environment. No external optimization service or PostGIS store is required.
 
-The ribbon follows the active workspace and its panels. Planning provides **Study**,
-**Run**, **View** and **Export**, with study JSON actions in **Studio**. A **Map** tab
-appears only when the workspace contains a map. Each workspace remembers its own
-selected ribbon tab; Solar, Wind, Grid, Data and Scripting expose their related tools.
+The destination has two views, switched in its header: **Build**, where the study
+is made, and **Results**, where a run is read. The header also holds the study's
+name (press it to rename), whether the latest run still matches the inputs, the
+file menu (`⋯`) and **Optimize**.
 
 ## Workflow
 
-1. Use the panel header’s **File** menu to create or import a version 1 JSON study. Exported run reports can also
-   be imported: their recorded `study` becomes the editable input.
-2. Set the study mode, currency, sources/assumptions and optional horizon CO₂ cap.
-3. Build a chronological horizon. Supply interval-average demand (MW) and generator
-   availability (0–1) for every interval. All timestamps carry a timezone and
-   intervals must be ordered and contiguous. Rebuilding the horizon resets profiles.
-4. Enter buses, generators, loads, existing lines and optional storage. IDs must be
-   unique within component types and bus references must exist. Electrical parameters,
-   profiles and costs are supplied explicitly. A GeoPackage can be cited as a
-   geographic reference; map features do not establish electrical connectivity.
-5. Run optimization. An infeasible or nonoptimal solve produces an error, not a
-   partial planning result. Cancellation stops the Python process and solver.
-6. Inspect dispatch, capacities, transmission utilization, storage losses and cost
-   decomposition. Export the run report to preserve the exact inputs and outputs.
+1. Start from **Load synthetic example**, **Import study…** or **New study** in
+   the file menu (an empty study offers the first two in the inspector too).
+   Exported run reports can also be imported: their recorded `study` becomes the
+   editable input.
+2. Set the study in the bar under the header: mode, currency, optional horizon
+   CO₂ cap, the **Horizon** (start in UTC, number of intervals, interval length)
+   and the **Sources and assumptions**, which the engine requires. Rebuilding the
+   horizon sets every demand to 0 and every availability to 1, and asks first
+   when a profile has been shaped.
+3. Build the network with **Add**: buses, generators, loads, lines and storage.
+   The diagram draws each bus as a bar, its generators above it and its loads and
+   storage below it, with the lines between the bars. Click a component to edit it
+   in the inspector; **Table** shows each kind as a spreadsheet instead. IDs must
+   be unique within a kind and every bus a component names must exist; renaming a
+   bus renames it wherever it is named. The diagram is a drawing, not a map: a
+   component is connected only by the bus it names. A GeoPackage can be cited as
+   a geographic reference; map features do not establish electrical connectivity.
+4. Give each generator its availability (0–1) and each load its demand (MW), one
+   value per interval: in the inspector, **Edit values** takes a column of
+   numbers (pasted from a spreadsheet, for instance) and **Import CSV** a file of
+   one value per line or a table whose last column holds them. An edit is a draft
+   until it is applied, and a draft holds Optimize back.
+5. The bar under the header says **Ready to optimize** or how many things are
+   left to fix. The draft is checked against the same rules the engine applies
+   (`checkStudy` in `frontend/src/lib/planning.ts`, mirroring `validate` in
+   `sidecar/terra_energy_engine/planning.py`); each fault is marked on its
+   component and listed in the inspector, and Optimize waits until there are none.
+6. Optimize. An infeasible or nonoptimal solve produces an error, not a partial
+   planning result. Cancel stops the Python process and solver.
+7. Read the run in **Results**: horizon cost, cost per MWh served, direct CO₂ and
+   hours at a line limit, then dispatch by technology (chart or table), the
+   capacity added against each upper bound (expansion only), the lines' peak
+   loading and the storage's state of charge. **Export report** preserves the
+   exact inputs and outputs.
 
 **Load synthetic example** supplies an explicitly fictional 24-hour, two-bus case
 with gas, solar, a transmission bottleneck and a battery. Its costs, profiles and
@@ -34,13 +53,10 @@ parameters are demonstration assumptions, not measurements or an Italian grid mo
 
 Draft inputs are saved in browser local storage under `solora.system-planning.v1`.
 They are independent of `.solara` projects. The last five successful reports remain
-in session memory across panel/workspace changes; export them before closing the app.
-The study and run-report exports use the desktop Save dialog. JSON imports are
-limited to 32 MB. The app never modifies a referenced GeoPackage.
-
-The panel header switches between **Study**, **Network**, **Profiles** and **Results**.
-Network components are organized by type; add and remove rows from each table’s
-toolbar. The **File** menu also exports study inputs and solved run reports.
+in session memory while the application is open; with more than one, Results offers
+a run picker. Export them before closing the app. The study and run-report exports
+use the desktop Save dialog. JSON imports are limited to 32 MB. The app never
+modifies a referenced GeoPackage.
 
 ## Model and units
 
@@ -126,14 +142,14 @@ UTC execution time, PyPSA/HiGHS versions, optimal termination status, and:
 - Every interval's generation per unit, demand per bus, signed line flow (positive
   from bus0 to bus1), charge/discharge per storage unit and state of charge.
 
-Before accepting a result, Solora independently checks active-power balance at
+Before accepting a result, Solara independently checks active-power balance at
 **every bus and interval**, and reconciles the reported cost decomposition with the
 solver objective. No asset identity, usable capacity or connection feasibility is
 inferred from spatial proximity or count.
 
-The UI retains five reports for side-by-side scenario totals. Compare only
-compatible horizons, demand, currencies and assumptions. Changed draft inputs are
-marked separately from the recorded inputs of each result.
+The UI retains five reports. Compare only compatible horizons, demand, currencies
+and assumptions. A run whose inputs differ from the draft is marked so in Results,
+and **Use these inputs** puts its recorded inputs back in the draft.
 
 ## Method references
 

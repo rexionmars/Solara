@@ -153,3 +153,17 @@ export const ShellGlyph = {
   Stack: P.Stack,
   Trash: P.Trash,
 } as const
+
+// ---- The planning diagram's components: Phosphor's own, in each technology's ink ---------
+/*
+  A generator on the system planning diagram takes its technology's colour, the
+  colour its series has in the dispatch chart, so it is drawn in Phosphor's glyph
+  and that ink rather than in a picture that brings its own.
+*/
+export const PlanGlyph = {
+  ArrowDown: P.ArrowDown,
+  BatteryHigh: P.BatteryHigh,
+  Flame: P.Flame,
+  Sun: P.Sun,
+  Wind: P.Wind,
+} as const

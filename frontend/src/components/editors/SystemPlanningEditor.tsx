@@ -1,654 +1,276 @@
-import { useEffect, useState } from "react"
-import { usePlanningFiles } from "./usePlanningFiles"
-import {
-  Scroll,
-  Table,
-  FilePlus,
-  FloppyDisk,
-  FolderOpen,
-  Graph,
-  Play,
-  SlidersHorizontal,
-  StopCircle,
-} from "../../lib/icons"
-import { StudioHeaderMenu, StudioHeaderRadio } from "../studio/HeaderControls"
-import { PanelSection } from "../ui/Fields"
-
-import { geoPackage } from "../../lib/geopackage"
-import { cancelPlanning, planning, runPlanning, studyKey, updateStudy, type Study } from "../../lib/planning"
+import { useMemo, useState } from "react"
+import { FilePlus, FloppyDisk, FolderOpen, Graph, PencilSimple, Play, StopCircle, X } from "../../lib/icons"
+import { cancelPlanning, checkStudy, planning, runPlanning, studyKey, updateStudy, type PlanningView, type Study } from "../../lib/planning"
+import { formatMoment } from "../../lib/format"
 import { useStore } from "../../lib/store"
 import { AreaHeader } from "../shell/HeaderHosts"
-import { btnGhostDense, btnPrimary, fieldInput } from "../ui/buttons"
-import { number, selectStyle } from "./PlanningUI"
-import { ComponentTable, Field, SeriesInput } from "./PlanningInputs"
-import { PlanningResults, ResultTable } from "./PlanningResults"
+import { MenuItems, StudioPopover } from "../studio/Popover"
+import { btnGhost, btnPrimary } from "../ui/buttons"
+import { PlanningBuild } from "./PlanningBuild"
+import { PlanningResults } from "./PlanningResults"
+import { Seg, moment, whole } from "./PlanningUI"
+import { usePlanningFiles } from "./usePlanningFiles"
 
+/** The study's name in the header, renamed in place. */
+function StudyName({ name, disabled, onRename }: { name: string; disabled: boolean; onRename: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+  if (editing) {
+    const done = (keep: boolean) => {
+      if (keep && draft.trim()) onRename(draft.trim())
+      setEditing(false)
+    }
+    return (
+      <input
+        autoFocus
+        aria-label="Study name"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => done(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") done(true)
+          if (e.key === "Escape") {
+            e.stopPropagation()
+            done(false)
+          }
+        }}
+        className="h-7 w-64 rounded-[6px] border border-accent/60 bg-field px-2 text-heading text-foreground outline-none"
+      />
+    )
+  }
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title="Rename the study"
+      onClick={() => {
+        setDraft(name)
+        setEditing(true)
+      }}
+      className="flex h-7 min-w-0 max-w-[22rem] items-center gap-2 rounded-[6px] px-1.5 text-heading text-foreground hover:bg-hover"
+    >
+      <span className="truncate">{name || "Untitled study"}</span>
+      <PencilSimple className="size-3.5 shrink-0 text-muted-foreground" />
+    </button>
+  )
+}
+
+/** New, import, example and the two exports, behind one button. */
+function FileMenu({ files, busy, pending, hasResult }: { files: ReturnType<typeof usePlanningFiles>; busy: boolean; pending: boolean; hasResult: boolean }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <StudioPopover
+      open={open}
+      onOpenChange={setOpen}
+      align="end"
+      widthRem={14}
+      portal="viewport"
+      trigger={(p) => (
+        <button
+          type="button"
+          ref={p.ref as React.Ref<HTMLButtonElement>}
+          onClick={p.onClick}
+          aria-expanded={p["aria-expanded"]}
+          aria-haspopup="menu"
+          aria-label="Study file: new, import, example, export"
+          title="Study file"
+          className={`grid size-8 place-items-center rounded-[7px] border border-line/40 text-muted-foreground transition-colors hover:bg-hover hover:text-foreground ${open ? "bg-selected text-foreground" : ""}`}
+        >
+          <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="currentColor">
+            <circle cx="5" cy="12" r="1.7" />
+            <circle cx="12" cy="12" r="1.7" />
+            <circle cx="19" cy="12" r="1.7" />
+          </svg>
+        </button>
+      )}
+    >
+      {open && (
+        <MenuItems
+          onDone={() => setOpen(false)}
+          items={[
+            { type: "action", label: "New study", icon: FilePlus, disabled: busy && "Optimization in progress", run: files.newStudy },
+            { type: "action", label: "Import study…", icon: FolderOpen, disabled: busy && "Optimization in progress", run: files.importStudy },
+            { type: "action", label: "Load synthetic example", icon: Graph, disabled: busy && "Optimization in progress", run: files.example },
+            { type: "sep" },
+            { type: "action", label: "Export study…", icon: FloppyDisk, disabled: pending && "Apply the profile you are editing first", run: files.exportStudy },
+            { type: "action", label: "Export run report…", icon: FloppyDisk, disabled: !hasResult && "No run yet", run: files.exportReport },
+          ]}
+        />
+      )}
+    </StudioPopover>
+  )
+}
+
+const plural = (n: number, one: string, many: string) => `${whole(n)} ${n === 1 ? one : many}`
+
+/**
+ * System planning: Build makes the study, Results reads a run of it.
+ *
+ * The header carries what applies to both: the study's name, the switch
+ * between the two, whether the latest run still matches the inputs, the file
+ * menu and Optimize. Optimize is held back while the draft has a fault the
+ * engine would refuse or a profile edit not yet applied, and says which.
+ */
 export function SystemPlanningEditor() {
   const state = useStore(planning)
-  const gpkg = useStore(geoPackage)
   const { study, busy } = state
-  // The view and the run selected live in the store, so they outlast the editor.
-  const tab = ["study", "network", "series", "results"].includes(state.view) ? state.view : "study"
-  const setTab = (view: string) => planning.set((s) => ({ ...s, view }))
-  const selected = state.selectedResult
-  const setSelected = (selectedResult: string) => planning.set((s) => ({ ...s, selectedResult }))
-  const [start, setStart] = useState(study.snapshots[0]?.time ?? "2026-01-01T00:00:00Z")
-  const [count, setCount] = useState(study.snapshots.length || 24)
-  const [step, setStep] = useState(study.snapshots[0]?.duration_hours ?? 1)
-  const [assetKind, setAssetKind] = useState("generators")
-  const [scheduleError, setScheduleError] = useState("")
-  const pendingProfiles = state.pendingProfiles
-  const setPendingProfiles = (pendingProfiles: Record<string, boolean>) =>
-    planning.set((s) => ({ ...s, pendingProfiles, profileDrafts: {} }))
   const files = usePlanningFiles()
-  const result = state.results.find((r) => r.created_at === selected) ?? state.results[0]
   const set = (patch: Partial<Study>) => updateStudy({ ...study, ...patch })
-  const bus = study.buses[0]?.id ?? ""
-  const buses = study.buses.map((b) => b.id)
-  const seriesKey = JSON.stringify(study.snapshots)
-  const id = (prefix: string, rows: { id: string }[]) => {
-    let n = 1
-    while (rows.some((r) => r.id === `${prefix}-${n}`)) n++
-    return `${prefix}-${n}`
+  const issues = useMemo(() => checkStudy(study), [study])
+  const pending = Object.values(state.pendingProfiles).some(Boolean)
+  const view: PlanningView = state.view === "results" ? "results" : "build"
+  const setView = (v: PlanningView) => planning.set((s) => ({ ...s, view: v }))
+  const result = files.result
+  const latest = state.results[0]
+  const current = !!latest && studyKey(latest.study) === studyKey(study)
+  const stale = !!result && studyKey(result.study) !== studyKey(study)
+  const blocked = pending ? "Apply or cancel the profile you are editing first." : issues.length ? `Fix ${issues.length === 1 ? "one thing" : `${issues.length} things`} in Build first.` : ""
+
+  const optimize = () => {
+    planning.set((s) => ({ ...s, selectedResult: "" }))
+    void runPlanning()
   }
-  const replace = files.replace
-  const save = files.save
-  useEffect(() => {
-    const current = planning.get().study
-    setStart(current.snapshots[0]?.time ?? "2026-01-01T00:00:00Z")
-    setCount(current.snapshots.length || 24)
-    setStep(current.snapshots[0]?.duration_hours ?? 1)
-    setScheduleError("")
-  }, [state.revision])
-  const pending = Object.values(pendingProfiles).some(Boolean)
-  const markPending = (key: string, value: boolean) =>
-    planning.set((s) => ({ ...s, pendingProfiles: { ...s.pendingProfiles, [key]: value } }))
-  const buildHorizon = () => {
-    const date = new Date(start)
-    if (
-      !/(Z|[+-]\d{2}:\d{2})$/.test(start) ||
-      !Number.isFinite(date.getTime()) ||
-      !Number.isInteger(count) ||
-      count < 1 ||
-      count > 8784 ||
-      !Number.isFinite(step) ||
-      step < 1 / 60 ||
-      step > 24 ||
-      count * step > 8784
-    ) {
-      setScheduleError(
-        "Use an ISO start with timezone, 1–8,784 intervals, and a total horizon up to 8,784 hours.",
-      )
-      return
-    }
-    set({
-      snapshots: Array.from({ length: count }, (_, i) => ({
-        time: new Date(date.getTime() + i * step * 3600000).toISOString(),
-        duration_hours: step,
-      })),
-      loads: study.loads.map((l) => ({ ...l, p_mw: Array(count).fill(0) })),
-      generators: study.generators.map((g) => ({ ...g, availability: Array(count).fill(1) })),
-    })
-    setScheduleError("")
-    setPendingProfiles({})
-  }
+
+  const head = result && (
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="reading-head min-w-0 flex-[1_1_22rem]">
+        {state.results.length > 1 && (
+          <label className="mb-2.5 inline-flex h-7 items-center gap-2 rounded-[7px] border border-[var(--s-line)] bg-[var(--s-sunk)] px-2 text-[12px] text-[var(--s-text-muted)]">
+            <span className="text-[var(--s-text)]">Run</span>
+            <select
+              aria-label="Choose a run"
+              value={result.created_at}
+              onChange={(e) => planning.set((s) => ({ ...s, selectedResult: e.target.value }))}
+              className="bg-transparent text-[12px] text-[var(--s-text)] outline-none"
+            >
+              {state.results.map((r) => (
+                <option key={r.created_at} value={r.created_at}>
+                  {formatMoment(r.created_at)} · {r.study.name} · {r.study.mode}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <h2>
+            {result.study.mode === "expansion" ? "Capacity expansion" : "Economic dispatch"} over {plural(result.summary.hours, "hour", "hours")}
+          </h2>
+          {stale && (
+            <span className="reading-chip" data-tone="warn">
+              Inputs changed since this run
+            </span>
+          )}
+        </div>
+        <p>
+          {plural(result.study.buses.length, "bus", "buses")} and {plural(result.study.lines.length, "line", "lines")},{" "}
+          {plural(result.summary.snapshots, "interval", "intervals")} from {moment(result.study.snapshots[0]?.time ?? "")} UTC, costs in{" "}
+          {result.study.currency}.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {stale && (
+          <button type="button" disabled={busy} className={btnGhost} onClick={() => files.replace(structuredClone(result.study))} title="Replace the draft with the inputs this run used">
+            Use these inputs
+          </button>
+        )}
+        <button type="button" className={btnGhost} onClick={files.exportReport}>
+          Export report
+        </button>
+      </div>
+    </header>
+  )
+
   return (
     <>
       <AreaHeader
         menus={
-          <>
-            <StudioHeaderMenu
-              label="File"
-              items={() => [
-                {
-                  type: "action",
-                  label: "New study",
-                  icon: FilePlus,
-                  disabled: busy && "Optimization in progress",
-                  run: files.newStudy,
-                },
-                {
-                  type: "action",
-                  label: "Import study…",
-                  icon: FolderOpen,
-                  disabled: busy && "Optimization in progress",
-                  run: files.importStudy,
-                },
-                {
-                  type: "action",
-                  label: "Load synthetic example",
-                  icon: Graph,
-                  disabled: busy && "Optimization in progress",
-                  run: files.example,
-                },
-                { type: "sep" },
-                {
-                  type: "action",
-                  label: "Export study…",
-                  icon: FloppyDisk,
-                  disabled: pending && "Apply the edited profiles first",
-                  run: () => void save(study),
-                },
-                {
-                  type: "action",
-                  label: "Export run report…",
-                  icon: FloppyDisk,
-                  disabled: !result && "No solved study",
-                  run: () => {
-                    if (result) void save(result)
-                  },
-                },
-              ]}
-            />
-            <StudioHeaderRadio
-              value={tab}
-              onChange={setTab}
+          <div className="flex min-w-0 items-center gap-3 pl-1">
+            <StudyName name={study.name} disabled={busy} onRename={(name) => set({ name })} />
+            <Seg
+              label="View"
+              value={view}
+              onChange={setView}
               options={[
-                {
-                  id: "study",
-                  label: "Study",
-                  icon: SlidersHorizontal,
-                  disabled: pending,
-                },
-                { id: "network", label: "Network", icon: Graph, disabled: pending },
-                { id: "series", label: "Profiles", icon: Table, disabled: false },
-                { id: "results", label: "Results", icon: Scroll, disabled: pending },
+                { value: "build", label: "Build" },
+                { value: "results", label: "Results" },
               ]}
             />
-          </>
-        }
-        options={<span className="px-2 text-meta text-muted-foreground">PyPSA · HiGHS</span>}
-      />
-      <div className="flex min-h-0 flex-1 flex-col text-foreground">
-        <div
-          className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b px-2.5 py-2"
-          style={{ borderColor: "var(--hairline)" }}
-        >
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-body font-medium" title={study.name}>
-              {study.name}
-            </p>
-            <p className="mt-0.5 text-meta text-muted-foreground">
-              {study.mode === "dispatch" ? "Economic dispatch" : "Capacity expansion"} · {study.currency}
-            </p>
           </div>
-          <span className="telemetry text-meta text-muted-foreground">
-            {study.buses.length} buses · {study.generators.length} generators · {study.snapshots.length}{" "}
-            intervals
-          </span>
-          {files.input}
-        </div>
-        <div className="panel-scroll min-h-0 flex-1 overflow-auto" role="tabpanel">
-          {state.error && (
-            <p role="alert" className="border-b border-line/30 px-2.5 py-2 text-meta text-destructive-quiet">
-              {state.error}
-            </p>
-          )}
-          {state.notice && (
-            <p
-              role="status"
-              className="border-b border-line/30 px-2.5 py-1.5 text-meta text-muted-foreground"
-            >
-              {state.notice}
-            </p>
-          )}
-          {tab === "study" && (
-            <div className="grid grid-cols-1 items-start @3xl:grid-cols-2">
-              <div>
-                <PanelSection title="Study">
-                  <Field label="Name">
-                    <input
-                      disabled={busy}
-                      className={fieldInput}
-                      value={study.name}
-                      onChange={(e) => set({ name: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Mode">
-                    <select
-                      disabled={busy}
-                      className={selectStyle}
-                      value={study.mode}
-                      onChange={(e) => set({ mode: e.target.value as Study["mode"] })}
-                    >
-                      <option value="dispatch">Economic dispatch</option>
-                      <option value="expansion">Capacity expansion</option>
-                    </select>
-                  </Field>
-                  <Field label="Currency">
-                    <input
-                      disabled={busy}
-                      className={fieldInput}
-                      value={study.currency}
-                      onChange={(e) => set({ currency: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="CO₂ budget · t">
-                    <input
-                      disabled={busy}
-                      type="number"
-                      min="0"
-                      step="any"
-                      placeholder="Unconstrained"
-                      className={fieldInput}
-                      value={study.co2_limit_tonnes ?? ""}
-                      onChange={(e) =>
-                        set({ co2_limit_tonnes: e.target.value === "" ? null : Number(e.target.value) })
-                      }
-                    />
-                  </Field>
-                </PanelSection>
-                <PanelSection title="Sources & assumptions">
-                  <textarea
-                    aria-label="Data sources and assumptions"
-                    disabled={busy}
-                    placeholder="Record the sources and assumptions used in this study."
-                    className={`${fieldInput} !h-24 resize-y py-2`}
-                    value={study.provenance}
-                    onChange={(e) => set({ provenance: e.target.value })}
-                  />
-                  {gpkg.file && (
-                    <button
-                      disabled={busy}
-                      className={`${btnGhostDense} self-start`}
-                      title={gpkg.file.path}
-                      onClick={() =>
-                        set({
-                          provenance: `${study.provenance}${study.provenance ? "\n" : ""}Geographic reference: ${gpkg.file!.path}; analytical parameters supplied separately.`,
-                        })
-                      }
-                    >
-                      Cite {gpkg.file.name}
-                    </button>
-                  )}
-                </PanelSection>
-              </div>
-              <div className="border-line/30 @3xl:border-l">
-                <PanelSection
-                  title="Horizon"
-                  aside={
-                    <span className="telemetry text-meta text-muted-foreground">
-                      {number(study.snapshots.reduce((n, s) => n + s.duration_hours, 0))} h
-                    </span>
-                  }
-                >
-                  <Field label="Start · ISO / timezone">
-                    <input
-                      disabled={busy}
-                      className={fieldInput}
-                      value={start}
-                      onChange={(e) => setStart(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Intervals">
-                    <input
-                      disabled={busy}
-                      type="number"
-                      min="1"
-                      max="8784"
-                      className={fieldInput}
-                      value={count}
-                      onChange={(e) => setCount(Number(e.target.value))}
-                    />
-                  </Field>
-                  <Field label="Interval · hours">
-                    <input
-                      disabled={busy}
-                      type="number"
-                      min={1 / 60}
-                      max="24"
-                      step="any"
-                      className={fieldInput}
-                      value={step}
-                      onChange={(e) => setStep(Number(e.target.value))}
-                    />
-                  </Field>
-                  <div className="mt-1 flex justify-end">
-                    <button disabled={busy} className={btnGhostDense} onClick={buildHorizon}>
-                      Build horizon
-                    </button>
-                  </div>
-                  <p className="text-meta leading-relaxed text-muted-foreground">
-                    Rebuilding resets demand to zero and generator availability to 1.
-                  </p>
-                  {scheduleError && (
-                    <p role="alert" className="text-meta text-destructive-quiet">
-                      {scheduleError}
-                    </p>
-                  )}
-                </PanelSection>
-                {!study.buses.length && (
-                  <PanelSection title="Get started">
-                    <p className="text-meta leading-relaxed text-muted-foreground">
-                      Import a study or add components in Network.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button disabled={busy} className={btnGhostDense} onClick={files.importStudy}>
-                        <FolderOpen className="size-3" />
-                        Import study…
-                      </button>
-                      <button disabled={busy} className={btnGhostDense} onClick={files.example}>
-                        Synthetic example
-                      </button>
-                    </div>
-                  </PanelSection>
-                )}
-              </div>
-            </div>
-          )}
-          {tab === "network" && (
-            <div className="flex flex-col">
-              <div
-                role="tablist"
-                aria-label="Network components"
-                className="flex flex-wrap gap-1 border-b border-line/30 px-2.5 py-1.5"
-              >
-                {(
-                  [
-                    ["buses", "Buses", study.buses.length],
-                    ["generators", "Generators", study.generators.length],
-                    ["loads", "Loads", study.loads.length],
-                    ["lines", "Lines", study.lines.length],
-                    ["storage", "Storage", study.storage.length],
-                  ] as const
-                ).map(([key, label, count]) => (
-                  <button
-                    key={key}
-                    role="tab"
-                    aria-selected={assetKind === key}
-                    onClick={() => setAssetKind(key)}
-                    className={`flex items-center gap-2 rounded-sm px-2 py-1 text-meta ${assetKind === key ? "bg-selected text-accent" : "text-muted-foreground hover:bg-hover"}`}
-                  >
-                    {label}
-                    <span className="telemetry text-[9px] opacity-70">{count}</span>
-                  </button>
-                ))}
-              </div>
-              {assetKind === "buses" && (
-                <ComponentTable
-                  label="Buses"
-                  disabled={busy}
-                  rows={study.buses}
-                  buses={buses}
-                  columns={[
-                    { key: "id", label: "ID" },
-                    { key: "v_nom_kv", label: "Nominal voltage · kV", type: "number" },
-                  ]}
-                  onChange={(buses) => set({ buses })}
-                  create={() => ({ id: id("bus", study.buses), v_nom_kv: 110 })}
-                />
-              )}
-              {assetKind === "generators" && (
-                <ComponentTable
-                  label="Generators"
-                  disabled={busy}
-                  rows={study.generators}
-                  buses={buses}
-                  columns={[
-                    { key: "id", label: "ID" },
-                    { key: "bus", label: "Bus", type: "bus" },
-                    { key: "carrier", label: "Technology" },
-                    { key: "existing_mw", label: "Existing · MW", type: "number" },
-                    { key: "expandable", label: "Expand", type: "boolean" },
-                    { key: "max_mw", label: "Maximum · MW", type: "number" },
-                    {
-                      key: "annualized_cost_per_mw_year",
-                      label: `${study.currency}/MW/year`,
-                      type: "number",
-                    },
-                    { key: "marginal_cost_per_mwh", label: `${study.currency}/MWh`, type: "number" },
-                    { key: "co2_tonnes_per_mwh", label: "Direct CO₂ · t/MWh output", type: "number" },
-                  ]}
-                  onChange={(generators) => set({ generators })}
-                  create={() => ({
-                    id: id("generator", study.generators),
-                    bus,
-                    carrier: "unspecified",
-                    existing_mw: 0,
-                    expandable: false,
-                    max_mw: 0,
-                    annualized_cost_per_mw_year: 0,
-                    marginal_cost_per_mwh: 0,
-                    co2_tonnes_per_mwh: 0,
-                    availability: Array(study.snapshots.length).fill(1),
-                  })}
-                />
-              )}
-              {assetKind === "loads" && (
-                <ComponentTable
-                  label="Loads"
-                  disabled={busy}
-                  rows={study.loads}
-                  buses={buses}
-                  columns={[
-                    { key: "id", label: "ID" },
-                    { key: "bus", label: "Bus", type: "bus" },
-                  ]}
-                  onChange={(loads) => set({ loads })}
-                  create={() => ({
-                    id: id("load", study.loads),
-                    bus,
-                    p_mw: Array(study.snapshots.length).fill(0),
-                  })}
-                />
-              )}
-              {assetKind === "lines" && (
-                <ComponentTable
-                  label="Lines"
-                  disabled={busy}
-                  rows={study.lines}
-                  buses={buses}
-                  columns={[
-                    { key: "id", label: "ID" },
-                    { key: "bus0", label: "From bus", type: "bus" },
-                    { key: "bus1", label: "To bus", type: "bus" },
-                    { key: "x_ohm", label: "Reactance · Ω", type: "number" },
-                    { key: "existing_mva", label: "Existing · MVA", type: "number" },
-                    { key: "expandable", label: "Reinforce", type: "boolean" },
-                    { key: "max_mva", label: "Maximum · MVA", type: "number" },
-                    {
-                      key: "annualized_cost_per_mva_year",
-                      label: `${study.currency}/MVA/year`,
-                      type: "number",
-                    },
-                  ]}
-                  onChange={(lines) => set({ lines })}
-                  create={() => ({
-                    id: id("line", study.lines),
-                    bus0: bus,
-                    bus1: study.buses[1]?.id ?? "",
-                    x_ohm: 0,
-                    existing_mva: 0,
-                    expandable: false,
-                    max_mva: 0,
-                    annualized_cost_per_mva_year: 0,
-                  })}
-                />
-              )}
-              {assetKind === "storage" && (
-                <ComponentTable
-                  label="Storage"
-                  disabled={busy}
-                  rows={study.storage}
-                  buses={buses}
-                  columns={[
-                    { key: "id", label: "ID" },
-                    { key: "bus", label: "Bus", type: "bus" },
-                    { key: "existing_mw", label: "Existing · MW", type: "number" },
-                    { key: "expandable", label: "Expand", type: "boolean" },
-                    { key: "max_mw", label: "Maximum · MW", type: "number" },
-                    { key: "max_hours", label: "Energy/power · h", type: "number" },
-                    {
-                      key: "annualized_cost_per_mw_year",
-                      label: `${study.currency}/MW/year`,
-                      type: "number",
-                    },
-                    {
-                      key: "marginal_cost_per_mwh",
-                      label: `${study.currency}/MWh discharged`,
-                      type: "number",
-                    },
-                    { key: "efficiency_store", label: "Charge efficiency · 0–1", type: "number" },
-                    { key: "efficiency_dispatch", label: "Discharge efficiency · 0–1", type: "number" },
-                  ]}
-                  onChange={(storage) => set({ storage })}
-                  create={() => ({
-                    id: id("storage", study.storage),
-                    bus,
-                    existing_mw: 0,
-                    expandable: false,
-                    max_mw: 0,
-                    annualized_cost_per_mw_year: 0,
-                    marginal_cost_per_mwh: 0,
-                    max_hours: 4,
-                    efficiency_store: 0.95,
-                    efficiency_dispatch: 0.95,
-                  })}
-                />
-              )}
-            </div>
-          )}
-          {tab === "series" && (
-            <div className="flex flex-col gap-3 px-2.5 py-2.5">
-              <p className="text-meta text-muted-foreground">
-                Interval averages: demand in MW, availability from 0 to 1. Apply each edited profile before
-                running.
-              </p>
-              {!study.snapshots.length && <p>Build a horizon in Study before entering profiles.</p>}
-              {study.loads.map((load, i) => (
-                <SeriesInput
-                  key={`${seriesKey}:load:${i}:${JSON.stringify(load.p_mw)}`}
-                  disabled={busy}
-                  label={`Demand · ${load.id} · MW`}
-                  values={load.p_mw}
-                  count={study.snapshots.length}
-                  onPending={(p) => markPending(`load:${load.id}`, p)}
-                  onChange={(p_mw) =>
-                    set({ loads: study.loads.map((l, j) => (i === j ? { ...l, p_mw } : l)) })
-                  }
-                />
-              ))}
-              {study.generators.map((g, i) => (
-                <SeriesInput
-                  key={`${seriesKey}:gen:${i}:${JSON.stringify(g.availability)}`}
-                  disabled={busy}
-                  label={`Availability · ${g.id} · per unit`}
-                  values={g.availability}
-                  count={study.snapshots.length}
-                  maximum={1}
-                  onPending={(p) => markPending(`generator:${g.id}`, p)}
-                  onChange={(availability) =>
-                    set({
-                      generators: study.generators.map((g, j) => (i === j ? { ...g, availability } : g)),
-                    })
-                  }
-                />
-              ))}
-            </div>
-          )}
-          {tab === "results" && (
-            <div className="flex flex-col gap-3 px-2.5 py-2.5">
-              {result ? (
-                <>
-                  <div className="flex flex-wrap items-end gap-2">
-                    <Field label="Run">
-                      <select
-                        className={selectStyle}
-                        value={result.created_at}
-                        onChange={(e) => setSelected(e.target.value)}
-                      >
-                        {state.results.map((r) => (
-                          <option key={r.created_at} value={r.created_at}>
-                            {r.study.name} · {r.study.mode} · {new Date(r.created_at).toLocaleString()}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <button
-                      disabled={busy}
-                      className={btnGhostDense}
-                      onClick={() => replace(structuredClone(result.study))}
-                    >
-                      Use these inputs
-                    </button>
-                  </div>
-                  {studyKey(result.study) !== studyKey(study) && (
-                    <p role="status" className="text-meta text-accent">
-                      The draft differs from this solved study. Results retain the inputs recorded at
-                      execution.
-                    </p>
-                  )}
-                  <PlanningResults key={result.created_at} result={result} />
-                  {state.results.length > 1 && (
-                    <section>
-                      <h3 className="mb-2 text-emphasis">Scenario results</h3>
-                      <p className="mb-2 text-meta text-muted-foreground">
-                        Compare costs only for compatible currencies, horizons and demand. Each report
-                        preserves its own assumptions.
-                      </p>
-                      <ResultTable
-                        headers={["Study / mode", "Currency", "Hours", "Demand · MWh", "Cost", "CO₂ · t"]}
-                        rows={state.results.map((r) => [
-                          r.study.name + " / " + r.study.mode,
-                          r.study.currency,
-                          number(r.summary.hours),
-                          number(r.summary.demand_mwh),
-                          number(r.summary.objective),
-                          number(r.summary.co2_tonnes),
-                        ])}
-                      />
-                    </section>
-                  )}
-                </>
-              ) : (
-                <p className="text-body text-muted-foreground">
-                  Run the study to view dispatch, capacities and costs.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line/30 px-2.5 py-1.5">
-          <button
-            className={`${btnPrimary} !h-7 !text-meta`}
-            disabled={busy || pending}
-            onClick={() => {
-              setSelected("")
-              setTab("results")
-              void runPlanning()
-            }}
-          >
-            <Play className="size-3" />
-            {busy ? "Optimizing…" : "Optimize"}
-          </button>
-          {!busy && !pending && <span className="ml-auto text-meta text-muted-foreground">Local draft</span>}
-          {pending && (
-            <span role="status" className="text-meta text-accent">
-              Finish or correct the edited demand/availability profile before running.
-            </span>
-          )}
-          {busy && (
-            <>
-              <button
-                disabled={state.cancelling}
-                className={btnGhostDense}
-                onClick={() => void cancelPlanning()}
-              >
-                <StopCircle className="size-3" />
+        }
+        options={
+          <div className="flex items-center gap-2.5">
+            {busy ? (
+              <>
+                <span role="status" className="max-w-[16rem] truncate text-emphasis text-muted-foreground">
+                  {state.message || "Optimizing…"}
+                </span>
+                <progress aria-label="Planning progress" className="h-1.5 w-24 accent-[var(--accent)]" max={100} value={state.progress} />
+              </>
+            ) : (
+              latest && (
+                <span className="flex items-center gap-2 text-emphasis text-muted-foreground">
+                  <span aria-hidden className="size-1.5 rounded-full" style={{ background: current ? "rgb(var(--p-olive-light))" : "rgb(var(--p-line-strong))" }} />
+                  {current ? "The latest run matches these inputs" : "Inputs changed since the latest run"}
+                </span>
+              )
+            )}
+            <FileMenu files={files} busy={busy} pending={pending} hasResult={!!result} />
+            {busy ? (
+              <button type="button" disabled={state.cancelling} className={btnGhost} onClick={() => void cancelPlanning()}>
+                <StopCircle className="size-3.5" />
                 {state.cancelling ? "Cancelling…" : "Cancel"}
               </button>
-              <progress
-                aria-label="Planning progress"
-                className="h-2 w-24"
-                max={100}
-                value={state.progress}
-              />
-              <span role="status" className="text-meta text-muted-foreground">
-                {state.message}
-              </span>
-            </>
-          )}
-        </div>
+            ) : (
+              <button type="button" className={`${btnPrimary} !px-4`} disabled={!!blocked} title={blocked || "Solve the study with PyPSA and HiGHS"} onClick={optimize}>
+                <Play className="size-3" weight="fill" />
+                Optimize
+              </button>
+            )}
+          </div>
+        }
+      />
+      {files.input}
+      <div className="flex min-h-0 flex-1 flex-col text-foreground">
+        {(state.error || state.notice) && (
+          <div
+            role={state.error ? "alert" : "status"}
+            className={`flex shrink-0 items-start gap-3 border-b border-line/25 px-4 py-2 text-emphasis ${state.error ? "bg-destructive/15 text-destructive-quiet" : "bg-panel text-muted-foreground"}`}
+          >
+            <span className="min-w-0 flex-1">{state.error || state.notice}</span>
+            <button type="button" aria-label="Dismiss" className="grid size-5 place-items-center rounded-sm hover:bg-hover" onClick={() => planning.set((s) => ({ ...s, error: "", notice: "" }))}>
+              <X className="size-3" />
+            </button>
+          </div>
+        )}
+        {view === "build" ? (
+          <PlanningBuild study={study} set={set} onExample={files.example} onImport={files.importStudy} />
+        ) : result ? (
+          <div className="reading min-h-0 flex-1 overflow-auto" style={{ background: "var(--s-panel)" }}>
+            <div className="reading-page" style={{ maxWidth: 1180 }}>
+              <PlanningResults key={result.created_at} result={result} head={head} />
+            </div>
+          </div>
+        ) : (
+          <div className="grid flex-1 place-items-center bg-panel px-6 text-center">
+            <div className="flex max-w-[28rem] flex-col items-center gap-2">
+              <p className="text-heading text-foreground">{busy ? "Optimizing…" : "No run yet"}</p>
+              <p className="text-emphasis text-muted-foreground">
+                {busy ? state.message : blocked || "Optimize the study to read its dispatch, the capacity it adds and the cost."}
+              </p>
+              {!busy && !blocked && (
+                <button type="button" className={`${btnPrimary} mt-2 !px-4`} onClick={optimize}>
+                  <Play className="size-3" weight="fill" />
+                  Optimize
+                </button>
+              )}
+              {!busy && blocked && (
+                <button type="button" className={`${btnGhost} mt-2`} onClick={() => setView("build")}>
+                  Go to Build
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

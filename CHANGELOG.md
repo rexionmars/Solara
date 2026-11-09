@@ -54,6 +54,28 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 ## Unreleased
 
+### System planning, built and read
+
+- **The network is drawn.** Build shows the study as a single-line diagram:
+  each bus a bar, its generators above it, its loads and storage below it,
+  the lines between the bars. Clicking a component opens it in the inspector
+  beside the diagram, every field in the unit the engine reads. The diagram
+  is a drawing, not a map: positions carry no meaning. The tables stay, as
+  the Table view.
+- **Profiles are charts.** A generator's availability and a load's demand are
+  drawn as bars, edited as a column of numbers, pasted from a spreadsheet or
+  imported from a CSV. A half-typed profile holds Optimize back and says so.
+- **Faults are shown before the solve.** The draft is checked against the
+  same rules the engine applies, each fault pointed at its component on the
+  diagram and in the inspector, and Optimize waits until there are none.
+- **A run is read as a reading:** four figures (horizon cost, cost per MWh
+  served, direct CO₂, hours at a line limit) and one panel with dispatch by
+  technology hour by hour, the capacity the optimizer added against each
+  upper bound, the lines' peak loading and the storage's state of charge.
+  Each technology keeps one colour on the diagram and on the charts.
+- The study is still kept in the application's local storage, not in the
+  project file.
+
 ### The studio's look
 
 - **The colours come from the logo.** The sunflower leaf is the accent --
