@@ -18,10 +18,11 @@
   The theme takes its colours from Solara's own mark, the two leaves: the
   sunflower leaf is the accent -- what is active, chosen or pressed -- and the
   olive leaf marks the application itself and what went well. The chassis is a
-  graphite warmed towards them, and every other hue is left to data. The
-  structure is TERRA's (geosense-infer/frontend/src/index.css): the same
-  steps and roles, with the values below in place of its cool greys. Each text
-  colour's contrast is given against a panel.
+  neutral graphite, the greys of the map's own dark ground: a chassis warmed
+  towards the leaves read yellow beside the map, so the leaves stay in the
+  accent and every other hue is left to data. The structure is TERRA's
+  (geosense-infer/frontend/src/index.css): the same steps and roles, with the
+  values below. Each text colour's contrast is given against a panel.
 
   Channels live ONLY on --p-* (R G B). A component never reads a --p-* ramp
   step directly: it reads a role (--s-*), and the role reads the ramp, so one
@@ -38,27 +39,30 @@
     step above the ground it stands on and its wells one step below it, so a
     boundary is still read from the ground rather than from a hairline.
   */
-  --p-sunk: 21 21 18;
-  --p-ink: 18 18 16;
-  --p-well: 21 21 18;
-  --p-control: 36 35 31;
-  --p-surface: 28 27 24;
-  --p-head: 28 27 24;
-  --p-band: 28 27 24;
-  --p-band-tab: 24 23 20;
-  --p-surface-raised: 44 43 38;
-  --p-line: 92 90 82;
-  --p-line-strong: 150 146 136;
+  --p-sunk: 21 21 21;
+  --p-ink: 18 18 18;
+  --p-well: 21 21 21;
+  --p-control: 35 35 35;
+  --p-surface: 27 27 27;
+  --p-head: 27 27 27;
+  --p-band: 27 27 27;
+  --p-band-tab: 23 23 23;
+  --p-surface-raised: 43 43 43;
+  --p-line: 90 90 90;
+  --p-line-strong: 146 146 146;
   /* 14.3 on a panel. */
-  --p-text: 236 234 227;
+  --p-text: 234 234 234;
   /* 7.1 on a panel; used only as text. */
-  --p-muted: 169 166 156;
+  --p-muted: 166 166 166;
   /* The sunflower leaf of the mark, the one hue the chrome spends. A light fill, so its label is ink (9.8). */
   --p-accent: 235 190 52;
   /* The accent as words, 11.0 on a panel. */
   --p-accent-quiet: 240 203 90;
-  /* A row the accent has chosen, under foreground text. */
-  --p-accent-dim: 70 58 20;
+  /*
+    The row a menu or list is on, under foreground text. A lifted grey and not
+    a darkened accent: on every menu hover a dimmed sunflower read as brown.
+  */
+  --p-accent-dim: 50 50 50;
   /* The olive leaf: deep under the Studio menu's light label (5.4), light as text for what went well (8.5). */
   --p-olive: 101 134 55;
   --p-olive-deep: 79 107 42;
@@ -81,19 +85,23 @@
   --s-band: rgb(var(--p-band));
   --s-band-tab: rgb(var(--p-band-tab));
   /* A panel's two rules and its three weights of text: the reading's page and every editor read these. */
-  --s-line: #2a2925;
-  --s-line-soft: #262520;
-  --s-text: #eceae3;
-  --s-text-muted: #a9a69c;
+  --s-line: #292929;
+  --s-line-soft: #252525;
+  --s-text: #eaeaea;
+  --s-text-muted: #a6a6a6;
   /* 4.9 on a panel: faint, never below what a label needs. */
-  --s-text-faint: #8c897f;
+  --s-text-faint: #898989;
   --s-control: rgb(var(--p-control));
   --s-panel: rgb(var(--p-surface));
   --s-panel-head: rgb(var(--p-head));
   /* Overlays rather than steps, so a hover is the same gesture on every ground. */
-  --s-hover: rgb(255 250 235 / 0.06);
-  /* What is chosen wears the accent, faintly. */
-  --s-selected: rgb(var(--p-accent) / 0.14);
+  --s-hover: rgb(255 255 255 / 0.06);
+  /*
+    What is chosen is lifted, not tinted. This is also a text field's ground,
+    so the accent here wore every field and selected row in yellow; the accent
+    is kept for what is active or pressed.
+  */
+  --s-selected: rgb(255 255 255 / 0.1);
   --s-float: rgb(var(--p-surface-raised));
 
   /*
@@ -104,8 +112,8 @@
     application's sunk surface, and it redefines --s-sunk locally so a chart
     drawn inside it paints its gaps and rings in the card's colour.
   */
-  --p-void: 16 15 13;
-  --p-card: 32 31 27;
+  --p-void: 15 15 15;
+  --p-card: 31 31 31;
   --s-board: rgb(var(--p-void));
   --s-card: rgb(var(--p-card));
 
@@ -551,11 +559,11 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     radial-gradient(
       ellipse 70% 60% at 50% 45%,
-      rgb(21 21 18 / 0.5) 0%,
-      rgb(21 21 18 / 0.62) 55%,
-      rgb(21 21 18 / 0.74) 100%
+      rgb(21 21 21 / 0.5) 0%,
+      rgb(21 21 21 / 0.62) 55%,
+      rgb(21 21 21 / 0.74) 100%
     ),
-    linear-gradient(to bottom, rgb(21 21 18 / 0) 60%, rgb(21 21 18 / 0.7) 100%);
+    linear-gradient(to bottom, rgb(21 21 21 / 0) 60%, rgb(21 21 21 / 0.7) 100%);
 }
 
 /*
@@ -1019,7 +1027,7 @@ input[type="number"]::-webkit-outer-spin-button {
   height: 8px;
   min-width: 1px;
   border-radius: 2px;
-  background: #d9d6cc;
+  background: #d8d8d8;
 }
 .reading-bars .figure {
   text-align: right;

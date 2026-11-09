@@ -58,8 +58,9 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 - **The colours come from the logo.** The sunflower leaf is the accent --
   the open tab, what is chosen, the button that commits -- and the olive leaf
-  marks the Studio menu and what went well. The chassis is a graphite warmed
-  towards both. A warning is orange, so it is never read as a selection.
+  marks the Studio menu and what went well. The chassis is a neutral
+  graphite, the greys of the map's own dark ground, so nothing but the leaves
+  reads yellow. A warning is orange, so it is never read as a selection.
   The logo and its wordmark are unchanged.
 - **Panels are edged and cornered as one family**: 6 px apart, 8 px
   corners, a hairline edge, and the ribbon set as a card of the same cut, its
