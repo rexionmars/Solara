@@ -3,7 +3,8 @@
  *
  * One still for now, this application's own. The two carried over from TERRA's
  * manifest, Windfarm and Ember, were retired when Ridge arrived: a launch that
- * rotated through three showed the featured one a third of the time.
+ * rotated through three showed the featured one a third of the time. Ridge's
+ * wind turbines gave way to Array, a solar farm, on 2026-11-09.
  * WebP at 1600 px, which is what the 420x280 splash window needs.
  *
  * index.html paints a still before any bundle loads. Its list of paths is
@@ -29,17 +30,21 @@ export type SplashStill = {
 
 export const SPLASH_STILLS: SplashStill[] = [
   {
-    name: "Ridge",
-    path: "/splash/ridge.webp",
-    subject: "four turbines on a wooded ridge under a storm sky, a house among pines below",
-    source: "https://www.pexels.com/photo/15207536/",
-    photographer: "Francesco Ungaro",
+    name: "Array",
+    path: "/splash/array.webp",
+    subject: "rows of solar panels on bare ochre ground under a blue sky with low clouds, a puddle and young grass in front",
+    source: "https://www.pexels.com/photo/19205947/",
+    // The Pexels user name, as the downloaded file names it; the page itself refuses automated reads.
+    photographer: "gunas4life",
     since: "1.0.0",
   },
 ]
 
-/** The still this release is named for. Equal to RELEASE_NAME in brand.ts. */
-export const FEATURED_STILL = "Ridge"
+/**
+ * The still the start card shows. Ridge was both this and RELEASE_NAME until
+ * its photograph was replaced; the release keeps its name, which a tag carries.
+ */
+export const FEATURED_STILL = "Array"
 
 /*
   Storage keys. index.html writes the same two keys in its inline script, which

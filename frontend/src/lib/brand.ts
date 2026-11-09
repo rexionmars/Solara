@@ -8,9 +8,9 @@
 export const BRAND_TAGLINE = "Energy engine"
 
 /**
- * The name of this release, fixed for the version. It names the still the
- * release features (FEATURED_STILL in splashBackground.ts) and does not follow
- * whichever still a given launch shows.
+ * The name of this release, fixed for the version, as its tag has it. It was
+ * taken from the still the release featured; it does not follow the stills,
+ * which change on their own (FEATURED_STILL in splashBackground.ts).
  */
 export const RELEASE_NAME = "Ridge"
 
