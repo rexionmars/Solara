@@ -12,16 +12,22 @@ and result shapes, so a request moves between the two programs unchanged.
 from __future__ import annotations
 
 import json
-import sys
 
 from terra_energy_engine import protocol
 from terra_energy_engine.protocol import Request
 
 
 def _reply(result: dict) -> None:
-    # default=str: dates and Decimals come back from psycopg as themselves.
-    sys.stdout.write(json.dumps(result, default=str, allow_nan=False))
-    sys.stdout.flush()
+    """
+    Answer through the protocol, so the answer reaches a kept worker's line as
+    well as a one-shot run's stdout. Written straight to stdout, it went to
+    stderr in a served interpreter (cli.serve) and every grid read answered
+    "the action produced no result".
+
+    default=str: dates and Decimals come back from psycopg as themselves, so
+    the result is encoded once here and handed on as plain JSON types.
+    """
+    protocol.reply(json.loads(json.dumps(result, default=str, allow_nan=False)))
 
 
 def _window(req: Request, conn, dataset: str = 'pv_curtailment_detail'):

@@ -44,3 +44,32 @@ def test_the_interpreter_serves_lines_and_keeps_stdout_for_answers():
     answers = [json.loads(line) for line in done.stdout.splitlines()]
     assert [('result' in a) for a in answers] == [True, False, True]
     assert done.returncode == 0
+
+
+def test_no_action_writes_stdout_around_the_protocol():
+    """
+    A served interpreter points stdout at stderr (cli.serve), so an action that
+    writes its answer to stdout itself answers nothing there. Every grid read
+    and the wind field did, from the day reads moved to kept workers.
+    """
+    import ast
+
+    package = Path(__file__).resolve().parents[1] / 'terra_energy_engine'
+    offenders = []
+    for path in package.rglob('*.py'):
+        if path.name == 'protocol.py':
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+            if isinstance(node, ast.Attribute) and node.attr == 'stdout' and isinstance(node.value, ast.Name) and node.value.id == 'sys':
+                offenders.append(f'{path.relative_to(package)}:{node.lineno}')
+    assert offenders == [], f'answer through protocol.reply instead: {offenders}'
+
+
+def test_a_grid_read_answers_from_a_served_interpreter(monkeypatch):
+    from terra_energy_engine.grid import actions
+
+    monkeypatch.setattr(actions, 'grid_coverage', lambda req: actions._reply({'grid_coverage': {'when': __import__('datetime').date(2026, 11, 9)}}))
+    from terra_energy_engine import registry
+
+    monkeypatch.setattr(registry, 'resolve', lambda name: actions.grid_coverage)
+    assert handle('{"action": "grid_coverage"}') == {'result': {'grid_coverage': {'when': '2026-11-09'}}}

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 from terra_energy_engine import protocol
@@ -37,5 +36,5 @@ def wind_field(req: Request) -> None:
             protocol.fail(f'region must be [west, south, east, north] in degrees, got {req["region"]}')
         region = (west, south, east, north)
     field = wind.fetch(height, _cache_dir(req), region=region)
-    sys.stdout.write(json.dumps({'wind_field': field}, allow_nan=False))
-    sys.stdout.flush()
+    # Through the protocol, so a kept worker answers it too (see grid.actions._reply).
+    protocol.reply(json.loads(json.dumps({'wind_field': field}, allow_nan=False)))
