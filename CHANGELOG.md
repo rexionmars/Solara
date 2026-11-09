@@ -54,6 +54,27 @@ they are what the sources say, and a reading that ignores them is wrong.
 
 ## Unreleased
 
+### The map is the window
+
+- **The map fills the window, and the studio is gone**: its fourteen editors
+  in eleven workspaces, the ribbon above them, the area tree, the title,
+  workspace and status bars, panel dragging and the console. A capability
+  inside an editor nobody opened was one nobody knew existed.
+- **A rail on the left** goes to Explore, Sites and areas, Compare, Planning
+  and the Run graph, with Activity, Help and Feedback at its foot. The header
+  beside it holds the project and the site or area in hand as menus, and
+  Options under the logo.
+- **A column on the map's right edge** opens Products, Result and Layers,
+  then searches, places a site, takes an area from a place, measures, frames
+  and deletes. Zoom and north sit in the bottom corner.
+- **One panel at a time.** Products is what can be run on the place in hand;
+  Result reads a run wide, in the reading template; Layers holds the map's
+  layers and the choice of ground; Sites and areas holds the project's
+  places. Compare, Planning and the Run graph fill the window beside the
+  rail. A finished run opens its reading, and the map frames what the run was
+  sent to, clear of the panel.
+- Every command the studio held has a home, and the operator search names it.
+
 ### System planning, built and read
 
 - **The network is drawn.** Build shows the study as a single-line diagram:
@@ -78,32 +99,30 @@ they are what the sources say, and a reading that ignores them is wrong.
 - The study is still kept in the application's local storage, not in the
   project file.
 
-### The studio's look
+### The look
 
 - **The colours come from the logo.** The sunflower leaf is the accent --
-  the open tab, what is chosen, the button that commits -- and the olive leaf
-  marks the Studio menu and what went well. The chassis is a neutral
-  graphite, the greys of the map's own dark ground, so nothing but the leaves
-  reads yellow. A warning is orange, so it is never read as a selection.
-  The logo and its wordmark are unchanged.
-- **Panels are edged and cornered as one family**: 6 px apart, 8 px
-  corners, a hairline edge, and the ribbon set as a card of the same cut, its
-  open tab underlined rather than filled.
+  what is open, what is chosen, the button that commits -- and the olive leaf
+  marks what went well. The chassis is a neutral graphite, the greys of the
+  map's own dark ground, so nothing but the leaves reads yellow. A warning is
+  orange, so it is never read as a selection. The logo and its wordmark are
+  unchanged.
+- **The opening screen shows a solar farm**, in place of the ridge.
+- **Panels are edged and cornered as one family**: a hairline edge and the
+  same rounded corner on every panel, menu and card.
 - **One face, in sentence case.** Labels, readouts and figures are all
   Inter, figures in tabular numerals; the terminal face and tracked capitals
   are gone from the interface, kept for code in the console.
-- **A reading's cards and panels stand on their own step**, and in a narrow
-  area its four figures stay abreast as one strip, with what each is over in
-  its tooltip.
+- **A reading's cards and panels stand on their own step**, and when the
+  room is narrow its four figures stay abreast as one strip, with what each
+  is over in its tooltip.
 - **One legend, docked in the map's corner**, for every layer drawn and in
   view: a reading's ramp or classes and each GeoPackage layer, with the sizes
   of the circles where a layer is counted. It replaces the boxes anchored to
   each area, which piled up over the ground they explained.
-- **The outliner can be filtered by name**, and a GeoPackage of more than 15
-  layers lists them by the prefix of their names, each group saying how many
-  of its layers are drawn.
-- **The status bar says where the pointer is** and what the readings rely
-  on: the engine, the grid store, the network, and the layers being read.
+- **Layers and Sites and areas can be filtered by name**, and a GeoPackage
+  of more than 15 layers lists them by the prefix of their names, each group
+  saying how many of its layers are drawn.
 
 ### Faster reads
 
